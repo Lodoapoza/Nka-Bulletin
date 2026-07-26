@@ -16,8 +16,7 @@ security-crypto = "1.1.0-alpha06"
 pdfbox = "2.0.27.0"
 okhttp = "4.12.0"
 msal = "4.1.0"
-android-mail = "1.6.2"
-activation = "1.1.1"
+android-mail = "1.6.7"
 coroutines = "1.7.3"
 core-ktx = "1.12.0"
 
@@ -71,8 +70,8 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 msal = { group = "com.microsoft.identity.client", name = "msal", version.ref = "msal" }
 
 # IMAP Mail
-android-mail = { group = "com.sun.mail", name = "mail", version.ref = "android-mail" }
-android-activation = { group = "javax.activation", name = "activation", version.ref = "activation" }
+android-mail = { group = "com.sun.mail", name = "android-mail", version.ref = "android-mail" }
+android-activation = { group = "com.sun.mail", name = "android-activation", version.ref = "android-mail" }
 
 # Coroutines
 coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
