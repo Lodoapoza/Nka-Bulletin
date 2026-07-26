@@ -5,6 +5,11 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// Exclude missing transitive dependency from MSAL's com.microsoft.identity:common dependency
+configurations.all {
+    exclude(group = "com.microsoft.device.display", module = "display-mask")
+}
+
 android {
     namespace = "com.nka.bulletin"
     compileSdk = 34
@@ -67,10 +72,6 @@ android {
         }
     }
 }
-
-// Exclude missing transitive dependency from MSAL's com.microsoft.identity:common dependency
-configurations.all {
-    exclude(group = "com.microsoft.device.display", module = "display-mask")
 }
 
 dependencies {
