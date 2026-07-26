@@ -68,6 +68,11 @@ android {
     }
 }
 
+// Exclude missing transitive dependency from MSAL's com.microsoft.identity:common dependency
+configurations.all {
+    exclude(group = "com.microsoft.device.display", module = "display-mask")
+}
+
 dependencies {
     // AndroidX Core
     implementation(libs.core.ktx)
@@ -115,9 +120,7 @@ dependencies {
     implementation(libs.okhttp)
 
     // Microsoft
-    implementation(libs.msal) {
-        exclude(group = "com.microsoft.device.display", module = "display-mask")
-    }
+    implementation(libs.msal)
 
     // IMAP Mail
     implementation(libs.android.mail)
