@@ -39,7 +39,8 @@ fun NavGraph(
         composable(Routes.AUTH) {
             AuthScreen(
                 onAuthenticated = {
-                    navController.navigate(Routes.UNLOCK) {
+                    // Première configuration terminée → Dashboard directement
+                    navController.navigate(Routes.DASHBOARD) {
                         popUpTo(Routes.AUTH) { inclusive = true }
                     }
                 }
