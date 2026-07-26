@@ -27,8 +27,8 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Gradle
-        run: sudo apt-get update && sudo apt-get install -y gradle
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
 
       - name: Build APK
         run: gradle :app:assemble${{ inputs.build_type == 'release' && 'Release' || 'Debug' }}
