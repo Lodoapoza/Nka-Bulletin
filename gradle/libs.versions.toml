@@ -14,9 +14,7 @@ activity-compose = "1.8.2"
 biometric = "1.2.0-alpha05"
 security-crypto = "1.1.0-alpha06"
 pdfbox = "2.0.27.0"
-google-api-client = "2.2.0"
-google-gmail = "v1-rev20231219-2.0.0"
-google-auth = "1.21.0"
+okhttp = "4.12.0"
 msal = "4.1.0"
 android-mail = "1.6.2"
 activation = "1.1.1"
@@ -66,10 +64,8 @@ security-crypto = { group = "androidx.security", name = "security-crypto", versi
 # PDF
 pdfbox = { group = "com.tom-roush", name = "pdfbox-android", version.ref = "pdfbox" }
 
-# Google APIs
-google-api-client = { group = "com.google.api-client", name = "google-api-client-android", version.ref = "google-api-client" }
-google-gmail = { group = "com.google.apis", name = "google-api-services-gmail", version.ref = "google-gmail" }
-google-auth = { group = "com.google.auth", name = "google-auth-library-oauth2-http", version.ref = "google-auth" }
+# Network / OkHttp
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 
 # Microsoft
 msal = { group = "com.microsoft.identity.client", name = "msal", version.ref = "msal" }

@@ -111,10 +111,8 @@ dependencies {
     // PDF
     implementation(libs.pdfbox)
 
-    // Google APIs
-    implementation(libs.google.api.client)
-    implementation(libs.google.gmail)
-    implementation(libs.google.auth)
+    // Network / OkHttp
+    implementation(libs.okhttp)
 
     // Microsoft
     implementation(libs.msal)

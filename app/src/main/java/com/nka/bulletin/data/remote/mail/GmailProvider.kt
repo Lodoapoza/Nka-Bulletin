@@ -1,31 +1,23 @@
 package com.nka.bulletin.data.remote.mail
 
 import android.content.Context
-import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
-import com.google.api.client.http.javanet.NetHttpTransport
-import com.google.api.client.json.gson.GsonFactory
-import com.google.api.services.gmail.Gmail
-import com.google.api.services.gmail.GmailScopes
-import com.google.api.services.gmail.model.ListMessagesResponse
-import com.google.api.services.gmail.model.Message
 import com.nka.bulletin.data.remote.auth.GoogleAuthManager
 import com.nka.bulletin.domain.model.MailConfig
 import com.nka.bulletin.domain.model.MailMessage
 import dagger.hilt.android.qualifiers.ApplicationContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Implémentation Gmail via Google API Client Library.
- *
- * Filtres API :
- * - q="subject:paie has:attachment filename:pdf"
- * - Ne récupère QUE les métadonnées (pas le corps)
- *
- * Zero Trust : si une pièce jointe ne correspond pas aux critères,
- * elle est traitée en RAM puis effacée.
+ * Implémentation Gmail via REST API directe (OkHttp).
+ * Évite les problèmes de dépendances Google API Client sur Maven Central.
  */
 @Singleton
 class GmailProvider @Inject constructor(
@@ -33,21 +25,13 @@ class GmailProvider @Inject constructor(
     private val googleAuthManager: GoogleAuthManager
 ) : MailProvider {
 
-    private fun getGmailService(config: MailConfig): Gmail {
-        val credential = GoogleAccountCredential.usingOAuth2(
-            context,
-            listOf(GmailScopes.GMAIL_READONLY)
-        ).apply {
-            selectedAccountName = config.email
-        }
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
 
-        return Gmail.Builder(
-            NetHttpTransport(),
-            GsonFactory.getDefaultInstance(),
-            credential
-        )
-            .setApplicationName("Nka Bulletin")
-            .build()
+    companion object {
+        private const val GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
     }
 
     override suspend fun checkForMessages(
@@ -56,10 +40,8 @@ class GmailProvider @Inject constructor(
         filterSubject: String,
         requireAttachment: Boolean
     ): Result<List<MailMessage>> = runCatching {
-        val service = getGmailService(config)
-        val userId = "me"
+        val token = config.token ?: throw IllegalStateException("Token Gmail manquant")
 
-        // Requête ciblée — pas de récupération complète de la boîte
         val query = buildString {
             append("subject:$filterSubject has:attachment")
             if (sinceTimestamp > 0) {
@@ -68,49 +50,74 @@ class GmailProvider @Inject constructor(
             append(" filename:pdf")
         }
 
-        val messagesResponse: ListMessagesResponse = service.users().messages()
-            .list(userId)
-            .setQ(query)
-            .setMaxResults(20L) // Limiter le nombre de résultats
-            .execute()
+        val url = "$GMAIL_API_BASE/messages?q=${java.net.URLEncoder.encode(query, "UTF-8")}&maxResults=20"
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", "Bearer $token")
+            .build()
 
-        val messages = messagesResponse.messages ?: return@runCatching emptyList()
+        val response = client.newCall(request).execute()
+        val body = JSONObject(response.body?.string() ?: "{}")
+        val messages = body.optJSONArray("messages") ?: JSONArray()
 
-        messages.mapNotNull { msg ->
-            val fullMessage: Message = service.users().messages()
-                .get(userId, msg.id)
-                .setFormat("metadata") // Métadonnées uniquement, pas le corps
-                .setMetadataHeaders(listOf("From", "Subject", "Date"))
-                .execute()
+        val mailMessages = mutableListOf<MailMessage>()
 
-            val headers = fullMessage.payload?.headers ?: return@mapNotNull null
-            val subject = headers.find { it.name == "Subject" }?.value ?: ""
-            val from = headers.find { it.name == "From" }?.value ?: ""
-            val internalDate = fullMessage.internalDate ?: 0L
+        for (i in 0 until messages.length()) {
+            val msgRef = messages.getJSONObject(i)
+            val msgId = msgRef.getString("id")
 
-            // Vérifier si le message a des pièces jointes
-            val hasAttachment = fullMessage.payload?.parts?.any { part ->
-                part.filename?.isNotBlank() == true && part.filename?.lowercase()?.endsWith(".pdf") == true
-            } ?: false
+            val detailUrl = "$GMAIL_API_BASE/messages/$msgId?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date"
+            val detailReq = Request.Builder()
+                .url(detailUrl)
+                .header("Authorization", "Bearer $token")
+                .build()
 
-            // Trouver le nom de la pièce jointe PDF
-            val attachmentName = fullMessage.payload?.parts
-                ?.find { part ->
-                    part.filename?.lowercase()?.endsWith(".pdf") == true
+            val detailResp = client.newCall(detailReq).execute()
+            val detailBody = JSONObject(detailResp.body?.string() ?: "{}")
+            val payload = detailBody.optJSONObject("payload")
+            val headers = payload?.optJSONArray("headers") ?: JSONArray()
+
+            var subject = ""
+            var sender = ""
+            for (h in 0 until headers.length()) {
+                val header = headers.getJSONObject(h)
+                if (header.optString("name") == "Subject") subject = header.optString("value")
+                if (header.optString("name") == "From") sender = header.optString("value")
+            }
+
+            val internalDate = detailBody.optLong("internalDate", 0L)
+
+            var hasAttachment = false
+            var attachmentName: String? = null
+
+            val parts = payload?.optJSONArray("parts")
+            if (parts != null) {
+                for (p in 0 until parts.length()) {
+                    val part = parts.getJSONObject(p)
+                    val filename = part.optString("filename", "")
+                    if (filename.lowercase().endsWith(".pdf")) {
+                        hasAttachment = true
+                        attachmentName = filename
+                        break
+                    }
                 }
-                ?.filename
+            }
 
-            if (!hasAttachment && requireAttachment) return@mapNotNull null
+            if (!hasAttachment && requireAttachment) continue
 
-            MailMessage(
-                id = msg.id,
-                subject = subject,
-                sender = from,
-                receivedDate = internalDate,
-                hasAttachment = hasAttachment,
-                attachmentName = attachmentName
+            mailMessages.add(
+                MailMessage(
+                    id = msgId,
+                    subject = subject,
+                    sender = sender,
+                    receivedDate = internalDate,
+                    hasAttachment = hasAttachment,
+                    attachmentName = attachmentName
+                )
             )
         }
+
+        mailMessages
     }
 
     override suspend fun downloadAttachment(
@@ -118,38 +125,45 @@ class GmailProvider @Inject constructor(
         messageId: String,
         savePath: String
     ): Result<String> = runCatching {
-        val service = getGmailService(config)
-        val userId = "me"
+        val token = config.token ?: throw IllegalStateException("Token Gmail manquant")
 
-        // Récupérer le message complet pour trouver l'ID de la pièce jointe
-        val message = service.users().messages()
-            .get(userId, messageId)
-            .setFormat("full")
-            .execute()
+        val url = "$GMAIL_API_BASE/messages/$messageId?format=full"
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", "Bearer $token")
+            .build()
 
-        // Trouver la pièce jointe PDF
-        val attachmentPart = message.payload?.parts?.firstOrNull { part ->
-            part.filename?.lowercase()?.endsWith(".pdf") == true
-        } ?: throw IllegalStateException("Aucune pièce jointe PDF trouvée")
+        val response = client.newCall(request).execute()
+        val body = JSONObject(response.body?.string() ?: "{}")
+        val payload = body.optJSONObject("payload")
+        val parts = payload?.optJSONArray("parts") ?: JSONArray()
 
-        val attachmentId = attachmentPart.body?.attachmentId
-            ?: throw IllegalStateException("ID de pièce jointe introuvable")
-
-        // Télécharger UNIQUEMENT la pièce jointe (pas le corps du message)
-        val attachment = service.users().messages().attachments()
-            .get(userId, messageId, attachmentId)
-            .execute()
-
-        val fileData = attachment.data ?: attachment.base64Data
-            ?: throw IllegalStateException("Données de pièce jointe vides")
-
-        // Décoder et sauvegarder
-        val decodedBytes = if (fileData == attachment.data) {
-            java.util.Base64.getUrlDecoder().decode(attachment.data)
-        } else {
-            java.util.Base64.getUrlDecoder().decode(attachment.base64Data)
+        var attachmentId: String? = null
+        for (i in 0 until parts.length()) {
+            val part = parts.getJSONObject(i)
+            val filename = part.optString("filename", "")
+            if (filename.lowercase().endsWith(".pdf")) {
+                val bodyObj = part.optJSONObject("body")
+                attachmentId = bodyObj?.optString("attachmentId")
+                break
+            }
         }
 
+        if (attachmentId == null) {
+            throw IllegalStateException("Aucune pièce jointe PDF trouvée")
+        }
+
+        val attUrl = "$GMAIL_API_BASE/messages/$messageId/attachments/$attachmentId"
+        val attReq = Request.Builder()
+            .url(attUrl)
+            .header("Authorization", "Bearer $token")
+            .build()
+
+        val attResp = client.newCall(attReq).execute()
+        val attBody = JSONObject(attResp.body?.string() ?: "{}")
+        val data = attBody.optString("data")
+
+        val decodedBytes = java.util.Base64.getUrlDecoder().decode(data)
         FileOutputStream(File(savePath)).use { output ->
             output.write(decodedBytes)
         }
