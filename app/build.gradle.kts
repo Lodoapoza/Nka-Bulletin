@@ -62,6 +62,8 @@ android {
             excludes += "/META-INF/LICENSE.txt"
             excludes += "/META-INF/NOTICE"
             excludes += "/META-INF/NOTICE.txt"
+            merges += "META-INF/mailcap"
+            merges += "META-INF/javamail.default.address.map"
         }
     }
 }

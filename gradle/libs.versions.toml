@@ -18,7 +18,8 @@ google-api-client = "2.2.0"
 google-gmail = "v1-rev20231219-2.0.0"
 google-auth = "1.21.0"
 msal = "4.1.0"
-android-mail = "1.6.7"
+android-mail = "1.6.2"
+activation = "1.1.1"
 coroutines = "1.7.3"
 core-ktx = "1.12.0"
 
@@ -74,8 +75,8 @@ google-auth = { group = "com.google.auth", name = "google-auth-library-oauth2-ht
 msal = { group = "com.microsoft.identity.client", name = "msal", version.ref = "msal" }
 
 # IMAP Mail
-android-mail = { group = "com.sun.mail", name = "android-mail", version.ref = "android-mail" }
-android-activation = { group = "com.sun.mail", name = "android-activation", version.ref = "android-mail" }
+android-mail = { group = "com.sun.mail", name = "mail", version.ref = "android-mail" }
+android-activation = { group = "javax.activation", name = "activation", version.ref = "activation" }
 
 # Coroutines
 coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
