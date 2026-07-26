@@ -13,7 +13,6 @@ import com.nka.bulletin.data.local.db.entity.BulletinEntity
     version = 1,
     exportSchema = false
 )
-@TypeConverters
 abstract class NkaDatabase : RoomDatabase() {
 
     abstract fun bulletinDao(): BulletinDao
