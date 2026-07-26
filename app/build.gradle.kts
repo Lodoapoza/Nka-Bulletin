@@ -115,7 +115,9 @@ dependencies {
     implementation(libs.okhttp)
 
     // Microsoft
-    implementation(libs.msal)
+    implementation(libs.msal) {
+        exclude(group = "com.microsoft.device.display", module = "display-mask")
+    }
 
     // IMAP Mail
     implementation(libs.android.mail)
