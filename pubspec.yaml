@@ -24,8 +24,6 @@ dependencies:
   pdf: ^3.11.0
   open_file: ^3.5.0
   permission_handler: ^11.3.0
-  flutter_local_notifications: ^16.3.0
-  connectivity_plus: ^5.0.2
   url_launcher: ^6.3.0
 
   cupertino_icons: ^1.0.8
