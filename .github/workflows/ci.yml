@@ -15,23 +15,24 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
 
       - name: Test Backend
         working-directory: backend
         run: |
           npm ci
           node src/index.js &
+          SERVER_PID=$!
           sleep 3
           curl -f http://localhost:3000/api/health
           curl -f http://localhost:3000/api/auth/password/status
           curl -f http://localhost:3000/api/settings
           curl -f http://localhost:3000/api/stats/dashboard
+          kill $SERVER_PID
 
       - name: Validate Frontend
         working-directory: app
         run: |
-          # Check required files exist
           test -f index.html
           test -f manifest.json
           test -f sw.js
@@ -47,7 +48,6 @@ jobs:
       - name: Check No Mock Data in API
         working-directory: app
         run: |
-          # Ensure no mock data references in api.js
           ! grep -q "MOCK\|mock" js/api.js
           echo "No mock data in api.js"
 
