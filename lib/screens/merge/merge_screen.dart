@@ -13,7 +13,7 @@ class MergeScreen extends StatefulWidget {
 
 class _MergeScreenState extends State<MergeScreen> {
   final Set<int> _selectedIds = {};
-  bool _isMerging = false;
+  bool _selectAll = false;
 
   @override
   Widget build(BuildContext context) {
@@ -23,79 +23,135 @@ class _MergeScreenState extends State<MergeScreen> {
       appBar: AppBar(
         title: const Text('Fusionner les bulletins'),
         actions: [
-          if (_selectedIds.isNotEmpty)
-            TextButton.icon(
-              onPressed: _selectedIds.length < 2
-                  ? null
-                  : () => _mergeBulletins(context),
-              icon: const Icon(Icons.merge_type),
-              label: Text('Fusionner (${_selectedIds.length})'),
-              style: TextButton.styleFrom(foregroundColor: Colors.white),
+          if (bulletin.bulletins.isNotEmpty)
+            TextButton(
+              onPressed: _toggleSelectAll,
+              child: Text(
+                _selectAll ? 'Tout deselectionner' : 'Tout selectionner',
+              ),
             ),
         ],
       ),
-      body: _isMerging
-          ? const Center(
+      body: bulletin.bulletins.isEmpty
+          ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Fusion en cours...'),
+                  Icon(Icons.merge_type,
+                      size: 64, color: Theme.of(context).colorScheme.outline),
+                  const SizedBox(height: 16),
+                  Text('Aucun bulletin a fusionner',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Text('Telechargez d\'abord des bulletins depuis l\'accueil',
+                      style: Theme.of(context).textTheme.bodyMedium),
                 ],
               ),
             )
-          : bulletin.bulletins.isEmpty
-              ? const Center(child: Text('Aucun bulletin a fusionner'))
-              : ListView.builder(
-                  itemCount: bulletin.bulletins.length,
-                  itemBuilder: (context, index) {
-                    final b = bulletin.bulletins[index];
-                    final selected = _selectedIds.contains(b.id);
-                    return CheckboxListTile(
-                      value: selected,
-                      onChanged: (val) {
-                        setState(() {
-                          if (val == true) {
-                            _selectedIds.add(b.id!);
-                          } else {
-                            _selectedIds.remove(b.id);
-                          }
-                        });
-                      },
-                      secondary: const Icon(Icons.picture_as_pdf, color: Colors.red),
-                      title: Text(b.studentName),
-                      subtitle: Text('${b.schoolName} - ${b.sourceEmail}'),
-                      activeColor: Theme.of(context).colorScheme.primary,
-                    );
-                  },
+          : Column(
+              children: [
+                if (_selectedIds.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    child: Row(
+                      children: [
+                        Text('${_selectedIds.length} selectionne(s)'),
+                        const Spacer(),
+                        FilledButton.icon(
+                          onPressed: _selectedIds.length < 2
+                              ? null
+                              : () => _doMerge(context),
+                          icon: const Icon(Icons.merge_type),
+                          label: const Text('Fusionner'),
+                        ),
+                      ],
+                    ),
+                  ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: bulletin.bulletins.length,
+                    itemBuilder: (context, index) {
+                      final b = bulletin.bulletins[index];
+                      final selected = _selectedIds.contains(b.id);
+                      return CheckboxListTile(
+                        value: selected,
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true) {
+                              _selectedIds.add(b.id!);
+                            } else {
+                              _selectedIds.remove(b.id);
+                            }
+                            _selectAll =
+                                _selectedIds.length == bulletin.bulletins.length;
+                          });
+                        },
+                        secondary: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.red.withAlpha(20),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Icon(Icons.picture_as_pdf,
+                              color: Colors.red, size: 20),
+                        ),
+                        title: Text(b.studentName),
+                        subtitle: Text('${b.schoolName} - ${b.sourceEmail}'),
+                        activeColor: Theme.of(context).colorScheme.primary,
+                      );
+                    },
+                  ),
                 ),
+              ],
+            ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: 2,
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home), label: 'Accueil'),
           NavigationDestination(icon: Icon(Icons.folder), label: 'Explorer'),
           NavigationDestination(icon: Icon(Icons.merge), label: 'Fusionner'),
+          NavigationDestination(icon: Icon(Icons.settings), label: 'Config'),
         ],
         onDestinationSelected: (index) {
           if (index == 0) context.go('/dashboard');
           if (index == 1) context.go('/explorer');
+          if (index == 3) context.go('/settings');
         },
       ),
     );
   }
 
-  void _mergeBulletins(BuildContext context) {
-    setState(() => _isMerging = true);
-    // Simulate merge operation
-    Future.delayed(const Duration(seconds: 2), () {
-      setState(() {
-        _isMerging = false;
+  void _toggleSelectAll() {
+    final bulletin = context.read<BulletinProvider>();
+    setState(() {
+      if (_selectAll) {
         _selectedIds.clear();
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bulletins fusionnes avec succes!')),
-      );
+        _selectAll = false;
+      } else {
+        _selectedIds.clear();
+        for (final b in bulletin.bulletins) {
+          _selectedIds.add(b.id!);
+        }
+        _selectAll = true;
+      }
     });
+  }
+
+  void _doMerge(BuildContext context) {
+    final provider = context.read<BulletinProvider>();
+    provider.mergeBulletins(_selectedIds.toList());
+    setState(() => _selectedIds.clear());
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(provider.errorMessage ?? 'Fusion terminee'),
+        backgroundColor: provider.errorMessage != null &&
+                !provider.errorMessage!.contains('fusionnes')
+            ? Theme.of(context).colorScheme.error
+            : Colors.green,
+      ),
+    );
   }
 }

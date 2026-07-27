@@ -6,7 +6,14 @@ import '../services/storage/secure_storage_service.dart';
 import '../services/storage/database_service.dart';
 import '../models/mail_config.dart';
 
-enum AuthStep { unauthenticated, choosingProvider, signingIn, settingPin, needsUnlock, authenticated }
+enum AuthStep {
+  unauthenticated,
+  choosingProvider,
+  signingIn,
+  settingPin,
+  needsUnlock,
+  authenticated
+}
 
 class AuthProvider extends ChangeNotifier {
   final GoogleAuthService _googleAuth = GoogleAuthService();
@@ -36,28 +43,42 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> _checkExistingAuth() async {
-    final hasPin = await _storage.hasPin();
-    if (!hasPin) {
+    try {
+      final hasPin = await _storage.hasPin();
+      final configs = await _db.getMailConfigs();
+      _mailConfigs = configs;
+
+      if (configs.isNotEmpty) {
+        _currentUserEmail = configs.first.email;
+        _currentUserDisplayName = configs.first.displayName;
+      }
+
+      if (!hasPin) {
+        // Si on a des configs mail mais pas de PIN, l'utilisateur etait
+        // en train de s'inscrire (OAuth reussi mais PIN non defini)
+        if (configs.isNotEmpty) {
+          _authStep = AuthStep.settingPin;
+        } else {
+          _authStep = AuthStep.unauthenticated;
+        }
+      } else {
+        _isBiometricEnabled = await _storage.getBiometricEnabled();
+        _authStep = AuthStep.needsUnlock;
+      }
+      notifyListeners();
+    } catch (e) {
       _authStep = AuthStep.unauthenticated;
       notifyListeners();
-      return;
     }
-    _isBiometricEnabled = await _storage.getBiometricEnabled();
-    if (_isBiometricEnabled) {
-      _authStep = AuthStep.needsUnlock;
-    } else {
-      _authStep = AuthStep.needsUnlock;
-    }
-    _mailConfigs = await _db.getMailConfigs();
-    if (_mailConfigs.isNotEmpty) {
-      _currentUserEmail = _mailConfigs.first.email;
-      _currentUserDisplayName = _mailConfigs.first.displayName;
-    }
-    notifyListeners();
   }
 
   void goToProviderChoice() {
     _authStep = AuthStep.choosingProvider;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  void clearError() {
     _errorMessage = null;
     notifyListeners();
   }
@@ -93,7 +114,7 @@ class AuthProvider extends ChangeNotifier {
       _errorMessage = 'Connexion Google annulee';
       return false;
     } catch (e) {
-      _errorMessage = 'Erreur Google: ${e.toString()}';
+      _errorMessage = 'Erreur Google: ${_friendlyError(e.toString())}';
       return false;
     } finally {
       _isLoading = false;
@@ -133,7 +154,7 @@ class AuthProvider extends ChangeNotifier {
       _errorMessage = 'Connexion Microsoft annulee';
       return false;
     } catch (e) {
-      _errorMessage = 'Erreur Microsoft: ${e.toString()}';
+      _errorMessage = 'Erreur Microsoft: ${_friendlyError(e.toString())}';
       return false;
     } finally {
       _isLoading = false;
@@ -147,6 +168,12 @@ class AuthProvider extends ChangeNotifier {
     required String login,
     required String password,
   }) async {
+    if (host.isEmpty || login.isEmpty || password.isEmpty) {
+      _errorMessage = 'Remplissez tous les champs IMAP';
+      notifyListeners();
+      return false;
+    }
+
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -194,6 +221,7 @@ class AuthProvider extends ChangeNotifier {
     final savedPin = await _storage.getPin();
     if (pin == savedPin) {
       _authStep = AuthStep.authenticated;
+      _errorMessage = null;
       notifyListeners();
       return true;
     }
@@ -206,13 +234,14 @@ class AuthProvider extends ChangeNotifier {
     try {
       final canAuth = await _biometricService.canAuthenticate();
       if (!canAuth) {
-        _errorMessage = 'Biometrie non disponible';
+        _errorMessage = 'Biometrie non disponible sur cet appareil';
         notifyListeners();
         return false;
       }
       final authenticated = await _biometricService.authenticate();
       if (authenticated) {
         _authStep = AuthStep.authenticated;
+        _errorMessage = null;
         notifyListeners();
         return true;
       }
@@ -244,6 +273,14 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> setBiometricEnabled(bool enabled) async {
+    if (enabled) {
+      final canAuth = await _biometricService.canAuthenticate();
+      if (!canAuth) {
+        _errorMessage = 'Biometrie non disponible sur cet appareil';
+        notifyListeners();
+        return;
+      }
+    }
     await _storage.setBiometricEnabled(enabled);
     _isBiometricEnabled = enabled;
     notifyListeners();
@@ -273,10 +310,25 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  String _friendlyError(String error) {
+    if (error.contains('non configure')) return error;
+    if (error.contains('PlatformException')) {
+      return 'Erreur de plateforme. Verifiez la configuration OAuth.';
+    }
+    if (error.contains('Network')) {
+      return 'Erreur reseau. Verifiez votre connexion internet.';
+    }
+    if (error.length > 100) {
+      return '${error.substring(0, 100)}...';
+    }
+    return error;
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is AuthProvider && authStep == other.authStep;
+      other is AuthProvider &&
+          authStep == other.authStep;
 
   @override
   int get hashCode => authStep.hashCode;

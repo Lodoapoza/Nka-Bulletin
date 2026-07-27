@@ -33,18 +33,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Configuration'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/dashboard'),
-        ),
       ),
       body: ListView(
         children: [
           // User info
           _buildSectionHeader('Compte'),
           ListTile(
-            leading: const Icon(Icons.person),
-            title: Text(auth.currentUserDisplayName ?? 'Non defini'),
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withAlpha(30),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(Icons.person,
+                  color: Theme.of(context).colorScheme.primary),
+            ),
+            title: Text(
+                auth.currentUserDisplayName ?? 'Non defini'),
             subtitle: Text(auth.currentUserEmail ?? ''),
           ),
 
@@ -54,7 +60,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: const Icon(Icons.lock),
             title: const Text('Changer le code PIN'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => setState(() => _showChangePin = !_showChangePin),
+            onTap: () =>
+                setState(() => _showChangePin = !_showChangePin),
           ),
           if (_showChangePin) _buildChangePinForm(auth),
 
@@ -62,30 +69,77 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SwitchListTile(
             secondary: const Icon(Icons.fingerprint),
             title: const Text('Empreinte digitale'),
-            subtitle: const Text('Utiliser la biometrie pour debloquer'),
+            subtitle: const Text(
+                'Utiliser la biometrie pour debloquer'),
             value: auth.isBiometricEnabled,
             onChanged: (val) => auth.setBiometricEnabled(val),
           ),
 
           // Mail accounts
           _buildSectionHeader('Comptes de messagerie'),
+          if (auth.mailConfigs.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Aucun compte configure',
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.outline),
+              ),
+            ),
           ...auth.mailConfigs.map((config) => ListTile(
-                leading: Icon(
-                  config.providerType == MailProviderType.google
-                      ? Icons.g_mobiledata_rounded
-                      : config.providerType == MailProviderType.microsoft
-                          ? Icons.microsoft_rounded
-                          : Icons.email,
+                leading: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: config.providerType == MailProviderType.google
+                        ? const Color(0xFF4285F4).withAlpha(20)
+                        : config.providerType ==
+                                MailProviderType.microsoft
+                            ? const Color(0xFF00A4EF).withAlpha(20)
+                            : Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withAlpha(20),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    config.providerType == MailProviderType.google
+                        ? Icons.g_mobiledata_rounded
+                        : config.providerType ==
+                                MailProviderType.microsoft
+                            ? Icons.microsoft_rounded
+                            : Icons.email,
+                    color: config.providerType ==
+                            MailProviderType.google
+                        ? const Color(0xFF4285F4)
+                        : config.providerType ==
+                                MailProviderType.microsoft
+                            ? const Color(0xFF00A4EF)
+                            : Theme.of(context).colorScheme.primary,
+                    size: 20,
+                  ),
                 ),
                 title: Text(config.email),
-                subtitle: Text(config.providerType.name.toUpperCase()),
+                subtitle: Text(
+                    config.providerType.name.toUpperCase()),
                 trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  onPressed: () => _confirmDeleteAccount(context, auth, config.id!),
+                  icon: const Icon(Icons.delete_outline,
+                      color: Colors.red),
+                  onPressed: () => _confirmDeleteAccount(
+                      context, auth, config.id!),
                 ),
               )),
           ListTile(
-            leading: const Icon(Icons.add),
+            leading: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Colors.green.withAlpha(20),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.add,
+                  color: Colors.green, size: 20),
+            ),
             title: const Text('Ajouter un compte'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => auth.signOut(),
@@ -96,16 +150,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SwitchListTile(
             secondary: const Icon(Icons.notifications),
             title: const Text('Notifications'),
-            subtitle: const Text('Recevoir des alertes pour les nouveaux bulletins'),
+            subtitle: const Text(
+                'Recevoir des alertes pour les nouveaux bulletins'),
             value: settings.notificationsEnabled,
             onChanged: (val) => settings.setNotifications(val),
           ),
           ListTile(
             leading: const Icon(Icons.schedule),
             title: const Text('Frequence de verification'),
-            subtitle: Text('${settings.checkFrequencyMinutes} minutes'),
+            subtitle: Text(
+                '${settings.checkFrequencyMinutes} minutes'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => _showFrequencyDialog(context, settings),
+            onTap: () =>
+                _showFrequencyDialog(context, settings),
           ),
 
           // Appearance
@@ -123,12 +180,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: const Icon(Icons.delete_forever, color: Colors.red),
             title: const Text('Reinitialiser tout',
                 style: TextStyle(color: Colors.red)),
-            subtitle: const Text('Supprimer toutes les donnees et reinitialiser'),
-            onTap: () => _confirmReset(context, auth, settings),
+            subtitle: const Text(
+                'Supprimer toutes les donnees et reinitialiser'),
+            onTap: () =>
+                _confirmReset(context, auth, settings),
           ),
 
           const SizedBox(height: 32),
         ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: 3,
+        destinations: const [
+          NavigationDestination(
+              icon: Icon(Icons.home), label: 'Accueil'),
+          NavigationDestination(
+              icon: Icon(Icons.folder), label: 'Explorer'),
+          NavigationDestination(
+              icon: Icon(Icons.merge), label: 'Fusionner'),
+          NavigationDestination(
+              icon: Icon(Icons.settings), label: 'Config'),
+        ],
+        onDestinationSelected: (index) {
+          if (index == 0) context.go('/dashboard');
+          if (index == 1) context.go('/explorer');
+          if (index == 2) context.go('/merge');
+        },
       ),
     );
   }
@@ -160,6 +237,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Ancien PIN',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
                 ),
                 obscureText: true,
                 keyboardType: TextInputType.number,
@@ -170,6 +248,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Nouveau PIN',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock_open),
                 ),
                 obscureText: true,
                 keyboardType: TextInputType.number,
@@ -180,6 +259,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Confirmer le nouveau PIN',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
                 ),
                 obscureText: true,
                 keyboardType: TextInputType.number,
@@ -188,16 +268,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(auth.errorMessage!,
-                      style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                      style: TextStyle(
+                          color:
+                              Theme.of(context).colorScheme.error)),
                 ),
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
-                    if (_newPinController.text != _confirmPinController.text) {
+                    if (_newPinController.text !=
+                        _confirmPinController.text) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Les PINs ne correspondent pas')),
+                        const SnackBar(
+                            content:
+                                Text('Les PINs ne correspondent pas')),
                       );
                       return;
                     }
@@ -209,7 +294,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     if (auth.errorMessage == null) {
                       setState(() => _showChangePin = false);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('PIN modifie avec succes')),
+                        const SnackBar(
+                            content: Text('PIN modifie avec succes')),
                       );
                     }
                   },
@@ -223,14 +309,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showFrequencyDialog(BuildContext context, SettingsProvider settings) {
+  void _showFrequencyDialog(
+      BuildContext context, SettingsProvider settings) {
     showDialog(
       context: context,
       builder: (ctx) => SimpleDialog(
         title: const Text('Frequence de verification'),
         children: [15, 30, 60, 120, 240].map((minutes) {
           return RadioListTile<int>(
-            title: Text(minutes < 60 ? '$minutes minutes' : '${minutes ~/ 60} heure(s)'),
+            title: Text(minutes < 60
+                ? '$minutes minutes'
+                : '${minutes ~/ 60} heure(s)'),
             value: minutes,
             groupValue: settings.checkFrequencyMinutes,
             onChanged: (val) {
@@ -243,41 +332,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _confirmDeleteAccount(BuildContext context, AuthProvider auth, int configId) {
+  void _confirmDeleteAccount(
+      BuildContext context, AuthProvider auth, int configId) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Supprimer ce compte ?'),
         content: const Text('Cette action est irreversible.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Annuler')),
           TextButton(
             onPressed: () {
               auth.removeMailConfig(configId);
               Navigator.pop(ctx);
             },
-            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+            child: const Text('Supprimer',
+                style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
   }
 
-  void _confirmReset(BuildContext context, AuthProvider auth, SettingsProvider settings) {
+  void _confirmReset(
+      BuildContext context, AuthProvider auth, SettingsProvider settings) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Reinitialiser ?'),
         content: const Text('Toutes vos donnees seront supprimees.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Annuler')),
           TextButton(
             onPressed: () {
               auth.signOut();
               settings.resetAllSettings();
               Navigator.pop(ctx);
             },
-            child: const Text('Reinitialiser', style: TextStyle(color: Colors.red)),
+            child: const Text('Reinitialiser',
+                style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

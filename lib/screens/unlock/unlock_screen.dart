@@ -11,17 +11,34 @@ class UnlockScreen extends StatefulWidget {
 
 class _UnlockScreenState extends State<UnlockScreen> {
   String _enteredPin = '';
+  bool _biometricTried = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-trigger biometric after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _tryAutoBiometric();
+    });
+  }
+
+  Future<void> _tryAutoBiometric() async {
+    if (_biometricTried) return;
+    final auth = context.read<AuthProvider>();
+    if (!auth.isBiometricEnabled) return;
+    _biometricTried = true;
+    await auth.unlockWithBiometrics();
+  }
 
   void _addDigit(String digit) {
-    if (_enteredPin.length < 6) {
+    if (_enteredPin.length < 4) {
       setState(() => _enteredPin += digit);
-      if (_enteredPin.length == 4 || _enteredPin.length == 6) {
+      if (_enteredPin.length == 4) {
         final auth = context.read<AuthProvider>();
         Future.delayed(const Duration(milliseconds: 100), () {
+          if (!mounted) return;
           auth.unlockWithPin(_enteredPin);
-          if (auth.authStep == AuthStep.authenticated) {
-            // Navigation handled by GoRouter
-          } else {
+          if (auth.authStep != AuthStep.authenticated) {
             setState(() => _enteredPin = '');
           }
         });
@@ -31,7 +48,8 @@ class _UnlockScreenState extends State<UnlockScreen> {
 
   void _deleteDigit() {
     if (_enteredPin.isNotEmpty) {
-      setState(() => _enteredPin = _enteredPin.substring(0, _enteredPin.length - 1));
+      setState(
+          () => _enteredPin = _enteredPin.substring(0, _enteredPin.length - 1));
     }
   }
 
@@ -43,65 +61,80 @@ class _UnlockScreenState extends State<UnlockScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 40),
+            const SizedBox(height: 60),
+            // Logo
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Icon(Icons.mail_lock_rounded,
+                  size: 40, color: Colors.white),
+            ),
+            const SizedBox(height: 16),
             Text(
               'Nka Bulletin',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
               auth.currentUserDisplayName ?? auth.currentUserEmail ?? '',
-              style: Theme.of(context).textTheme.bodyMedium,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
             ),
-            const Spacer(flex: 1),
-            // Biometric button ABOVE the keypad
-            if (auth.isBiometricEnabled)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 24),
-                child: IconButton(
-                  onPressed: () => auth.unlockWithBiometrics(),
-                  icon: Icon(
-                    Icons.fingerprint,
-                    size: 48,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  style: IconButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    padding: const EdgeInsets.all(16),
-                  ),
-                  tooltip: 'Empreinte digitale',
-                ),
-              ),
+            const Spacer(),
             // PIN dots
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                4,
-                (index) => Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 8),
-                  width: 16,
-                  height: 16,
+              children: List.generate(4, (index) {
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 10),
+                  width: 18,
+                  height: 18,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: index < _enteredPin.length
                         ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                        : Theme.of(context).colorScheme.outline.withAlpha(80),
                   ),
-                ),
-              ),
+                );
+              }),
             ),
             if (auth.errorMessage != null)
               Padding(
-                padding: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.only(top: 16),
                 child: Text(
                   auth.errorMessage!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 14),
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                      fontSize: 14),
                 ),
               ),
-            const Spacer(flex: 2),
+            // Biometric button BELOW PIN dots, ABOVE keypad
+            if (auth.isBiometricEnabled)
+              Padding(
+                padding: const EdgeInsets.only(top: 24, bottom: 8),
+                child: TextButton.icon(
+                  onPressed: _tryAutoBiometric,
+                  icon: Icon(
+                    Icons.fingerprint,
+                    size: 22,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  label: Text(
+                    'Utiliser l\'empreinte',
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 8),
             // Numeric keypad
             _buildKeypad(),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -110,7 +143,7 @@ class _UnlockScreenState extends State<UnlockScreen> {
 
   Widget _buildKeypad() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 48),
       child: Column(
         children: [
           for (final row in [
@@ -130,10 +163,13 @@ class _UnlockScreenState extends State<UnlockScreen> {
                               child: ElevatedButton(
                                 onPressed: () => _addDigit(digit),
                                 style: ElevatedButton.styleFrom(
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12)),
                                 ),
                                 child: Text(digit,
-                                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                                    style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold)),
                               ),
                             ),
                           ),
@@ -154,9 +190,12 @@ class _UnlockScreenState extends State<UnlockScreen> {
                       child: ElevatedButton(
                         onPressed: () => _addDigit('0'),
                         style: ElevatedButton.styleFrom(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text('0', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                        child: const Text('0',
+                            style: TextStyle(
+                                fontSize: 24, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ),
@@ -169,7 +208,8 @@ class _UnlockScreenState extends State<UnlockScreen> {
                       child: ElevatedButton(
                         onPressed: _deleteDigit,
                         style: ElevatedButton.styleFrom(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                         ),
                         child: const Icon(Icons.backspace_outlined, size: 24),
                       ),
