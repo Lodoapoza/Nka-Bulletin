@@ -1,11 +1,12 @@
 package com.nka.bulletin.data.remote.auth
 
+import android.app.Activity
 import android.content.Context
 import com.microsoft.identity.client.AcquireTokenParameters
-import com.microsoft.identity.client.AcquireTokenResult
+import com.microsoft.identity.client.IAuthenticationResult
 import com.microsoft.identity.client.IMultipleAccountPublicClientApplication
 import com.microsoft.identity.client.PublicClientApplication
-import com.microsoft.identity.client.exception.MsalException
+import com.microsoft.identity.client.exception.MsalClientException
 import com.nka.bulletin.data.local.secure.SecureStorageManager
 import com.nka.bulletin.domain.model.MailConfig
 import com.nka.bulletin.domain.model.MailProviderType
@@ -17,7 +18,7 @@ import kotlin.coroutines.resume
 
 /**
  * Gère l'authentification OAuth2 Microsoft (Outlook/Exchange).
- * Utilise MSAL (Microsoft Authentication Library).
+ * Utilise MSAL (Microsoft Authentication Library) 4.1.0.
  *
  * Note : L'application doit être enregistrée dans Azure AD Portal.
  * Le client ID par défaut est un placeholder — à remplacer.
@@ -31,7 +32,10 @@ class MicrosoftAuthManager @Inject constructor(
     companion object {
         // TODO: Remplacer par le vrai Client ID Azure AD de l'application
         private const val CLIENT_ID = "YOUR_AZURE_CLIENT_ID"
-        private const val SCOPES = "https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.ReadWrite"
+        private const val SCOPES = listOf(
+            "https://graph.microsoft.com/Mail.Read",
+            "https://graph.microsoft.com/Mail.ReadWrite"
+        )
         private const val AUTHORITY = "https://login.microsoftonline.com/common"
     }
 
@@ -41,67 +45,60 @@ class MicrosoftAuthManager @Inject constructor(
      * Initialise l'application MSAL.
      */
     suspend fun initialize(): Result<Unit> = runCatching {
-        suspendCancellableCoroutine<Result<Unit>> { continuation ->
+        suspendCancellableCoroutine { continuation ->
             PublicClientApplication.createMultipleAccountPublicClientApplication(
                 context,
-                CLIENT_ID
-            ) { result ->
-                if (result.isSuccess) {
-                    application = result.result
-                    continuation.resume(Result.success(Unit))
-                } else {
-                    continuation.resume(
-                        Result.failure(
-                            result.exception ?: MsalException("MSAL initialization failed")
-                        )
-                    )
+                CLIENT_ID,
+                object : PublicClientApplication.OnApplicationCreatedListener {
+                    override fun onCreated(app: IMultipleAccountPublicClientApplication) {
+                        application = app
+                        continuation.resume(Unit)
+                    }
+                    override fun onError(exception: MsalClientException) {
+                        continuation.resume(Result.failure(exception))
+                    }
                 }
-            }
-        }.getOrThrow()
+            )
+        }
     }
 
     /**
      * Acquiert un token via MSAL.
      */
-    suspend fun acquireToken(): Result<String> = runCatching {
+    suspend fun acquireToken(activity: Activity): Result<String> {
         initialize().getOrThrow()
+        val app = application
+            ?: return Result.failure(MsalClientException("MSAL not initialized"))
 
-        suspendCancellableCoroutine<Result<String>> { continuation ->
-            val parameters = AcquireTokenParameters.Builder()
-                .startAuthorizationFromActivity(null as android.app.Activity?)
-                .withScopes(listOf(SCOPES))
-                .withCallback { result ->
-                    if (result is AcquireTokenResult) {
-                        val token = result.authenticationResult?.accessToken
-                        if (token != null) {
-                            val email = result.authenticationResult?.account?.username ?: ""
-                            secureStorage.saveMailConfig(
-                                MailConfig(
-                                    provider = MailProviderType.OUTLOOK,
-                                    email = email,
-                                    token = token
-                                )
+        return suspendCancellableCoroutine { continuation ->
+            val params = AcquireTokenParameters.Builder()
+                .startAuthorizationFromActivity(activity)
+                .withScopes(SCOPES)
+                .withCallback(object : com.microsoft.identity.client.AuthenticationCallback {
+                    override fun onSuccess(authenticationResult: IAuthenticationResult) {
+                        val token = authenticationResult.accessToken
+                        val account = authenticationResult.account
+                        val email = account?.username ?: ""
+                        secureStorage.saveMailConfig(
+                            MailConfig(
+                                provider = MailProviderType.OUTLOOK,
+                                email = email,
+                                token = token
                             )
-                            secureStorage.saveToken(MailProviderType.OUTLOOK, token)
-                            continuation.resume(Result.success(token))
-                        } else {
-                            continuation.resume(
-                                Result.failure(MsalException("", "Token null"))
-                            )
-                        }
-                    } else {
-                        continuation.resume(
-                            Result.failure(MsalException("", "Authentication failed"))
                         )
+                        secureStorage.saveToken(MailProviderType.OUTLOOK, token)
+                        continuation.resume(Result.success(token))
                     }
-                }
+                    override fun onError(exception: MsalClientException) {
+                        continuation.resume(Result.failure(exception))
+                    }
+                    override fun onCancel() {
+                        continuation.resume(Result.failure(MsalClientException("Authentication cancelled")))
+                    }
+                })
                 .build()
-
-            application?.acquireToken(parameters)
-                ?: continuation.resume(
-                    Result.failure(MsalException("", "MSAL not initialized"))
-                )
-        }.getOrThrow()
+            app.acquireToken(params)
+        }
     }
 
     /**
