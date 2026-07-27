@@ -8,6 +8,7 @@ import com.microsoft.identity.client.IAuthenticationResult
 import com.microsoft.identity.client.IMultipleAccountPublicClientApplication
 import com.microsoft.identity.client.PublicClientApplication
 import com.microsoft.identity.client.exception.MsalException
+import com.nka.bulletin.R
 import com.nka.bulletin.data.local.secure.SecureStorageManager
 import com.nka.bulletin.domain.model.MailConfig
 import com.nka.bulletin.domain.model.MailProviderType
@@ -24,7 +25,6 @@ class MicrosoftAuthManager @Inject constructor(
 ) {
 
     companion object {
-        private const val CLIENT_ID = "YOUR_AZURE_CLIENT_ID"
         private val SCOPES = listOf(
             "https://graph.microsoft.com/Mail.Read",
             "https://graph.microsoft.com/Mail.ReadWrite"
@@ -37,12 +37,13 @@ class MicrosoftAuthManager @Inject constructor(
         return suspendCancellableCoroutine { continuation ->
             PublicClientApplication.createMultipleAccountPublicClientApplication(
                 context,
-                CLIENT_ID,
-                object : PublicClientApplication.ApplicationCreatedListener {
+                R.raw.msal_config,
+                object : PublicClientApplication.IMultipleAccountApplicationCreatedListener {
                     override fun onCreated(app: IMultipleAccountPublicClientApplication) {
                         application = app
                         continuation.resume(Result.success(Unit))
                     }
+
                     override fun onError(exception: MsalException) {
                         continuation.resume(Result.failure(exception))
                     }
@@ -74,9 +75,11 @@ class MicrosoftAuthManager @Inject constructor(
                         secureStorage.saveToken(MailProviderType.OUTLOOK, token)
                         continuation.resume(Result.success(token))
                     }
+
                     override fun onError(exception: MsalException) {
                         continuation.resume(Result.failure(exception))
                     }
+
                     override fun onCancel() {
                         continuation.resume(Result.failure(Exception("Authentication cancelled")))
                     }
