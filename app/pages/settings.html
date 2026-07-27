@@ -4,7 +4,6 @@
 
   <div id="settings-content">
 
-    <!-- Comptes -->
     <div class="settings-group">
       <div class="settings-group__title">Comptes</div>
       <div class="settings-item" onclick="window.location.hash='auth'">
@@ -17,7 +16,6 @@
       </div>
     </div>
 
-    <!-- Synchronisation -->
     <div class="settings-group">
       <div class="settings-group__title">Synchronisation</div>
       <div class="settings-item settings-item--no-hover">
@@ -38,64 +36,46 @@
           <div class="settings-item__description">Fréquence de vérification automatique</div>
         </div>
         <select class="form-select" id="sync-interval" style="width:auto;padding:6px 32px 6px 12px;font-size:var(--text-sm);border-radius:var(--radius-full)">
-          <option value="3">3h</option>
-          <option value="6">6h</option>
-          <option value="12">12h</option>
-          <option value="24">24h</option>
+          <option value="3600000">1h</option>
+          <option value="21600000">6h</option>
+          <option value="43200000">12h</option>
+          <option value="86400000">24h</option>
         </select>
       </div>
     </div>
 
-    <!-- Analyse PDF -->
     <div class="settings-group">
       <div class="settings-group__title">Analyse PDF</div>
       <div class="settings-item settings-item--no-hover">
         <div class="settings-item__icon">📄</div>
         <div class="settings-item__body">
           <div class="settings-item__title">Analyse automatique</div>
-          <div class="settings-item__description">Extraire les montants et dates des bulletins</div>
+          <div class="settings-item__description">Extraire les montants des bulletins PDF</div>
         </div>
         <label class="toggle">
           <input class="toggle__input" type="checkbox" id="toggle-analysis">
           <span class="toggle__slider"></span>
         </label>
       </div>
-      <div class="settings-item settings-item--no-hover">
-        <div class="settings-item__icon">🔍</div>
-        <div class="settings-item__body">
-          <div class="settings-item__title">Détection automatique</div>
-          <div class="settings-item__description">Identifier les pièces jointes des bulletins</div>
-        </div>
-        <label class="toggle">
-          <input class="toggle__input" type="checkbox" id="toggle-autodetect">
-          <span class="toggle__slider"></span>
-        </label>
-      </div>
     </div>
 
-    <!-- Apparence -->
     <div class="settings-group">
       <div class="settings-group__title">Apparence</div>
       <div class="theme-selector" id="theme-selector"></div>
     </div>
 
-    <!-- Sécurité -->
     <div class="settings-group">
       <div class="settings-group__title">Sécurité</div>
-      <div class="settings-item settings-item--no-hover">
-        <div class="settings-item__icon">🔒</div>
+      <div class="settings-item" id="change-password-btn">
+        <div class="settings-item__icon">🔑</div>
         <div class="settings-item__body">
-          <div class="settings-item__title">Verrouillage biométrique</div>
-          <div class="settings-item__description">Empreinte digitale ou Face ID au démarrage</div>
+          <div class="settings-item__title">Changer le mot de passe</div>
+          <div class="settings-item__description">Modifier le mot de passe de l'application</div>
         </div>
-        <label class="toggle">
-          <input class="toggle__input" type="checkbox" id="toggle-biometric">
-          <span class="toggle__slider"></span>
-        </label>
+        <span class="settings-item__action">›</span>
       </div>
     </div>
 
-    <!-- Stockage -->
     <div class="settings-group">
       <div class="settings-group__title">Stockage</div>
       <div class="settings-item settings-item--no-hover" style="flex-direction:column;align-items:stretch;gap:var(--space-sm)">
@@ -112,7 +92,6 @@
       </div>
     </div>
 
-    <!-- À propos -->
     <div class="settings-group">
       <div class="settings-group__title">À propos</div>
       <div class="settings-item settings-item--no-hover">

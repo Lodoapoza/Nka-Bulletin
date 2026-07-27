@@ -177,6 +177,32 @@ export function showToast(message, duration = 2500) {
 }
 
 /**
+ * Show a confirmation dialog
+ * @param {string} title
+ * @param {string} message
+ * @param {Function} onConfirm
+ */
+export function showConfirmDialog(title, message, onConfirm) {
+  const existing = document.querySelector('.modal-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <div class="modal__title">${title}</div>
+      <div class="modal__text">${message}</div>
+      <div class="modal__actions">
+        <button class="btn btn--ghost" id="dialog-cancel">Annuler</button>
+        <button class="btn btn--danger" id="dialog-confirm">Confirmer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#dialog-cancel').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('#dialog-confirm').addEventListener('click', () => { overlay.remove(); onConfirm(); });
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+/**
  * Format ISO date to relative form
  * @param {string} isoString
  * @returns {string}

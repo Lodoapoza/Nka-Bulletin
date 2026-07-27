@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Test Backend
+        working-directory: backend
+        run: |
+          npm ci
+          node src/index.js &
+          sleep 3
+          curl -f http://localhost:3000/api/health
+          curl -f http://localhost:3000/api/auth/password/status
+          curl -f http://localhost:3000/api/settings
+          curl -f http://localhost:3000/api/stats/dashboard
+
+      - name: Validate Frontend
+        working-directory: app
+        run: |
+          # Check required files exist
+          test -f index.html
+          test -f manifest.json
+          test -f sw.js
+          test -f js/api.js
+          test -f js/app.js
+          test -f pages/unlock.html
+          test -f pages/dashboard.html
+          test -f pages/explorer.html
+          test -f pages/settings.html
+          test -f pages/auth.html
+          echo "All required files present"
+
+      - name: Check No Mock Data in API
+        working-directory: app
+        run: |
+          # Ensure no mock data references in api.js
+          ! grep -q "MOCK\|mock" js/api.js
+          echo "No mock data in api.js"
+
+      - name: Validate PWA Manifest
+        working-directory: app
+        run: |
+          cat manifest.json | python3 -m json.tool > /dev/null
+          echo "manifest.json is valid JSON"

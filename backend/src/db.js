@@ -73,6 +73,8 @@ export function initDb(dbPath) {
   insertSetting.run('sync_frequency', '3600000');
   insertSetting.run('sync_start_hour', '16');
   insertSetting.run('sync_end_day', '31');
+  insertSetting.run('autoSync', 'true');
+  insertSetting.run('pdfAutoDetect', 'true');
 
   _db = db;
   return db;
@@ -249,16 +251,23 @@ export function getStats() {
   const currentYear = now.getFullYear();
 
   const totalCount = db.prepare('SELECT COUNT(*) as count FROM bulletins WHERE year = ?').get(currentYear);
-  const lastBulletin = db.prepare('SELECT received_at FROM bulletins ORDER BY received_at DESC LIMIT 1').get();
+  const lastBulletin = db.prepare('SELECT month, year, net_salary, received_at, size_bytes FROM bulletins ORDER BY received_at DESC LIMIT 1').get();
   const annualTotal = db.prepare('SELECT SUM(net_salary) as total FROM bulletins WHERE year = ? AND net_salary IS NOT NULL').get(currentYear);
   const favoriteCount = db.prepare('SELECT COUNT(*) as count FROM bulletins WHERE is_favorite = 1').get();
+  const totalSize = db.prepare('SELECT SUM(size_bytes) as total FROM bulletins').get();
+  const allTimeCount = db.prepare('SELECT COUNT(*) as count FROM bulletins').get();
 
   return {
     currentYear,
     totalBulletins: totalCount.count,
+    totalBulletinsAllTime: allTimeCount.count,
     favoriteBulletins: favoriteCount.count,
     lastBulletinDate: lastBulletin ? lastBulletin.received_at : null,
-    annualSalaryTotal: annualTotal ? (annualTotal.total || 0) : 0
+    lastBulletinMonth: lastBulletin ? lastBulletin.month : null,
+    lastBulletinYear: lastBulletin ? lastBulletin.year : null,
+    lastNetSalary: lastBulletin ? lastBulletin.net_salary : null,
+    annualSalaryTotal: annualTotal ? (annualTotal.total || 0) : 0,
+    totalSize: totalSize ? (totalSize.total || 0) : 0
   };
 }
 

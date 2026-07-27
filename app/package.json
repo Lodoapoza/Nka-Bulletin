@@ -3,21 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "npx cap serve",
-    "build": "npx cap sync",
-    "sync": "npx cap sync"
-  },
-  "dependencies": {
-    "@capacitor/android": "^6.0.0",
-    "@capacitor/app": "^6.0.0",
-    "@capacitor/browser": "^6.0.0",
-    "@capacitor/core": "^6.0.0",
-    "@capacitor/filesystem": "^6.0.0",
-    "@capacitor/local-notifications": "^6.0.0",
-    "@capacitor/share": "^6.0.0",
-    "capacitor-native-biometric": "^4.2.0"
+    "dev": "npx http-server . -p 8080 -c-1 --cors"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.0.0"
+    "http-server": "^14.0.0"
   }
 }

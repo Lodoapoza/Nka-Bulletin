@@ -1,56 +1,53 @@
-/* ============================================
-   Nka Bulletin — Application Router & State
-   ============================================ */
-
-import { formatCurrency, formatDate, formatDateShort, formatFileSize, formatRelativeDate,
-         getMonthName, getMonthNameShort, debounce, getYears, getMonths, uid, showToast } from './utils.js';
+import { formatCurrency, formatDate, formatFileSize, formatRelativeDate,
+         getMonthName, getMonthNameShort, debounce, getYears, getMonths, showToast, showConfirmDialog } from './utils.js';
 import api from './api.js';
 
-// ============================================
-// Global State
-// ============================================
 const state = {
   theme: 'system',
   accounts: [],
-  settings: null,
-  currentPage: 'dashboard',
+  settings: {},
+  currentPage: 'unlock',
   bulletins: [],
   selectedBulletins: new Set(),
-  multiSelect: false
+  multiSelect: false,
+  hasPassword: false,
+  sessionToken: localStorage.getItem('nka-session')
 };
 
-// Cache loaded pages
 const pageCache = {};
 
-// ============================================
-// Application Initialization
-// ============================================
 const App = {
   async init() {
+    await this.checkPasswordStatus();
     await this.loadSettings();
     await this.loadAccounts();
     this.initTheme();
     this.initRouter();
-    // Listen for hash changes
     window.addEventListener('hashchange', () => this.handleRoute());
-    // Handle initial route
     this.handleRoute();
+  },
+
+  async checkPasswordStatus() {
+    try {
+      const res = await api.getPasswordStatus();
+      state.hasPassword = res.hasPassword;
+    } catch {
+      state.hasPassword = true;
+    }
   },
 
   async loadSettings() {
     try {
-      const res = await api.getSettings();
-      state.settings = res.data;
+      state.settings = await api.getSettings();
     } catch {
-      state.settings = { biometricEnabled: false, theme: 'system', autoSync: true,
-        pdfAnalysisEnabled: true, appVersion: '1.0.0' };
+      state.settings = {};
     }
   },
 
   async loadAccounts() {
     try {
       const res = await api.getAccounts();
-      state.accounts = res.data;
+      state.accounts = Array.isArray(res) ? res : [];
     } catch {
       state.accounts = [];
     }
@@ -60,31 +57,38 @@ const App = {
     const saved = localStorage.getItem('nka-theme') || 'system';
     state.theme = saved;
     this.applyTheme();
-    // Listen for system theme changes
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    mediaQuery.addEventListener('change', () => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    mq.addEventListener('change', () => {
       if (state.theme === 'system') this.applyTheme();
     });
   },
 
   applyTheme() {
-    const theme = state.theme === 'system'
+    const t = state.theme === 'system'
       ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
       : state.theme;
-    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-theme', t);
+  },
+
+  async isSessionValid() {
+    if (!state.sessionToken) return false;
+    try {
+      const res = await api.checkSession(state.sessionToken);
+      return res.valid;
+    } catch {
+      return false;
+    }
   },
 
   initRouter() {
-    // Determine initial page based on biometric setting
-    const initialPage = state.settings?.biometricEnabled ? 'unlock' : 'dashboard';
-    const currentHash = window.location.hash.slice(1);
-    if (!currentHash || (currentHash === 'dashboard' && initialPage === 'unlock')) {
-      window.location.hash = initialPage;
+    const hash = window.location.hash.slice(1);
+    if (!hash) {
+      window.location.hash = 'unlock';
     }
   },
 
   handleRoute() {
-    const hash = window.location.hash.slice(1) || 'dashboard';
+    const hash = window.location.hash.slice(1) || 'unlock';
     this.navigateTo(hash);
   },
 
@@ -93,28 +97,16 @@ const App = {
     const container = document.getElementById('app-content');
     if (!container) return;
 
-    // Update header
     this.updateHeader(page);
 
     const fullscreenPages = ['unlock', 'auth'];
     const isFullscreen = fullscreenPages.includes(page);
-
-    // Show/hide bottom nav
     const nav = document.querySelector('.bottom-nav');
-    if (nav) {
-      nav.classList.toggle('bottom-nav--hidden', isFullscreen);
-    }
-
-    // Show/hide header
+    if (nav) nav.classList.toggle('bottom-nav--hidden', isFullscreen);
     const header = document.querySelector('.app-header');
-    if (header) {
-      header.classList.toggle('app-header--hidden', isFullscreen);
-    }
-
-    // Toggle fullscreen class on content
+    if (header) header.classList.toggle('app-header--hidden', isFullscreen);
     container.classList.toggle('page-fullscreen', isFullscreen);
 
-    // Show loading
     container.innerHTML = `
       <div class="loading-screen">
         <div class="spinner"></div>
@@ -125,7 +117,6 @@ const App = {
       container.innerHTML = html;
       this.initPage(page);
       this.updateActiveNav(page);
-      // Scroll to top
       container.scrollTop = 0;
       window.scrollTo(0, 0);
     } catch (err) {
@@ -141,9 +132,9 @@ const App = {
 
   async loadPage(page) {
     if (pageCache[page]) return pageCache[page];
-    const response = await fetch(`pages/${page}.html`);
-    if (!response.ok) throw new Error(`Page ${page} not found`);
-    const html = await response.text();
+    const res = await fetch('pages/' + page + '.html');
+    if (!res.ok) throw new Error('Page ' + page + ' not found');
+    const html = await res.text();
     pageCache[page] = html;
     return html;
   },
@@ -152,9 +143,7 @@ const App = {
     const titleEl = document.querySelector('.app-header__title');
     const subtitleEl = document.querySelector('.app-header__subtitle');
     const backEl = document.querySelector('.header-back');
-
     if (!titleEl) return;
-
     const titles = {
       dashboard: { title: 'Nka Bulletin', subtitle: 'Tableau de bord' },
       explorer: { title: 'Explorer', subtitle: 'Mes bulletins' },
@@ -162,21 +151,15 @@ const App = {
       unlock: { title: '', subtitle: '' },
       auth: { title: 'Connexion', subtitle: 'Ajouter un compte' }
     };
-
     const info = titles[page] || { title: 'Nka Bulletin', subtitle: '' };
     titleEl.textContent = info.title;
-
     if (subtitleEl) {
       subtitleEl.style.display = info.subtitle ? '' : 'none';
       subtitleEl.textContent = info.subtitle;
     }
-
-    // Back button for auth page
     if (backEl) {
       backEl.style.display = page === 'auth' ? 'flex' : 'none';
-      backEl.onclick = () => {
-        window.location.hash = 'settings';
-      };
+      backEl.onclick = () => { window.location.hash = 'settings'; };
     }
   },
 
@@ -197,111 +180,166 @@ const App = {
   }
 };
 
-// Make App globally accessible for inline onclick handlers
 window.App = App;
 
-// ============================================
-// PAGE INITIALIZERS
-// ============================================
-
-// ---------- UNLOCK ----------
+// ── UNLOCK ──
 function initUnlock() {
-  // If biometric disabled, redirect to dashboard
-  if (!state.settings?.biometricEnabled) {
-    window.location.hash = 'dashboard';
-    return;
-  }
-
-  const btn = document.getElementById('unlock-btn');
-  if (btn) {
-    btn.addEventListener('click', async () => {
-      btn.innerHTML = '<div class="spinner" style="width:24px;height:24px;border-width:2px;border-top-color:var(--md-on-primary);border-color:rgba(255,255,255,0.3)"></div>';
-      // Simulate biometric check
-      setTimeout(() => {
-        window.location.hash = 'dashboard';
-      }, 600);
+  if (state.hasPassword && state.sessionToken) {
+    App.isSessionValid().then(valid => {
+      if (valid) { window.location.hash = 'dashboard'; return; }
+      showUnlockForm();
     });
+  } else if (state.hasPassword) {
+    showUnlockForm();
+  } else {
+    showSetupForm();
   }
 }
 
-// ---------- AUTH ----------
+function showUnlockForm() {
+  const container = document.querySelector('.unlock-screen');
+  if (container) {
+    container.innerHTML = `
+      <div class="unlock-screen__logo">🔒</div>
+      <h1 class="unlock-screen__title">Nka Bulletin</h1>
+      <p class="unlock-screen__subtitle">Entrez votre mot de passe</p>
+      <input type="password" class="unlock-screen__input" id="password-input" placeholder="Mot de passe" autocomplete="off">
+      <div class="unlock-screen__error" id="unlock-error"></div>
+      <button class="unlock-screen__btn" id="unlock-btn">Déverrouiller</button>
+    `;
+    const btn = document.getElementById('unlock-btn');
+    const input = document.getElementById('password-input');
+    input.focus();
+    const doUnlock = async () => {
+      const pw = input.value;
+      if (!pw) return;
+      btn.disabled = true;
+      btn.textContent = 'Vérification...';
+      try {
+        const res = await api.verifyPassword(pw);
+        if (res.valid) {
+          state.sessionToken = res.token;
+          localStorage.setItem('nka-session', res.token);
+          window.location.hash = 'dashboard';
+        }
+      } catch (e) {
+        document.getElementById('unlock-error').textContent = 'Mot de passe incorrect';
+        btn.disabled = false;
+        btn.textContent = 'Déverrouiller';
+        input.value = '';
+        input.focus();
+      }
+    };
+    btn.addEventListener('click', doUnlock);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doUnlock(); });
+  }
+}
+
+function showSetupForm() {
+  const container = document.querySelector('.unlock-screen');
+  if (container) {
+    container.innerHTML = `
+      <div class="unlock-screen__logo">🔐</div>
+      <h1 class="unlock-screen__title">Nka Bulletin</h1>
+      <p class="unlock-screen__subtitle">Créez un mot de passe pour protéger vos bulletins</p>
+      <input type="password" class="unlock-screen__input" id="password-input" placeholder="Nouveau mot de passe (4 caractères min)" autocomplete="off">
+      <input type="password" class="unlock-screen__input" id="password-confirm" placeholder="Confirmer le mot de passe" autocomplete="off">
+      <div class="unlock-screen__error" id="unlock-error"></div>
+      <button class="unlock-screen__btn" id="unlock-btn">Créer mon mot de passe</button>
+    `;
+    const btn = document.getElementById('unlock-btn');
+    const input = document.getElementById('password-input');
+    const confirm = document.getElementById('password-confirm');
+    input.focus();
+    const doSetup = async () => {
+      const pw = input.value;
+      if (pw.length < 4) {
+        document.getElementById('unlock-error').textContent = 'Minimum 4 caractères';
+        return;
+      }
+      if (pw !== confirm.value) {
+        document.getElementById('unlock-error').textContent = 'Les mots de passe ne correspondent pas';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Création...';
+      try {
+        const res = await api.setupPassword(pw);
+        state.hasPassword = true;
+        state.sessionToken = res.token;
+        localStorage.setItem('nka-session', res.token);
+        window.location.hash = 'dashboard';
+      } catch (e) {
+        document.getElementById('unlock-error').textContent = e.message || 'Erreur';
+        btn.disabled = false;
+        btn.textContent = 'Créer mon mot de passe';
+      }
+    };
+    btn.addEventListener('click', doSetup);
+    confirm.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSetup(); });
+  }
+}
+
+// ── AUTH ──
 function initAuth() {
   const providers = ['gmail', 'outlook', 'yahoo', 'imap'];
-
-  providers.forEach(provider => {
-    const btn = document.getElementById(`connect-${provider}`);
-    if (btn) {
-      btn.addEventListener('click', () => handleConnect(provider));
-    }
+  providers.forEach(p => {
+    const btn = document.getElementById('connect-' + p);
+    if (btn) btn.addEventListener('click', () => handleConnect(p));
   });
 
-  // IMAP form toggle
   const imapBtn = document.getElementById('connect-imap');
   const imapForm = document.getElementById('imap-form');
   if (imapBtn && imapForm) {
-    imapBtn.addEventListener('click', () => {
-      imapForm.classList.toggle('hidden');
-    });
+    imapBtn.addEventListener('click', () => imapForm.classList.toggle('hidden'));
   }
 
-  // IMAP form submit
   const imapSubmit = document.getElementById('imap-submit');
   if (imapSubmit) {
     imapSubmit.addEventListener('click', async () => {
-      const credentials = {
+      const creds = {
         host: document.getElementById('imap-host')?.value,
         port: parseInt(document.getElementById('imap-port')?.value) || 993,
         ssl: document.getElementById('imap-ssl')?.checked ?? true,
         user: document.getElementById('imap-user')?.value,
-        password: document.getElementById('imap-pass')?.value,
-        email: document.getElementById('imap-user')?.value
+        password: document.getElementById('imap-pass')?.value
       };
-      if (!credentials.host || !credentials.user || !credentials.password) {
-        showToast('Veuillez remplir tous les champs obligatoires');
+      if (!creds.host || !creds.user || !creds.password) {
+        showToast('Veuillez remplir tous les champs');
         return;
       }
-      await addAccount('IMAP', credentials);
+      try {
+        await api.verifyImap(creds);
+        await api.saveImap(creds);
+        showToast('Compte IMAP connecté');
+        App.loadAccounts();
+        renderConnectedAccounts();
+      } catch (e) {
+        showToast(e.message || 'Erreur de connexion IMAP');
+      }
     });
   }
 
-  // Render existing accounts
   renderConnectedAccounts();
 }
 
 async function handleConnect(provider) {
-  const labels = { gmail: 'Gmail', outlook: 'Outlook', yahoo: 'Yahoo' };
-  await addAccount(labels[provider] || provider);
-}
-
-async function addAccount(provider, credentials = null) {
-  const btn = document.querySelector(`#connect-${provider.toLowerCase()}`);
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'Connexion...';
-  }
-
+  if (provider === 'imap') return;
+  const btn = document.getElementById('connect-' + provider);
+  if (btn) { btn.disabled = true; btn.textContent = 'Redirection...'; }
   try {
-    const res = await api.connectAccount(provider.toLowerCase(), credentials);
-    if (res.success) {
-      state.accounts.push(res.data);
-      renderConnectedAccounts();
-      showToast(`Compte ${provider} connecté avec succès`);
-    }
-  } catch {
-    showToast('Erreur de connexion au fournisseur');
+    const res = await api.getAuthUrl(provider);
+    if (res.url) window.location.href = res.url;
+  } catch (e) {
+    showToast(e.message || 'Erreur de connexion');
   }
-
-  if (btn) {
-    btn.disabled = false;
-    btn.textContent = 'Se connecter';
-  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Se connecter'; }
 }
 
 function renderConnectedAccounts() {
   const list = document.getElementById('connected-accounts');
   if (!list) return;
-
-  if (state.accounts.length === 0) {
+  if (!state.accounts.length) {
     list.innerHTML = `<div class="empty-state" style="min-height:auto;padding:var(--space-lg)">
       <div class="empty-state__icon">📭</div>
       <div class="empty-state__title">Aucun compte</div>
@@ -309,187 +347,139 @@ function renderConnectedAccounts() {
     </div>`;
     return;
   }
-
-  list.innerHTML = state.accounts.map(acc => `
+  list.innerHTML = state.accounts.map(a => `
     <div class="settings-item">
-      <div class="settings-item__icon">${getProviderIcon(acc.provider)}</div>
+      <div class="settings-item__icon">${getProviderIcon(a.provider)}</div>
       <div class="settings-item__body">
-        <div class="settings-item__title">${acc.email}</div>
-        <div class="settings-item__description">${acc.label} · Dernière synchro : ${acc.lastSync ? formatRelativeDate(acc.lastSync) : 'Jamais'}</div>
+        <div class="settings-item__title">${a.email}</div>
+        <div class="settings-item__description">${a.provider} · ${a.last_sync ? 'Synchro : ' + formatRelativeDate(a.last_sync) : 'Jamais synchronisé'}</div>
       </div>
-      <label class="toggle">
-        <input type="checkbox" class="toggle__input" ${acc.connected ? 'checked' : ''} data-account-id="${acc.id}">
-        <span class="toggle__slider"></span>
-      </label>
+      <button class="btn btn--small btn--ghost" onclick="api.deleteAccount('${a.id}').then(()=>{App.loadAccounts();renderConnectedAccounts();showToast('Compte supprimé')}).catch(e=>showToast(e.message))">Suppr.</button>
     </div>
   `).join('');
-
-  // Toggle handlers
-  list.querySelectorAll('.toggle__input').forEach(input => {
-    input.addEventListener('change', async (e) => {
-      const id = e.target.dataset.accountId;
-      if (!e.target.checked) {
-        await api.disconnectAccount(id);
-        state.accounts = state.accounts.filter(a => a.id !== id);
-        renderConnectedAccounts();
-        showToast('Compte déconnecté');
-      }
-    });
-  });
 }
 
-function getProviderIcon(provider) {
-  const icons = {
-    gmail: '📧',
-    outlook: '💼',
-    yahoo: '🔵',
-    imap: '📨'
-  };
-  return icons[provider] || '📧';
+function getProviderIcon(p) {
+  return { gmail: '📧', outlook: '💼', yahoo: '🔵', imap: '📨' }[p] || '📧';
 }
 
-// ---------- DASHBOARD ----------
+// ── DASHBOARD ──
 async function initDashboard() {
+  if (!state.sessionToken) { window.location.hash = 'unlock'; return; }
+  const valid = await App.isSessionValid();
+  if (!valid) { localStorage.removeItem('nka-session'); state.sessionToken = null; window.location.hash = 'unlock'; return; }
+
   const statsContainer = document.getElementById('dashboard-stats');
   const actionsContainer = document.getElementById('dashboard-actions');
   const syncBtn = document.getElementById('sync-btn');
+  const syncInfo = document.getElementById('sync-info');
 
-  // Show skeletons
-  if (statsContainer) {
-    statsContainer.innerHTML = `
-      <div class="skeleton skeleton-stat"></div>
-      <div class="skeleton skeleton-stat"></div>
-      <div class="skeleton skeleton-stat"></div>
-      <div class="skeleton skeleton-stat"></div>`;
-  }
+  if (statsContainer) statsContainer.innerHTML = Array(4).fill('<div class="skeleton skeleton-stat"></div>').join('');
 
-  // Sync button
   if (syncBtn) {
     syncBtn.addEventListener('click', async () => {
-      syncBtn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px"></div>';
+      syncBtn.textContent = '⏳';
       try {
-        await api.syncMail();
-        showToast('Synchronisation terminée ✓');
-        initDashboard(); // Refresh
-      } catch {
-        showToast('Erreur de synchronisation');
-      }
-      syncBtn.innerHTML = '🔄';
+        for (const a of state.accounts) await api.syncMail(a.id);
+        showToast('Synchronisation terminée');
+        initDashboard();
+      } catch { showToast('Erreur de synchronisation'); }
+      syncBtn.textContent = '🔄';
     });
   }
 
   try {
-    const res = await api.getDashboardStats();
-    const d = res.data;
-
+    const stats = await api.getDashboardStats();
     if (statsContainer) {
       statsContainer.innerHTML = `
         <div class="stat-card stat-card--primary" style="animation:cardEnter 0.35s ease both">
           <div class="stat-card__icon">📊</div>
-          <div class="stat-card__value">${d.totalBulletins}</div>
-          <div class="stat-card__label">Bulletins ${d.year}</div>
+          <div class="stat-card__value">${stats.totalBulletins || 0}</div>
+          <div class="stat-card__label">Bulletins ${stats.currentYear || ''}</div>
         </div>
         <div class="stat-card" style="animation:cardEnter 0.35s ease 0.08s both">
           <div class="stat-card__icon">📄</div>
-          <div class="stat-card__value">${getMonthNameShort(d.lastBulletinMonth)}</div>
+          <div class="stat-card__value">${stats.lastBulletinDate ? formatRelativeDate(stats.lastBulletinDate) : '—'}</div>
           <div class="stat-card__label">Dernier bulletin</div>
         </div>
         <div class="stat-card" style="animation:cardEnter 0.35s ease 0.14s both">
           <div class="stat-card__icon">💰</div>
-          <div class="stat-card__value">${formatCurrency(d.lastNetSalary)}</div>
+          <div class="stat-card__value">${stats.lastNetSalary ? formatCurrency(stats.lastNetSalary) : '—'}</div>
           <div class="stat-card__label">Dernier salaire net</div>
         </div>
         <div class="stat-card" style="animation:cardEnter 0.35s ease 0.20s both">
           <div class="stat-card__icon">📈</div>
-          <div class="stat-card__value" style="font-size:var(--text-xl)">${formatCurrency(d.annualTotal)}</div>
-          <div class="stat-card__label">Cumul annuel ${d.year}</div>
+          <div class="stat-card__value" style="font-size:var(--text-xl)">${stats.annualSalaryTotal ? formatCurrency(stats.annualSalaryTotal) : '—'}</div>
+          <div class="stat-card__label">Cumul annuel ${stats.currentYear || ''}</div>
         </div>`;
     }
-
+    if (syncInfo) {
+      syncInfo.textContent = (state.accounts.length ? state.accounts.length + ' compte(s) connecté(s)' : 'Aucun compte connecté');
+    }
     if (actionsContainer) {
       actionsContainer.innerHTML = `
-        <button class="quick-action" onclick="window.location.hash='explorer'">
-          📂 Voir tout
-        </button>
-        <button class="quick-action" onclick="window.location.hash='settings'">
-          ⚙️ Paramètres
-        </button>`;
+        <button class="quick-action" onclick="window.location.hash='explorer'">📂 Voir tout</button>
+        <button class="quick-action" onclick="window.location.hash='settings'">⚙️ Paramètres</button>`;
     }
   } catch {
-    if (statsContainer) {
-      statsContainer.innerHTML = `
-        <div class="error-state" style="grid-column:1/-1">
-          <div class="error-state__icon">⚠️</div>
-          <div class="error-state__title">Erreur</div>
-          <button class="error-state__retry" onclick="initDashboard()">Réessayer</button>
-        </div>`;
-    }
+    if (statsContainer) statsContainer.innerHTML = `<div class="error-state" style="grid-column:1/-1"><div class="error-state__icon">⚠️</div><div class="error-state__title">Erreur</div><button class="error-state__retry" onclick="initDashboard()">Réessayer</button></div>`;
   }
 }
 
-// ---------- EXPLORER ----------
-let explorerFilters = { year: 0, month: 0, favoritesOnly: false, search: '' };
+// ── EXPLORER ──
+const explorerFilters = { year: 0, month: 0, favorites: false, search: '', page: 1 };
 
 function initExplorer() {
-  explorerFilters = { year: 0, month: 0, favoritesOnly: false, search: '' };
+  Object.assign(explorerFilters, { year: 0, month: 0, favorites: false, search: '', page: 1 });
 
-  // Search
   const searchInput = document.getElementById('explorer-search');
   if (searchInput) {
-    const debouncedSearch = debounce((val) => {
-      explorerFilters.search = val;
-      renderBulletins();
-    }, 300);
-    searchInput.addEventListener('input', (e) => debouncedSearch(e.target.value));
+    const ds = debounce(v => { explorerFilters.search = v; explorerFilters.page = 1; renderBulletins(); }, 300);
+    searchInput.addEventListener('input', e => ds(e.target.value));
   }
 
-  // Year chips
   const yearContainer = document.getElementById('explorer-years');
   if (yearContainer) {
     const years = getYears();
-    yearContainer.innerHTML = `
-      <button class="chip chip--active" data-year="0">Tout</button>
-      ${years.map(y => `<button class="chip" data-year="${y}">${y}</button>`).join('')}
-    `;
-    yearContainer.addEventListener('click', (e) => {
+    yearContainer.innerHTML = '<button class="chip chip--active" data-year="0">Tout</button>' +
+      years.map(y => `<button class="chip" data-year="${y}">${y}</button>`).join('');
+    yearContainer.addEventListener('click', e => {
       const chip = e.target.closest('.chip');
       if (!chip) return;
       yearContainer.querySelectorAll('.chip').forEach(c => c.classList.remove('chip--active'));
       chip.classList.add('chip--active');
       explorerFilters.year = parseInt(chip.dataset.year) || 0;
+      explorerFilters.page = 1;
       renderBulletins();
     });
   }
 
-  // Month chips
   const monthContainer = document.getElementById('explorer-months');
   if (monthContainer) {
     const months = getMonths();
-    monthContainer.innerHTML = `
-      <button class="chip chip--active" data-month="0">Tout</button>
-      ${months.map(m => `<button class="chip" data-month="${m.value}">${m.label.slice(0, 3)}</button>`).join('')}
-    `;
-    monthContainer.addEventListener('click', (e) => {
+    monthContainer.innerHTML = '<button class="chip chip--active" data-month="0">Tout</button>' +
+      months.map(m => `<button class="chip" data-month="${m.value}">${m.label.slice(0,3)}</button>`).join('');
+    monthContainer.addEventListener('click', e => {
       const chip = e.target.closest('.chip');
       if (!chip) return;
       monthContainer.querySelectorAll('.chip').forEach(c => c.classList.remove('chip--active'));
       chip.classList.add('chip--active');
       explorerFilters.month = parseInt(chip.dataset.month) || 0;
+      explorerFilters.page = 1;
       renderBulletins();
     });
   }
 
-  // Favorites toggle
   const favToggle = document.getElementById('explorer-fav-toggle');
   if (favToggle) {
     favToggle.addEventListener('click', () => {
-      explorerFilters.favoritesOnly = !explorerFilters.favoritesOnly;
+      explorerFilters.favorites = !explorerFilters.favorites;
       favToggle.classList.toggle('chip--active');
+      explorerFilters.page = 1;
       renderBulletins();
     });
   }
 
-  // Select mode button
   const selectBtn = document.getElementById('explorer-select');
   if (selectBtn) {
     selectBtn.addEventListener('click', () => {
@@ -502,41 +492,34 @@ function initExplorer() {
     });
   }
 
-  // Cancel selection button
   const cancelBtn = document.getElementById('select-cancel');
   if (cancelBtn) {
     cancelBtn.addEventListener('click', () => {
       state.multiSelect = false;
       state.selectedBulletins.clear();
-      const selectBtn = document.getElementById('explorer-select');
-      if (selectBtn) selectBtn.textContent = 'Sélectionner';
+      const sb = document.getElementById('explorer-select');
+      if (sb) sb.textContent = 'Sélectionner';
       const bar = document.getElementById('multi-select-bar');
       if (bar) bar.classList.remove('multi-select-bar--visible');
       renderBulletins();
     });
   }
 
-  // Merge button
   const mergeBtn = document.getElementById('merge-btn');
   if (mergeBtn) {
     mergeBtn.addEventListener('click', async () => {
-      if (state.selectedBulletins.size < 2) {
-        showToast('Sélectionnez au moins 2 bulletins');
-        return;
-      }
-      mergeBtn.textContent = 'Fusion en cours...';
+      if (state.selectedBulletins.size < 2) { showToast('Sélectionnez au moins 2 bulletins'); return; }
+      mergeBtn.textContent = 'Fusion...';
       mergeBtn.disabled = true;
       try {
-        await api.mergePDFs([...state.selectedBulletins]);
-        showToast('Fusion réussie ✓');
+        await api.mergeBulletins([...state.selectedBulletins]);
+        showToast('Fusion réussie');
         state.multiSelect = false;
         state.selectedBulletins.clear();
         document.getElementById('explorer-select').textContent = 'Sélectionner';
         renderBulletins();
         updateMultiSelectBar();
-      } catch {
-        showToast('Erreur lors de la fusion');
-      }
+      } catch { showToast('Erreur de fusion'); }
       mergeBtn.textContent = 'Fusionner';
       mergeBtn.disabled = false;
     });
@@ -549,63 +532,43 @@ async function renderBulletins() {
   const container = document.getElementById('explorer-list');
   if (!container) return;
 
-  // Show skeletons
   container.innerHTML = Array(4).fill('<div class="skeleton skeleton-card"></div>').join('');
 
   try {
     const res = await api.getBulletins(explorerFilters);
-    const bulletins = res.data;
+    const bulletins = res.bulletins || [];
 
-    if (bulletins.length === 0) {
-      container.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-state__icon">📋</div>
-          <div class="empty-state__title">Aucun bulletin</div>
-          <div class="empty-state__text">${explorerFilters.search ? 'Aucun résultat pour votre recherche.' :
-            explorerFilters.favoritesOnly ? 'Aucun favori pour le moment.' : 
-            'Aucun bulletin trouvé pour cette période.'}</div>
-        </div>`;
+    if (!bulletins.length) {
+      container.innerHTML = `<div class="empty-state"><div class="empty-state__icon">📋</div><div class="empty-state__title">Aucun bulletin</div><div class="empty-state__text">${explorerFilters.search ? 'Aucun résultat' : explorerFilters.favorites ? 'Aucun favori' : 'Aucun bulletin trouvé'}</div></div>`;
       return;
     }
 
     container.innerHTML = bulletins.map(b => {
-      const selected = state.selectedBulletins.has(b.id);
+      const sel = state.selectedBulletins.has(b.id);
       return `
-        <div class="bulletin-card ${selected ? 'bulletin-card--selected' : ''}" 
-             data-id="${b.id}" style="animation-delay:${Math.random() * 0.2}s">
-          ${state.multiSelect ? `<div class="bulletin-card__checkbox">${selected ? '✓' : ''}</div>` : ''}
+        <div class="bulletin-card ${sel ? 'bulletin-card--selected' : ''}" data-id="${b.id}" style="animation-delay:${Math.random()*0.2}s">
+          ${state.multiSelect ? `<div class="bulletin-card__checkbox">${sel ? '✓' : ''}</div>` : ''}
           <div class="bulletin-card__icon">📄</div>
           <div class="bulletin-card__body">
-            <div class="bulletin-card__title">${b.company} · ${getMonthName(b.month)} ${b.year}</div>
+            <div class="bulletin-card__title">${b.subject || 'Bulletin ' + getMonthName(b.month) + ' ' + b.year}</div>
             <div class="bulletin-card__meta">
-              <span>${formatDateShort(b.receivedAt)}</span>
+              <span>${formatDate(b.received_at)}</span>
               <span class="bulletin-card__meta-separator"></span>
-              <span>${formatFileSize(b.fileSize)}</span>
+              <span>${formatFileSize(b.size_bytes)}</span>
             </div>
           </div>
-          <div class="bulletin-card__amount">${formatCurrency(b.amount)}</div>
-          <button class="bulletin-card__favorite" data-id="${b.id}" data-fav="${b.isFavorite}">
-            ${b.isFavorite ? '❤️' : '🤍'}
-          </button>
+          <div class="bulletin-card__amount">${b.net_salary ? formatCurrency(b.net_salary) : ''}</div>
+          <button class="bulletin-card__favorite" data-id="${b.id}" data-fav="${b.is_favorite}">${b.is_favorite ? '❤️' : '🤍'}</button>
         </div>`;
     }).join('');
 
-    // Card click handlers
     container.querySelectorAll('.bulletin-card').forEach(card => {
-      card.addEventListener('click', (e) => {
-        // Ignore clicks on favorite button
+      card.addEventListener('click', e => {
         if (e.target.closest('.bulletin-card__favorite')) return;
         const id = card.dataset.id;
-
         if (state.multiSelect) {
-          // Toggle selection
-          if (state.selectedBulletins.has(id)) {
-            state.selectedBulletins.delete(id);
-            card.classList.remove('bulletin-card--selected');
-          } else {
-            state.selectedBulletins.add(id);
-            card.classList.add('bulletin-card--selected');
-          }
+          if (state.selectedBulletins.has(id)) { state.selectedBulletins.delete(id); card.classList.remove('bulletin-card--selected'); }
+          else { state.selectedBulletins.add(id); card.classList.add('bulletin-card--selected'); }
           updateMultiSelectBar();
         } else {
           showBulletinActions(id);
@@ -613,28 +576,21 @@ async function renderBulletins() {
       });
     });
 
-    // Favorite toggles
     container.querySelectorAll('.bulletin-card__favorite').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', async e => {
         e.stopPropagation();
         const id = btn.dataset.id;
         const wasFav = btn.dataset.fav === 'true';
         btn.dataset.fav = String(!wasFav);
         btn.textContent = wasFav ? '🤍' : '❤️';
         btn.style.transform = 'scale(1.3)';
-        setTimeout(() => { btn.style.transform = ''; }, 200);
-        await api.toggleFavorite(id);
+        setTimeout(() => btn.style.transform = '', 200);
+        try { await api.toggleFavorite(id); } catch {}
       });
     });
 
   } catch {
-    container.innerHTML = `
-      <div class="error-state">
-        <div class="error-state__icon">⚠️</div>
-        <div class="error-state__title">Erreur de chargement</div>
-        <div class="error-state__text">Impossible de récupérer les bulletins.</div>
-        <button class="error-state__retry" onclick="renderBulletins()">Réessayer</button>
-      </div>`;
+    container.innerHTML = `<div class="error-state"><div class="error-state__icon">⚠️</div><div class="error-state__title">Erreur</div><button class="error-state__retry" onclick="renderBulletins()">Réessayer</button></div>`;
   }
 }
 
@@ -643,245 +599,168 @@ function updateMultiSelectBar() {
   const countEl = document.getElementById('select-count');
   const mergeBtn = document.getElementById('merge-btn');
   if (!bar) return;
-
   if (state.multiSelect && state.selectedBulletins.size > 0) {
     bar.classList.add('multi-select-bar--visible');
-    if (countEl) countEl.textContent = `${state.selectedBulletins.size} sélectionné(s)`;
-    if (mergeBtn) {
-      mergeBtn.style.display = state.selectedBulletins.size >= 2 ? '' : 'none';
-    }
+    if (countEl) countEl.textContent = state.selectedBulletins.size + ' sélectionné(s)';
+    if (mergeBtn) mergeBtn.style.display = state.selectedBulletins.size >= 2 ? '' : 'none';
   } else {
     bar.classList.remove('multi-select-bar--visible');
   }
 }
 
-function showBulletinActions(bulletinId) {
-  // Close existing sheet
+function showBulletinActions(id) {
   const existing = document.querySelector('.action-sheet-overlay');
   if (existing) existing.remove();
-
   const overlay = document.createElement('div');
   overlay.className = 'action-sheet-overlay';
   overlay.innerHTML = `
     <div class="action-sheet">
       <div class="action-sheet__handle"></div>
       <div class="action-sheet__title">Actions</div>
-      <button class="action-sheet__option" data-action="view">
-        <span class="action-sheet__option-icon">👁️</span>
-        Voir le bulletin
-      </button>
-      <button class="action-sheet__option" data-action="download">
-        <span class="action-sheet__option-icon">⬇️</span>
-        Télécharger
-      </button>
-      <button class="action-sheet__option" data-action="share">
-        <span class="action-sheet__option-icon">📤</span>
-        Partager
-      </button>
-      <button class="action-sheet__option" data-action="delete" class="action-sheet__option--danger">
-        <span class="action-sheet__option-icon">🗑️</span>
-        Supprimer
-      </button>
-      <button class="action-sheet__option" data-action="cancel">
-        Annuler
-      </button>
-    </div>
-  `;
-
+      <button class="action-sheet__option" data-action="view">👁️ Voir le bulletin</button>
+      <button class="action-sheet__option" data-action="download">⬇️ Télécharger</button>
+      <button class="action-sheet__option" data-action="share">📤 Partager</button>
+      <button class="action-sheet__option" data-action="cancel">Annuler</button>
+    </div>`;
   document.body.appendChild(overlay);
-
-  // Click on overlay to close
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.remove();
-  });
-
-  // Option handlers
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   overlay.querySelectorAll('.action-sheet__option').forEach(opt => {
     opt.addEventListener('click', () => {
       const action = opt.dataset.action;
       overlay.remove();
-      switch (action) {
-        case 'view':
-          showToast('Ouverture du bulletin...');
-          break;
-        case 'download':
-          showToast('Téléchargement...');
-          break;
-        case 'share':
-          showToast('Partage...');
-          break;
-        case 'delete':
-          showToast('Suppression...');
-          break;
-      }
+      if (action === 'view') window.open(api.downloadBulletin(id), '_blank');
+      else if (action === 'download') window.location.href = api.downloadBulletin(id);
+      else if (action === 'share') { api.shareBulletin(id).then(() => showToast('Partagé')).catch(() => showToast('Erreur de partage')); }
     });
   });
 }
 
-// ---------- SETTINGS ----------
+// ── SETTINGS ──
 async function initSettings() {
   await renderSettings();
 }
 
 async function renderSettings() {
-  const container = document.getElementById('settings-content');
-  if (!container) return;
-
-  // Theme selector
   renderThemeSelector();
-
-  // Toggles
   await renderToggles();
 }
 
 function renderThemeSelector() {
   const container = document.getElementById('theme-selector');
   if (!container) return;
-
   const options = [
     { value: 'system', label: 'Système', icon: '☀️🌙' },
     { value: 'light', label: 'Clair', icon: '☀️' },
     { value: 'dark', label: 'Sombre', icon: '🌙' }
   ];
-
-  container.innerHTML = options.map(opt => `
-    <div class="theme-option ${state.theme === opt.value ? 'theme-option--active' : ''}" data-theme="${opt.value}">
-      <div class="theme-option__preview theme-option__preview--${opt.value}">${opt.icon}</div>
-      <div class="theme-option__label">${opt.label}</div>
-    </div>
-  `).join('');
-
+  container.innerHTML = options.map(o =>
+    `<div class="theme-option ${state.theme === o.value ? 'theme-option--active' : ''}" data-theme="${o.value}"><div class="theme-option__preview theme-option__preview--${o.value}">${o.icon}</div><div class="theme-option__label">${o.label}</div></div>`
+  ).join('');
   container.querySelectorAll('.theme-option').forEach(el => {
     el.addEventListener('click', async () => {
-      const theme = el.dataset.theme;
-      state.theme = theme;
-      localStorage.setItem('nka-theme', theme);
-      // Re-render theme selector
+      const t = el.dataset.theme;
+      state.theme = t;
+      localStorage.setItem('nka-theme', t);
       container.querySelectorAll('.theme-option').forEach(o => o.classList.remove('theme-option--active'));
       el.classList.add('theme-option--active');
-      // Apply with transition
       document.documentElement.classList.add('theme-transitioning');
       App.applyTheme();
       setTimeout(() => document.documentElement.classList.remove('theme-transitioning'), 400);
-      // Save to backend
-      await api.updateSettings({ theme });
+      try { await api.updateSetting('theme', t); } catch {}
     });
   });
 }
 
 async function renderToggles() {
-  // Biometric toggle
-  const bioToggle = document.getElementById('toggle-biometric');
-  if (bioToggle) {
-    bioToggle.checked = state.settings?.biometricEnabled ?? false;
-    bioToggle.addEventListener('change', async (e) => {
-      state.settings.biometricEnabled = e.target.checked;
-      await api.updateSettings({ biometricEnabled: e.target.checked });
+  const s = state.settings || {};
+
+  // Password change
+  const changePwBtn = document.getElementById('change-password-btn');
+  if (changePwBtn) {
+    changePwBtn.addEventListener('click', () => {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML = `
+        <div class="modal">
+          <div class="modal__title">Changer le mot de passe</div>
+          <div class="modal__text">
+            <input type="password" class="form-input" id="pw-old" placeholder="Ancien mot de passe" style="margin-bottom:8px;width:100%">
+            <input type="password" class="form-input" id="pw-new" placeholder="Nouveau mot de passe (4 min)" style="margin-bottom:8px;width:100%">
+            <input type="password" class="form-input" id="pw-confirm" placeholder="Confirmer" style="margin-bottom:8px;width:100%">
+            <div id="pw-error" style="color:var(--md-error);font-size:var(--text-sm)"></div>
+          </div>
+          <div class="modal__actions">
+            <button class="btn btn--ghost" id="pw-cancel">Annuler</button>
+            <button class="btn btn--primary" id="pw-save">Changer</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const err = () => overlay.querySelector('#pw-error');
+      overlay.querySelector('#pw-cancel').addEventListener('click', () => overlay.remove());
+      overlay.querySelector('#pw-save').addEventListener('click', async () => {
+        const old = overlay.querySelector('#pw-old').value;
+        const nw = overlay.querySelector('#pw-new').value;
+        const cf = overlay.querySelector('#pw-confirm').value;
+        if (nw.length < 4) { err().textContent = 'Minimum 4 caractères'; return; }
+        if (nw !== cf) { err().textContent = 'Les mots de passe ne correspondent pas'; return; }
+        try {
+          await api.changePassword(old, nw);
+          overlay.remove();
+          showToast('Mot de passe changé');
+        } catch (e) { err().textContent = e.message; }
+      });
+      overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
     });
   }
 
-  // Auto sync toggle
-  const syncToggle = document.getElementById('toggle-autosync');
-  if (syncToggle) {
-    syncToggle.checked = state.settings?.autoSync ?? true;
-    syncToggle.addEventListener('change', async (e) => {
-      state.settings.autoSync = e.target.checked;
-      await api.updateSettings({ autoSync: e.target.checked });
-    });
-  }
-
-  // PDF analysis toggle
-  const analysisToggle = document.getElementById('toggle-analysis');
-  if (analysisToggle) {
-    analysisToggle.checked = state.settings?.pdfAnalysisEnabled ?? true;
-    analysisToggle.addEventListener('change', async (e) => {
-      state.settings.pdfAnalysisEnabled = e.target.checked;
-      await api.updateSettings({ pdfAnalysisEnabled: e.target.checked });
-    });
-  }
-
-  // Auto detect toggle
-  const detectToggle = document.getElementById('toggle-autodetect');
-  if (detectToggle) {
-    detectToggle.checked = state.settings?.pdfAutoDetect ?? true;
-    detectToggle.addEventListener('change', async (e) => {
-      state.settings.pdfAutoDetect = e.target.checked;
-      await api.updateSettings({ pdfAutoDetect: e.target.checked });
-    });
+  // Auto sync
+  const at = document.getElementById('toggle-autosync');
+  if (at) {
+    at.checked = s.autoSync !== 'false';
+    at.addEventListener('change', async e => { try { await api.updateSetting('autoSync', e.target.checked ? 'true' : 'false'); } catch {} });
   }
 
   // Sync interval
-  const syncInterval = document.getElementById('sync-interval');
-  if (syncInterval) {
-    syncInterval.value = state.settings?.syncInterval ?? 6;
-    syncInterval.addEventListener('change', async (e) => {
-      state.settings.syncInterval = parseInt(e.target.value);
-      await api.updateSettings({ syncInterval: parseInt(e.target.value) });
-    });
+  const si = document.getElementById('sync-interval');
+  if (si) {
+    si.value = s.sync_frequency || '3600000';
+    si.addEventListener('change', async e => { try { await api.updateSetting('sync_frequency', e.target.value); } catch {} });
+  }
+
+  // PDF analysis
+  const pa = document.getElementById('toggle-analysis');
+  if (pa) {
+    pa.checked = s.pdf_analysis_enabled !== 'false';
+    pa.addEventListener('change', async e => { try { await api.updateSetting('pdf_analysis_enabled', e.target.checked ? 'true' : 'false'); } catch {} });
   }
 
   // Storage
-  const storageBar = document.getElementById('storage-bar');
   const storageLabel = document.getElementById('storage-label');
-  if (storageBar && storageLabel) {
-    const used = state.settings?.storageUsed ?? 0;
-    const total = state.settings?.storageTotal ?? 1;
-    const pct = Math.min((used / total) * 100, 100);
-    storageBar.style.width = pct + '%';
-    storageLabel.textContent = `${formatFileSize(used)} / ${formatFileSize(total)}`;
+  const storageBar = document.getElementById('storage-bar');
+  if (storageLabel && storageBar) {
+    try {
+      const st = await api.getDashboardStats();
+      const used = st.totalSize || 0;
+      storageLabel.textContent = formatFileSize(used);
+      storageBar.style.width = '0%';
+    } catch {
+      storageLabel.textContent = '—';
+    }
   }
 
-  // App version
-  const versionEl = document.getElementById('app-version');
-  if (versionEl) {
-    versionEl.textContent = state.settings?.appVersion ?? '1.0.0';
-  }
-
-  // Clear data button
+  // Clear data
   const clearBtn = document.getElementById('clear-data-btn');
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
-      showConfirmDialog(
-        'Effacer les données',
-        'Cette action supprimera tous les bulletins et comptes synchronisés. Les données téléchargées seront définitivement perdues.',
-        async () => {
-          showToast('Données effacées');
-        }
-      );
+      showConfirmDialog('Effacer les données', 'Cette action est irréversible.', async () => {
+        showToast('Fonctionnalité à venir');
+      });
     });
   }
+
+  // Version
+  const ver = document.getElementById('app-version');
+  if (ver) ver.textContent = '1.0.0';
 }
 
-function showConfirmDialog(title, message, onConfirm) {
-  const existing = document.querySelector('.modal-overlay');
-  if (existing) existing.remove();
-
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.innerHTML = `
-    <div class="modal">
-      <div class="modal__title">${title}</div>
-      <div class="modal__text">${message}</div>
-      <div class="modal__actions">
-        <button class="btn btn--ghost" id="dialog-cancel">Annuler</button>
-        <button class="btn btn--danger" id="dialog-confirm">Confirmer</button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(overlay);
-
-  overlay.querySelector('#dialog-cancel').addEventListener('click', () => overlay.remove());
-  overlay.querySelector('#dialog-confirm').addEventListener('click', () => {
-    overlay.remove();
-    onConfirm();
-  });
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.remove();
-  });
-}
-
-// ============================================
-// Start
-// ============================================
 document.addEventListener('DOMContentLoaded', () => App.init());
