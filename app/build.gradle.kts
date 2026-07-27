@@ -79,9 +79,12 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             excludes += "/META-INF/DEPENDENCIES"
             excludes += "/META-INF/LICENSE"
+            excludes += "/META-INF/LICENSE.md"
             excludes += "/META-INF/LICENSE.txt"
+            excludes += "/META-INF/LICENSE-notice.md"
             excludes += "/META-INF/NOTICE"
             excludes += "/META-INF/NOTICE.txt"
+            excludes += "/META-INF/NOTICE.md"
             merges += "META-INF/mailcap"
             merges += "META-INF/javamail.default.address.map"
         }
