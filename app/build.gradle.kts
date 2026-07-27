@@ -72,7 +72,6 @@ android {
         }
     }
 }
-}
 
 dependencies {
     // AndroidX Core
@@ -120,8 +119,11 @@ dependencies {
     // Network / OkHttp
     implementation(libs.okhttp)
 
-    // Microsoft
+    // Microsoft Auth
     implementation(libs.msal)
+
+    // Google Auth
+    implementation(libs.play.services.auth)
 
     // IMAP Mail
     implementation(libs.android.mail)
