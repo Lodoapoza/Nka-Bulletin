@@ -31,7 +31,7 @@ class MergeBulletinsUseCase @Inject constructor(
         bulletinIds: List<Long>,
         outputDir: String
     ): Result<String> = runCatching {
-        val bulletins = bulletinRepository.getBulletinsByIds(bulletinsIds)
+        val bulletins = bulletinRepository.getBulletinsByIds(bulletinIds)
         if (bulletins.isEmpty()) throw IllegalStateException("Aucun bulletin sélectionné")
 
         val pdfPaths = bulletins.map { it.filePath }
@@ -54,7 +54,7 @@ class MergeBulletinsUseCase @Inject constructor(
         bulletinIds: List<Long>,
         outputDir: String
     ): Result<String> = runCatching {
-        val bulletins = bulletinRepository.getBulletinsByIds(bulletinsIds)
+        val bulletins = bulletinRepository.getBulletinsByIds(bulletinIds)
         if (bulletins.isEmpty()) throw IllegalStateException("Aucun bulletin sélectionné")
 
         val outputPath = File(outputDir, "bulletins_${System.currentTimeMillis()}.zip").absolutePath
