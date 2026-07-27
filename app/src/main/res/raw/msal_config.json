@@ -1,0 +1,12 @@
+{
+  "client_id": "YOUR_AZURE_CLIENT_ID",
+  "authorization_user_agent": "DEFAULT",
+  "redirect_uri": "msauth://com.nka.bulletin/%1Pktc6KrqOhBMK%2BPI6PYlCwCXMk%3D",
+  "authorities": [
+    {
+      "type": "AAD",
+      "authority_url": "https://login.microsoftonline.com/common"
+    }
+  ],
+  "multiple_clouds_supported": true
+}
