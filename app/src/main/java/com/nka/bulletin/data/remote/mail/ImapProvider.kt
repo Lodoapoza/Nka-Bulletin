@@ -52,7 +52,7 @@ class ImapProvider @Inject constructor() : MailProvider {
             }
 
             val searchTerm = if (terms.size > 1) {
-                AndTerm(terms)
+                AndTerm(terms.toTypedArray())
             } else {
                 terms.first()
             }
