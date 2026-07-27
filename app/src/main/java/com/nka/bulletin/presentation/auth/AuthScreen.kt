@@ -88,6 +88,8 @@ private fun LoadingView() {
 
 @Composable
 private fun ChooseProviderView(viewModel: AuthViewModel) {
+    val state by viewModel.uiState.collectAsState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
