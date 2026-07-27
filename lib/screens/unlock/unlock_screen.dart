@@ -10,14 +10,7 @@ class UnlockScreen extends StatefulWidget {
 }
 
 class _UnlockScreenState extends State<UnlockScreen> {
-  final _pinController = TextEditingController();
   String _enteredPin = '';
-
-  @override
-  void dispose() {
-    _pinController.dispose();
-    super.dispose();
-  }
 
   void _addDigit(String digit) {
     if (_enteredPin.length < 6) {

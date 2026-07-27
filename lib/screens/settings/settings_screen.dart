@@ -194,17 +194,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     if (_newPinController.text != _confirmPinController.text) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Les PINs ne correspondent pas')),
                       );
                       return;
                     }
-                    auth.changePin(
+                    await auth.changePin(
                       _oldPinController.text,
                       _newPinController.text,
                     );
+                    if (!mounted) return;
                     if (auth.errorMessage == null) {
                       setState(() => _showChangePin = false);
                       ScaffoldMessenger.of(context).showSnackBar(

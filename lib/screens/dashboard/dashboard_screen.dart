@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../models/bulletin.dart';
 import '../../providers/bulletin_provider.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -12,8 +13,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  String _searchQuery = '';
-
   @override
   void initState() {
     super.initState();
@@ -173,7 +172,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildBulletinCard(BuildContext context, bulletin, BulletinProvider provider) {
+  Widget _buildBulletinCard(BuildContext context, Bulletin bulletin, BulletinProvider provider) {
     return ListTile(
       leading: const Icon(Icons.picture_as_pdf, color: Colors.red, size: 36),
       title: Text(bulletin.studentName),
@@ -184,7 +183,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  void _showDeleteDialog(BuildContext context, bulletin, BulletinProvider provider) {
+  void _showDeleteDialog(BuildContext context, Bulletin bulletin, BulletinProvider provider) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(

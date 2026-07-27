@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter_appauth/flutter_appauth.dart';
 import '../services/auth/google_auth_service.dart';
 import '../services/auth/microsoft_auth_service.dart';
 import '../services/auth/biometric_service.dart';
