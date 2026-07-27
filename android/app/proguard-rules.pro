@@ -1,0 +1,5 @@
+-keep class io.flutter.** { *; }
+-keep class com.google.** { *; }
+-keep class com.microsoft.** { *; }
+-dontwarn com.google.**
+-dontwarn com.microsoft.**
