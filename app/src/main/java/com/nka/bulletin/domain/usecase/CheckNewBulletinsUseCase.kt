@@ -33,7 +33,7 @@ class CheckNewBulletinsUseCase @Inject constructor(
 
         // Vérifier la fenêtre temporelle (16-31 du mois)
         if (currentDay < 16) {
-            return CheckResult.Skipped("Hors fenêtre temporelle (avant le 16)")
+            return@runCatching CheckResult.Skipped("Hors fenêtre temporelle (avant le 16)")
         }
 
         // Déjà des bulletins ce mois-ci ?
@@ -51,10 +51,10 @@ class CheckNewBulletinsUseCase @Inject constructor(
             if (currentMonth == 12) {
                 // Décembre : besoin des DEUX (normal + gratification)
                 if (hasGratification) {
-                    return CheckResult.Stopped("Décembre : normal + gratification déjà détectés")
+                    return@runCatching CheckResult.Stopped("Décembre : normal + gratification déjà détectés")
                 }
             } else {
-                return CheckResult.Stopped("Bulletin de $currentMonth/$currentYear déjà détecté")
+                return@runCatching CheckResult.Stopped("Bulletin de $currentMonth/$currentYear déjà détecté")
             }
         }
 
@@ -73,7 +73,7 @@ class CheckNewBulletinsUseCase @Inject constructor(
         }
 
         if (newBulletins.isEmpty()) {
-            return CheckResult.NoResults
+            return@runCatching CheckResult.NoResults
         }
 
         val detectedCount = newBulletins.size
