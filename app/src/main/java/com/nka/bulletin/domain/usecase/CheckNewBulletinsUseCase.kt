@@ -84,7 +84,6 @@ class CheckNewBulletinsUseCase @Inject constructor(
                 normalCount = detectedCount - gratificationCount,
                 gratificationCount = gratificationCount
             )
-        )
     }
 
     private fun getStartOfMonthTimestamp(year: Int, month: Int): Long {
