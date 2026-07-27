@@ -146,4 +146,4 @@ set -- \
     "$@"
 
 # Determine how to execute the Java command
-exec "$JAVA_CMD" "$@"
+exec "$JAVACMD" "$@"
