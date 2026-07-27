@@ -38,7 +38,7 @@ class MicrosoftAuthManager @Inject constructor(
             PublicClientApplication.createMultipleAccountPublicClientApplication(
                 context,
                 R.raw.msal_config,
-                object : IPublicClientApplication.IMultipleAccountApplicationCreatedListener {
+                object : IIPublicClientApplication.IMultipleAccountApplicationCreatedListener {
                     override fun onCreated(app: IMultipleAccountPublicClientApplication) {
                         application = app
                         continuation.resume(Result.success(Unit))
