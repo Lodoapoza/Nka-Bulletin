@@ -41,11 +41,11 @@ class PdfProcessor @Inject constructor(
                     throw IllegalStateException("Fichier introuvable: $pdfPath")
                 }
 
-                val document = org.apache.pdfbox.pdmodel.PDDocument.load(file)
+                val document = com.tom_roush.pdfbox.pdmodel.PDDocument.load(file)
                 try {
-                    val stripper = org.apache.pdfbox.text.PDFTextStripper()
-                    stripper.startPage = 1
-                    stripper.endPage = 1
+                    val stripper = com.tom_roush.pdfbox.text.PDFTextStripper()
+                    stripper.setStartPage(1)
+                    stripper.setEndPage(1)
                     val pageText = stripper.getText(document)
                     val pageCount = document.numberOfPages
 
@@ -62,11 +62,11 @@ class PdfProcessor @Inject constructor(
     suspend fun mergePdfs(pdfPaths: List<String>, outputPath: String): Result<String> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val merged = org.apache.pdfbox.pdmodel.PDDocument()
+                val merged = com.tom_roush.pdfbox.pdmodel.PDDocument()
 
                 try {
                     for (path in pdfPaths) {
-                        val doc = org.apache.pdfbox.pdmodel.PDDocument.load(File(path))
+                        val doc = com.tom_roush.pdfbox.pdmodel.PDDocument.load(File(path))
                         try {
                             for (i in 0 until doc.numberOfPages) {
                                 merged.addPage(doc.getPage(i))
@@ -88,7 +88,7 @@ class PdfProcessor @Inject constructor(
      */
     fun getPageCount(pdfPath: String): Int {
         return try {
-            val doc = org.apache.pdfbox.pdmodel.PDDocument.load(File(pdfPath))
+            val doc = com.tom_roush.pdfbox.pdmodel.PDDocument.load(File(pdfPath))
             val count = doc.numberOfPages
             doc.close()
             count
