@@ -1,6 +1,6 @@
 // ===== Client API Nka Bulletin =====
 // Configurez ici l'URL de votre backend déployé (voir backend/README).
-const API_BASE = window.NKA_API_BASE || 'http://localhost:4000/api';
+const API_BASE = window.NKA_API_BASE || '/api';
 
 const Api = (() => {
   let token = localStorage.getItem('nka_token');
