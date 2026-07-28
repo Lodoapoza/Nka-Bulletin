@@ -50,6 +50,13 @@ const Dashboard = (() => {
   }
 
   function bindActions() {
+    if (NativeBridge.isNative) {
+      let connected = true;
+      NativeBridge.onNetworkChange((c) => {
+        connected = c;
+        document.getElementById('dash-sync-status').textContent = c ? 'Connecté' : 'Hors ligne';
+      });
+    }
     document.getElementById('dash-sync-now').addEventListener('click', async (e) => {
       const btn = e.currentTarget;
       btn.disabled = true;

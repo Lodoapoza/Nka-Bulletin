@@ -32,7 +32,7 @@ const Bulletins = (() => {
   function renderList() {
     const listEl = document.getElementById('bulletins-list');
     if (!cache.length) {
-      listEl.innerHTML = `<div class="empty-state"><div class="glyph">🗂️</div><div>Aucun bulletin trouvé pour ces critères.</div></div>`;
+      listEl.innerHTML = `<div class="empty-state"><div class="glyph">🗂️</div><div>Aucun bulletin</div></div>`;
       updateMergeBar();
       return;
     }
@@ -62,7 +62,18 @@ const Bulletins = (() => {
       });
     });
     listEl.querySelectorAll('[data-download]').forEach(btn => {
-      btn.addEventListener('click', () => window.open(Api.downloadBulletin(btn.dataset.download), '_blank'));
+      btn.addEventListener('click', async () => {
+        const url = Api.downloadBulletin(btn.dataset.download);
+        if (NativeBridge.isNative) {
+          try {
+            const r = await fetch(url);
+            const blob = await r.blob();
+            await NativeBridge.download(blob, `bulletin-${btn.dataset.download}.pdf`);
+            return;
+          } catch (_) {}
+        }
+        window.open(url, '_blank');
+      });
     });
   }
 
@@ -73,12 +84,26 @@ const Bulletins = (() => {
   }
 
   async function shareOrDownloadBlob(blob, filename) {
+    if (NativeBridge.isNative) {
+      const url = URL.createObjectURL(blob);
+      try {
+        const r = await fetch(url);
+        const buf = await r.arrayBuffer();
+        await NativeBridge.download(new Blob([buf], { type: 'application/pdf' }), filename);
+      } catch (_) {
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+      }
+      URL.revokeObjectURL(url);
+      return;
+    }
     const file = new File([blob], filename, { type: 'application/pdf' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: 'Nka Bulletin', text: 'Mes bulletins de paie fusionnés.' });
         return;
-      } catch (_) { /* l'utilisateur a annulé ou le partage a échoué -> repli sur le téléchargement */ }
+      } catch (_) {}
     }
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -99,6 +124,8 @@ const Bulletins = (() => {
   }
 
   async function refresh() {
+    renderYearChips();
+    renderMonthChips();
     const q = document.getElementById('search-input').value.trim();
     const params = {};
     if (currentYear) params.year = currentYear;

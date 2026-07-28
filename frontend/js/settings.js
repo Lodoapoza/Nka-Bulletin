@@ -18,10 +18,11 @@ const Settings = (() => {
 
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
-    document.getElementById('dark-mode-switch').checked = theme === 'dark';
-    document.querySelector('meta[name="theme-color"]').setAttribute(
-      'content', theme === 'dark' ? '#10201C' : '#1B6E5C'
-    );
+    try {
+      document.getElementById('dark-mode-switch').checked = theme === 'dark';
+    } catch (e) {}
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#10201C' : '#1B6E5C');
     updateThemeIcon(theme);
   }
 
@@ -29,12 +30,14 @@ const Settings = (() => {
     const saved = localStorage.getItem('nka_theme');
     const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     applyTheme(saved || (systemDark ? 'dark' : 'light'));
-
-    document.getElementById('dark-mode-switch').addEventListener('change', (e) => {
-      const theme = e.target.checked ? 'dark' : 'light';
-      localStorage.setItem('nka_theme', theme);
-      applyTheme(theme);
-    });
+    const sw = document.getElementById('dark-mode-switch');
+    if (sw) {
+      sw.addEventListener('change', (e) => {
+        const theme = e.target.checked ? 'dark' : 'light';
+        localStorage.setItem('nka_theme', theme);
+        applyTheme(theme);
+      });
+    }
   }
 
   async function loadServerSettings() {
@@ -47,6 +50,15 @@ const Settings = (() => {
   }
 
   async function enablePush() {
+    if (NativeBridge.isNative) {
+      try {
+        await NativeBridge.registerPush();
+        return true;
+      } catch (e) {
+        Toast.show(`Échec notifications natives : ${e.message}`);
+        return false;
+      }
+    }
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       Toast.show("Les notifications ne sont pas prises en charge sur cet appareil.");
       return false;
@@ -68,42 +80,50 @@ const Settings = (() => {
   }
 
   function bindActions() {
-    initTheme();
+    try { initTheme(); } catch (e) { console.warn('initTheme:', e); }
     loadServerSettings();
 
-    document.getElementById('theme-toggle').addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme') || 'light';
-      const theme = current === 'dark' ? 'light' : 'dark';
-      localStorage.setItem('nka_theme', theme);
-      applyTheme(theme);
-    });
+    try {
+      document.getElementById('theme-toggle').addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme') || 'light';
+        const theme = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('nka_theme', theme);
+        applyTheme(theme);
+      });
+    } catch (e) { console.warn('theme-toggle:', e); }
 
-    document.getElementById('save-settings-btn').addEventListener('click', async () => {
-      try {
-        await Api.saveSettings({
-          syncFrequency: document.getElementById('sync-frequency').value,
-          syncHour: Number(document.getElementById('sync-hour').value),
-          extractAmounts: document.getElementById('amounts-switch').checked,
-        });
-        Toast.show('Paramètres enregistrés.');
-        Dashboard.refresh();
-      } catch (e) { Toast.show(`Erreur : ${e.message}`); }
-    });
+    try {
+      document.getElementById('save-settings-btn').addEventListener('click', async () => {
+        try {
+          await Api.saveSettings({
+            syncFrequency: document.getElementById('sync-frequency').value,
+            syncHour: Number(document.getElementById('sync-hour').value),
+            extractAmounts: document.getElementById('amounts-switch').checked,
+          });
+          Toast.show('Paramètres enregistrés.');
+          Dashboard.refresh();
+        } catch (e) { Toast.show(`Erreur : ${e.message}`); }
+      });
+    } catch (e) { console.warn('save-settings:', e); }
 
-    document.getElementById('push-switch').addEventListener('change', async (e) => {
-      if (e.target.checked) {
-        const ok = await enablePush();
-        if (!ok) e.target.checked = false;
-        else Toast.show('Notifications activées.');
-      } else {
-        await Api.unsubscribePush().catch(() => {});
-        Toast.show('Notifications désactivées.');
-      }
-    });
+    try {
+      document.getElementById('push-switch').addEventListener('change', async (e) => {
+        if (e.target.checked) {
+          const ok = await enablePush();
+          if (!ok) e.target.checked = false;
+          else Toast.show('Notifications activées.');
+        } else {
+          await Api.unsubscribePush().catch(() => {});
+          Toast.show('Notifications désactivées.');
+        }
+      });
+    } catch (e) { console.warn('push-switch:', e); }
 
-    document.getElementById('change-pin-btn').addEventListener('click', () => {
-      Pin.promptChangePin();
-    });
+    try {
+      document.getElementById('change-pin-btn').addEventListener('click', () => {
+        Pin.promptChangePin();
+      });
+    } catch (e) { console.warn('change-pin:', e); }
   }
 
   return { bindActions, applyTheme };

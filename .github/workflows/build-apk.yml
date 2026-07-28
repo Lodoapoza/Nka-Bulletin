@@ -25,7 +25,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -36,17 +41,11 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Copy web assets to dist
-        run: |
-          mkdir -p dist
-          cp -r index.html css/ js/ pages/ assets/ dist/
-          ls dist/
-
       - name: Add Android platform
         run: npx cap add android
+
+      - name: Sync Capacitor config & plugins
+        run: npx cap sync
 
       - name: Build APK
         run: |

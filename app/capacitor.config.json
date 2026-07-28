@@ -1,0 +1,19 @@
+{
+  "appId": "com.nka.bulletin",
+  "appName": "Nka Bulletin",
+  "server": {
+    "url": "https://www.nka-bulletin.glocal-innov.com",
+    "cleartext": false
+  },
+  "android": {
+    "buildOptions": {
+      "keystorePath": null,
+      "keystoreAlias": null
+    }
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}

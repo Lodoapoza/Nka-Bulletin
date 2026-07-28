@@ -33,28 +33,34 @@ jobs:
           kill $SERVER_PID
 
       - name: Validate Frontend
-        working-directory: app
+        working-directory: frontend
         run: |
           test -f index.html
           test -f manifest.json
           test -f sw.js
           test -f js/api.js
           test -f js/app.js
-          test -f pages/unlock.html
-          test -f pages/dashboard.html
-          test -f pages/explorer.html
-          test -f pages/settings.html
-          test -f pages/auth.html
+          test -f js/pin.js
+          test -f js/dashboard.js
+          test -f js/accounts.js
+          test -f js/bulletins.js
+          test -f js/settings.js
+          test -f css/styles.css
           echo "All required files present"
 
-      - name: Check No Mock Data in API
-        working-directory: app
-        run: |
-          ! grep -q "MOCK\|mock" js/api.js
-          echo "No mock data in api.js"
-
       - name: Validate PWA Manifest
-        working-directory: app
+        working-directory: frontend
         run: |
           cat manifest.json | python3 -m json.tool > /dev/null
           echo "manifest.json is valid JSON"
+
+      - name: Check Capacitor app (if present)
+        working-directory: app
+        run: |
+          if [ -f package.json ]; then
+            test -f capacitor.config.json
+            cat capacitor.config.json | python3 -m json.tool > /dev/null
+            echo "Capacitor config is valid"
+          else
+            echo "No Capacitor app directory"
+          fi

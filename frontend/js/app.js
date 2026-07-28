@@ -55,6 +55,9 @@ async function bootApp() {
     Toast.show('Backend injoignable — vérifiez NKA_API_BASE / votre connexion.');
   });
 
+  Dashboard.refresh();
+  Bulletins.refresh();
+  Accounts.refresh();
   Router.goTo('dashboard');
 }
 

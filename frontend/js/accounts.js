@@ -3,7 +3,6 @@ const Accounts = (() => {
 
   async function refresh() {
     const listEl = document.getElementById('accounts-list');
-    listEl.innerHTML = '<div class="hint">Chargement...</div>';
     try {
       const accounts = await Api.getAccounts();
       if (!accounts.length) {
