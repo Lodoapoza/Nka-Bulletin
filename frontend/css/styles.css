@@ -77,10 +77,8 @@ a { color: inherit; }
 .icon-btn:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
 
 /* ===== Views ===== */
-.view { padding: 0 20px 20px; will-change: opacity; }
+.view { padding: 0 20px 20px; }
 .view.hidden { display: none; }
-.view:not(.hidden) { animation: fade-in 0.18s ease-out; }
-@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .view, .card, .btn { animation: none !important; transition: none !important; } }
 
 /* ===== Cards (Material 3) ===== */
