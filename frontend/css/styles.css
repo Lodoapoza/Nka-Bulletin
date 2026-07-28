@@ -2,8 +2,6 @@
    Palette : primaire teal-émeraude (confiance/document officiel), accent ambre (chaleur/mise en avant)
    Typo : Plus Jakarta Sans (display), Inter (texte), Roboto Mono (montants)
 */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@500;600&display=swap');
-
 :root {
   --md-primary: #1B6E5C;
   --md-primary-container: #C9F1E4;
@@ -49,7 +47,7 @@ html, body { height: 100%; }
 body {
   margin: 0;
   font-family: var(--font-body);
-  background: linear-gradient(180deg, var(--md-surface) 0%, var(--md-surface-container) 340px, var(--md-surface) 100%);
+  background: var(--md-surface);
   color: var(--md-on-surface);
   -webkit-font-smoothing: antialiased;
 }
@@ -92,6 +90,11 @@ a { color: inherit; }
 }
 .card.elevated { box-shadow: var(--shadow-elevated); }
 .card-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+/* Empêche les sauts de layout au chargement des données */
+#dash-latest { min-height: 72px; }
+#dash-amounts-card { min-height: 0; contain: layout style; }
+#merge-bar { contain: layout style; }
 
 /* Élément signature : pile de bulletins archivés (hero du tableau de bord) */
 .stack-hero { position: relative; height: 130px; margin: 6px 0 18px; }
