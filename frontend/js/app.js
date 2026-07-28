@@ -45,19 +45,21 @@ async function registerServiceWorker() {
 }
 
 async function bootApp() {
-  Router.bind();
-  Dashboard.bindActions();
-  Accounts.bindForm();
-  Bulletins.bindActions();
-  Settings.bindActions();
+  const safe = (label, fn) => { try { fn(); } catch (e) { console.warn('boot:' + label, e); } };
+
+  safe('Router',    () => Router.bind());
+  safe('Dashboard', () => Dashboard.bindActions());
+  safe('Accounts',  () => Accounts.bindForm());
+  safe('Bulletins', () => Bulletins.bindActions());
+  safe('Settings',  () => Settings.bindActions());
 
   await Api.ensureDevice().catch(() => {
     Toast.show('Backend injoignable — vérifiez NKA_API_BASE / votre connexion.');
   });
 
-  Dashboard.refresh();
-  Bulletins.refresh();
-  Accounts.refresh();
+  safe('Dashboard.refresh', () => Dashboard.refresh());
+  safe('Bulletins.refresh', () => Bulletins.refresh());
+  safe('Accounts.refresh',  () => Accounts.refresh());
   Router.goTo('dashboard');
 }
 

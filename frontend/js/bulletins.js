@@ -64,7 +64,7 @@ const Bulletins = (() => {
     listEl.querySelectorAll('[data-download]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const url = Api.downloadBulletin(btn.dataset.download);
-        if (NativeBridge.isNative) {
+        if (NativeBridge && NativeBridge.isNative) {
           try {
             const r = await fetch(url);
             const blob = await r.blob();
@@ -84,19 +84,11 @@ const Bulletins = (() => {
   }
 
   async function shareOrDownloadBlob(blob, filename) {
-    if (NativeBridge.isNative) {
-      const url = URL.createObjectURL(blob);
+    if (NativeBridge && NativeBridge.isNative) {
       try {
-        const r = await fetch(url);
-        const buf = await r.arrayBuffer();
-        await NativeBridge.download(new Blob([buf], { type: 'application/pdf' }), filename);
-      } catch (_) {
-        const a = document.createElement('a');
-        a.href = url; a.download = filename;
-        document.body.appendChild(a); a.click(); a.remove();
-      }
-      URL.revokeObjectURL(url);
-      return;
+        await NativeBridge.download(blob, filename);
+        return;
+      } catch (_) {}
     }
     const file = new File([blob], filename, { type: 'application/pdf' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {

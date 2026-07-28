@@ -52,7 +52,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-#app { max-width: 480px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; padding-bottom: 84px; position: relative; }
+#app { max-width: 480px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; padding: env(safe-area-inset-top, 0px) 0 84px; position: relative; }
 
 /* ===== Typo ===== */
 h1, h2, h3, .display { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.01em; }
@@ -64,7 +64,7 @@ h2 { font-size: 1.15rem; margin: 0 0 12px; }
 a { color: inherit; }
 
 /* ===== Top bar ===== */
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: 20px 20px 8px; position: sticky; top: 0; z-index: 50; background: var(--md-surface); }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: calc(20px + env(safe-area-inset-top, 0px)) 20px 8px; position: sticky; top: 0; z-index: 50; background: var(--md-surface); }
 .topbar .brand { display: flex; align-items: center; gap: 10px; }
 .brand-mark { width: 36px; height: 36px; border-radius: 11px; background: linear-gradient(135deg, var(--md-primary), #0E4A3C); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-soft); }
 [data-theme="dark"] .brand-mark { background: linear-gradient(135deg, var(--md-primary), #06251D); }

@@ -1,25 +1,13 @@
 ;(function () {
   const isNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()
+  const fs = isNative && Capacitor.Plugins.Filesystem
 
   const Native = {
-    get share () {
-      return Capacitor.Plugins.Share
-    },
-    get filesystem () {
-      return Capacitor.Plugins.Filesystem
-    },
-    get fileTransfer () {
-      return Capacitor.Plugins.FileTransfer
-    },
-    get network () {
-      return Capacitor.Plugins.Network
-    },
-    get preferences () {
-      return Capacitor.Plugins.Preferences
-    },
-    get push () {
-      return Capacitor.Plugins.PushNotifications
-    }
+    get share () { return Capacitor.Plugins.Share },
+    get filesystem () { return fs },
+    get network () { return Capacitor.Plugins.Network },
+    get preferences () { return Capacitor.Plugins.Preferences },
+    get push () { return Capacitor.Plugins.PushNotifications }
   }
 
   window.NativeBridge = {
@@ -34,18 +22,14 @@
     },
 
     async download (blob, filename) {
-      if (isNative && Native.fileTransfer) {
+      if (isNative && fs) {
         const base64 = await new Promise((resolve) => {
           const r = new FileReader()
           r.onload = () => resolve(r.result.split(',')[1])
           r.readAsDataURL(blob)
         })
-        const { uri } = await Native.filesystem.getUri({
-          path: filename, directory: Directory.Cache
-        })
-        return Native.fileTransfer.downloadFile({
-          url: uri, path: filename
-        })
+        await fs.writeFile({ path: filename, data: base64, directory: 'CACHE' })
+        return
       }
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')

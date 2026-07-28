@@ -50,7 +50,7 @@ const Settings = (() => {
   }
 
   async function enablePush() {
-    if (NativeBridge.isNative) {
+    if (typeof NativeBridge !== 'undefined' && NativeBridge.isNative) {
       try {
         await NativeBridge.registerPush();
         return true;

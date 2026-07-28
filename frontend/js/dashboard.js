@@ -50,12 +50,12 @@ const Dashboard = (() => {
   }
 
   function bindActions() {
-    if (NativeBridge.isNative) {
-      let connected = true;
-      NativeBridge.onNetworkChange((c) => {
-        connected = c;
-        document.getElementById('dash-sync-status').textContent = c ? 'Connecté' : 'Hors ligne';
-      });
+    if (NativeBridge && NativeBridge.isNative) {
+      try {
+        NativeBridge.onNetworkChange((c) => {
+          document.getElementById('dash-sync-status').textContent = c ? 'Connecté' : 'Hors ligne';
+        });
+      } catch (_) {}
     }
     document.getElementById('dash-sync-now').addEventListener('click', async (e) => {
       const btn = e.currentTarget;
