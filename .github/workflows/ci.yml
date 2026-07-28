@@ -7,22 +7,24 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  test-backend:
     runs-on: ubuntu-latest
-    env:
-      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
 
-      - name: Test Backend
-        working-directory: backend
+      - name: Install dependencies
+        run: npm install 2>&1
+
+      - name: Start server and test
         run: |
-          npm install
           cat > .env << EOF
           JWT_SECRET=ci_test_secret_key_for_github_actions_32_chars
           CRYPTO_SECRET=ci_test_crypto_secret_32_bytes_long!!
@@ -31,44 +33,37 @@ jobs:
           STORAGE_DIR=./storage
           DB_PATH=./data/nka-bulletin.sqlite
           EOF
-          node server.js &
+          node server.js > /tmp/server.log 2>&1 &
           SERVER_PID=$!
           sleep 5
-          curl -f http://localhost:4000/api/health
-          curl -f http://localhost:4000/api/auth/password/status
-          curl -f http://localhost:4000/api/settings
-          curl -f http://localhost:4000/api/stats/dashboard
-          kill $SERVER_PID
+          echo "=== Server log ==="
+          cat /tmp/server.log
+          echo "=== Health check ==="
+          curl -v http://localhost:4000/api/health 2>&1 || echo "Health check FAILED"
+          echo "=== Other endpoints ==="
+          curl -f http://localhost:4000/api/auth/password/status || echo "password/status FAILED"
+          curl -f http://localhost:4000/api/settings || echo "settings FAILED"
+          curl -f http://localhost:4000/api/stats/dashboard || echo "stats FAILED"
+          kill $SERVER_PID 2>/dev/null
+          wait $SERVER_PID 2>/dev/null
 
-      - name: Validate Frontend
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Frontend files
         working-directory: frontend
         run: |
-          test -f index.html
-          test -f manifest.json
-          test -f sw.js
-          test -f js/api.js
-          test -f js/app.js
-          test -f js/pin.js
-          test -f js/dashboard.js
-          test -f js/accounts.js
-          test -f js/bulletins.js
-          test -f js/settings.js
-          test -f css/styles.css
-          echo "All required files present"
+          ERR=0
+          for f in index.html manifest.json sw.js js/api.js js/app.js js/pin.js js/dashboard.js js/accounts.js js/bulletins.js js/settings.js js/capacitor.js css/styles.css; do
+            test -f "$f" && echo "  ok  $f" || { echo "  MISS  $f"; ERR=1; }
+          done
+          python3 -m json.tool manifest.json > /dev/null && echo "  ok  manifest.json is valid JSON" || { echo "  FAIL  manifest.json is invalid"; ERR=1; }
+          exit $ERR
 
-      - name: Validate PWA Manifest
-        working-directory: frontend
-        run: |
-          cat manifest.json | python3 -m json.tool > /dev/null
-          echo "manifest.json is valid JSON"
-
-      - name: Check Capacitor app (if present)
+      - name: Validate Capacitor config
         working-directory: app
         run: |
-          if [ -f package.json ]; then
-            test -f capacitor.config.json
-            cat capacitor.config.json | python3 -m json.tool > /dev/null
-            echo "Capacitor config is valid"
-          else
-            echo "No Capacitor app directory"
-          fi
+          test -f package.json || { echo "No app directory"; exit 0; }
+          test -f capacitor.config.json || { echo "MISSING capacitor.config.json"; exit 1; }
+          python3 -m json.tool capacitor.config.json > /dev/null && echo "  ok  capacitor.config.json is valid JSON" || { echo "  FAIL  invalid JSON"; exit 1; }
