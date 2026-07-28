@@ -23,7 +23,15 @@ jobs:
         working-directory: backend
         run: |
           npm install
-          node src/index.js &
+          cat > .env << EOF
+          JWT_SECRET=ci_test_secret_key_for_github_actions_32_chars
+          CRYPTO_SECRET=ci_test_crypto_secret_32_bytes_long!!
+          VAPID_PUBLIC_KEY=
+          VAPID_PRIVATE_KEY=
+          STORAGE_DIR=./storage
+          DB_PATH=./data/nka-bulletin.sqlite
+          EOF
+          node server.js &
           SERVER_PID=$!
           sleep 5
           curl -f http://localhost:4000/api/health
