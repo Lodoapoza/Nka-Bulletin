@@ -11,8 +11,8 @@ const Toast = (() => {
 })();
 
 const Router = (() => {
-  const views = ['dashboard', 'bulletins', 'accounts', 'settings'];
-  const HEADER_LABELS = { dashboard: 'Tableau de bord', bulletins: 'Mes bulletins', accounts: 'Comptes de messagerie', settings: 'Paramètres' };
+  const views = ['dashboard', 'bulletins', 'settings'];
+  const HEADER_LABELS = { dashboard: 'Tableau de bord', bulletins: 'Mes bulletins', settings: 'Paramètres' };
 
   function goTo(viewName) {
     views.forEach(v => {
@@ -25,7 +25,7 @@ const Router = (() => {
 
     if (viewName === 'dashboard') Dashboard.refresh();
     if (viewName === 'bulletins') Bulletins.refresh();
-    if (viewName === 'accounts') Accounts.refresh();
+    if (viewName === 'settings') Accounts.refresh();
   }
 
   function bind() {

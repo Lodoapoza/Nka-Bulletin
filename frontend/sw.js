@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nka-bulletin-v6';
+const CACHE_NAME = 'nka-bulletin-v7';
 const APP_SHELL = [
   '/index.html',
   '/manifest.json',

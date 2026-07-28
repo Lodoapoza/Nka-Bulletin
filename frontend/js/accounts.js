@@ -15,15 +15,13 @@ const Accounts = (() => {
         return;
       }
       listEl.innerHTML = accounts.map(a => `
-        <div class="card">
-          <div class="card-row">
-            <div>
-              <div style="font-weight:700;">${a.label || a.email}</div>
-              <div class="hint">${PROVIDER_LABELS[a.provider] || a.provider} · ${a.email}</div>
-              <div class="hint">${a.last_sync_at ? 'Dernière synchro : ' + new Date(a.last_sync_at).toLocaleString('fr-FR') : 'Pas encore synchronisé'}</div>
-            </div>
-            <button class="btn btn-danger" data-remove="${a.id}">Retirer</button>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--md-outline);">
+          <div style="flex:1;">
+            <div style="font-weight:700;">${a.label || a.email}</div>
+            <div class="hint">${PROVIDER_LABELS[a.provider] || a.provider} · ${a.email}</div>
+            <div class="hint">${a.last_sync_at ? 'Dernière synchro : ' + new Date(a.last_sync_at).toLocaleString('fr-FR') : 'Pas encore synchronisé'}</div>
           </div>
+          <button class="btn btn-danger" data-remove="${a.id}">Retirer</button>
         </div>
       `).join('');
 
@@ -51,7 +49,11 @@ const Accounts = (() => {
     const submitBtn = document.getElementById('submit-account-btn');
 
     addBtn.addEventListener('click', () => formCard.classList.remove('hidden'));
-    cancelBtn.addEventListener('click', () => formCard.classList.add('hidden'));
+    cancelBtn.addEventListener('click', () => {
+      formCard.classList.add('hidden');
+      document.getElementById('account-email').value = '';
+      document.getElementById('account-password').value = '';
+    });
     providerSelect.addEventListener('change', () => {
       customFields.classList.toggle('hidden', providerSelect.value !== 'imap');
     });
