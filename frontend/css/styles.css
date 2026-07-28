@@ -52,7 +52,6 @@ body {
   background: linear-gradient(180deg, var(--md-surface) 0%, var(--md-surface-container) 340px, var(--md-surface) 100%);
   color: var(--md-on-surface);
   -webkit-font-smoothing: antialiased;
-  transition: background 0.3s ease, color 0.3s ease;
 }
 
 #app { max-width: 480px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; padding-bottom: 84px; position: relative; }
@@ -78,9 +77,10 @@ a { color: inherit; }
 .icon-btn:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
 
 /* ===== Views ===== */
-.view { padding: 0 20px 20px; animation: fade-in 0.28s ease; }
+.view { padding: 0 20px 20px; will-change: opacity; }
 .view.hidden { display: none; }
-@keyframes fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.view:not(.hidden) { animation: fade-in 0.18s ease-out; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .view, .card, .btn { animation: none !important; transition: none !important; } }
 
 /* ===== Cards (Material 3) ===== */
@@ -90,6 +90,7 @@ a { color: inherit; }
   padding: 20px;
   box-shadow: var(--shadow-soft);
   margin-bottom: 14px;
+  backface-visibility: hidden;
 }
 .card.elevated { box-shadow: var(--shadow-elevated); }
 .card-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
