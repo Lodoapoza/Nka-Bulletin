@@ -1,143 +1,115 @@
-import { Router } from 'express';
-import fs from 'fs';
-import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
-import {
-  getAllBulletins,
-  getBulletinById,
-  toggleFavorite,
-  updateBulletinAnalysis
-} from '../db.js';
-import { analyzePDF } from '../pdf/analyzer.js';
-import { mergeSelection } from '../pdf/merger.js';
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const db = require('../db');
+const { mergePdfs } = require('../pdfService');
 
-const router = Router();
+const router = express.Router();
 
-// GET /api/bulletins — list with filters
+// GET /api/bulletins?year=2026&month=7&q=texte
 router.get('/', (req, res) => {
-  try {
-    const { year, month, search, favorites, page, limit } = req.query;
-    const result = getAllBulletins({
-      year: year || undefined,
-      month: month || undefined,
-      search: search || undefined,
-      favorites: favorites === 'true' || favorites === '1',
-      page: page ? parseInt(page) : 1,
-      limit: limit ? parseInt(limit) : 50
-    });
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  const { year, month, q } = req.query;
+  let sql = `SELECT b.*, a.email as account_email, a.provider FROM bulletins b
+             JOIN accounts a ON a.id = b.account_id
+             WHERE b.device_id = ?`;
+  const params = [req.deviceId];
+
+  if (year) { sql += ' AND b.year = ?'; params.push(Number(year)); }
+  if (month) { sql += ' AND b.month = ?'; params.push(Number(month)); }
+  if (q) { sql += ' AND (b.filename LIKE ? OR a.email LIKE ?)'; params.push(`%${q}%`, `%${q}%`); }
+
+  sql += ' ORDER BY b.year DESC, b.month DESC, b.received_at DESC';
+  const rows = db.prepare(sql).all(...params);
+  res.json(rows);
 });
 
-// POST /api/bulletins/merge — merge selected bulletins (must be BEFORE :id)
-router.post('/merge', async (req, res) => {
-  try {
-    const { ids } = req.body;
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ error: 'IDs des bulletins requis (tableau non vide)' });
-    }
-    const result = await mergeSelection(ids);
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+// Statistiques du tableau de bord
+router.get('/stats', (req, res) => {
+  const currentYear = new Date().getFullYear();
+  const totalThisYear = db.prepare(
+    'SELECT COUNT(*) as n FROM bulletins WHERE device_id = ? AND year = ?'
+  ).get(req.deviceId, currentYear).n;
+
+  const latest = db.prepare(
+    'SELECT * FROM bulletins WHERE device_id = ? ORDER BY year DESC, month DESC, received_at DESC LIMIT 1'
+  ).get(req.deviceId);
+
+  const device = db.prepare('SELECT extract_amounts FROM devices WHERE id = ?').get(req.deviceId);
+  let cumulativeNet = null;
+  if (device && device.extract_amounts) {
+    const row = db.prepare(
+      'SELECT SUM(net_amount) as total FROM bulletins WHERE device_id = ? AND year = ? AND net_amount IS NOT NULL'
+    ).get(req.deviceId, currentYear);
+    cumulativeNet = row.total;
   }
+
+  res.json({
+    totalThisYear,
+    latest,
+    lastNetAmount: (device && device.extract_amounts) ? latest?.net_amount ?? null : null,
+    cumulativeNetThisYear: cumulativeNet,
+    amountsEnabled: !!(device && device.extract_amounts),
+  });
 });
 
-// GET /api/bulletins/:id — detail
-router.get('/:id', (req, res) => {
-  try {
-    const bulletin = getBulletinById(req.params.id);
-    if (!bulletin) return res.status(404).json({ error: 'Bulletin introuvable' });
-    res.json(bulletin);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// POST /api/bulletins/:id/favorite — toggle favorite
-router.post('/:id/favorite', (req, res) => {
-  try {
-    const result = toggleFavorite(req.params.id);
-    if (!result) return res.status(404).json({ error: 'Bulletin introuvable' });
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// GET /api/bulletins/:id/download — download PDF file
+// Téléchargement d'un bulletin individuel
 router.get('/:id/download', (req, res) => {
-  try {
-    const bulletin = getBulletinById(req.params.id);
-    if (!bulletin) return res.status(404).json({ error: 'Bulletin introuvable' });
-
-    if (!fs.existsSync(bulletin.file_path)) {
-      return res.status(404).json({ error: 'Fichier introuvable sur le disque' });
-    }
-
-    res.download(bulletin.file_path, bulletin.filename);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  const row = db.prepare('SELECT * FROM bulletins WHERE id = ? AND device_id = ?').get(req.params.id, req.deviceId);
+  if (!row) return res.status(404).json({ error: 'Bulletin introuvable' });
+  if (!fs.existsSync(row.filepath)) return res.status(410).json({ error: 'Fichier manquant sur le disque' });
+  res.download(row.filepath, row.filename);
 });
 
-// POST /api/bulletins/:id/share — create a shareable copy
-router.post('/:id/share', async (req, res) => {
+router.delete('/:id', (req, res) => {
+  const row = db.prepare('SELECT * FROM bulletins WHERE id = ? AND device_id = ?').get(req.params.id, req.deviceId);
+  if (!row) return res.status(404).json({ error: 'Bulletin introuvable' });
+  db.prepare('DELETE FROM bulletins WHERE id = ?').run(row.id);
+  try { fs.unlinkSync(row.filepath); } catch (_) {}
+  res.json({ ok: true });
+});
+
+/**
+ * Fusionne plusieurs bulletins sélectionnés (ids explicites, ou toute une année, ou les N derniers
+ * mois) en un seul PDF téléchargeable / partageable.
+ * body: { ids: [1,2,3] } OU { year: 2026 } OU { lastNMonths: 3 }
+ */
+router.post('/export/merge', async (req, res) => {
+  const { ids, year, lastNMonths } = req.body;
+  let rows;
+
+  if (Array.isArray(ids) && ids.length) {
+    const placeholders = ids.map(() => '?').join(',');
+    rows = db.prepare(
+      `SELECT * FROM bulletins WHERE device_id = ? AND id IN (${placeholders}) ORDER BY year, month`
+    ).all(req.deviceId, ...ids);
+  } else if (year) {
+    rows = db.prepare(
+      'SELECT * FROM bulletins WHERE device_id = ? AND year = ? ORDER BY month'
+    ).all(req.deviceId, Number(year));
+  } else if (lastNMonths) {
+    rows = db.prepare(
+      'SELECT * FROM bulletins WHERE device_id = ? ORDER BY year DESC, month DESC LIMIT ?'
+    ).all(req.deviceId, Number(lastNMonths)).reverse();
+  } else {
+    return res.status(400).json({ error: 'Fournir ids, year ou lastNMonths' });
+  }
+
+  if (!rows.length) return res.status(404).json({ error: 'Aucun bulletin trouvé pour cette sélection' });
+
+  const filePaths = rows.filter(r => fs.existsSync(r.filepath)).map(r => r.filepath);
+  if (!filePaths.length) return res.status(410).json({ error: 'Aucun fichier disponible sur le disque' });
+
   try {
-    const bulletin = getBulletinById(req.params.id);
-    if (!bulletin) return res.status(404).json({ error: 'Bulletin introuvable' });
-
-    if (!fs.existsSync(bulletin.file_path)) {
-      return res.status(404).json({ error: 'Fichier introuvable sur le disque' });
-    }
-
-    // Copy to a share directory
-    const shareDir = path.join('data', 'shares');
-    fs.mkdirSync(shareDir, { recursive: true });
-
-    const shareId = uuidv4();
-    const ext = path.extname(bulletin.filename) || '.pdf';
-    const shareFilename = `share-${shareId}${ext}`;
-    const sharePath = path.join(shareDir, shareFilename);
-
-    fs.copyFileSync(bulletin.file_path, sharePath);
-
-    res.json({
-      success: true,
-      shareId,
-      filename: shareFilename,
-      filePath: sharePath
+    const mergedBytes = await mergePdfs(filePaths);
+    const filename = `nka-bulletins-fusion-${Date.now()}.pdf`;
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
     });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.send(Buffer.from(mergedBytes));
+  } catch (e) {
+    res.status(500).json({ error: `Échec de la fusion PDF : ${e.message}` });
   }
 });
 
-// POST /api/bulletins/:id/analyze — (bonus) analyze a PDF for salary data
-router.post('/:id/analyze', async (req, res) => {
-  try {
-    const bulletin = getBulletinById(req.params.id);
-    if (!bulletin) return res.status(404).json({ error: 'Bulletin introuvable' });
-
-    if (!fs.existsSync(bulletin.file_path)) {
-      return res.status(404).json({ error: 'Fichier introuvable sur le disque' });
-    }
-
-    const result = await analyzePDF(bulletin.file_path);
-
-    if (result.success) {
-      updateBulletinAnalysis(req.params.id, {
-        netSalary: result.netSalary,
-        annualTotal: result.annualTotal
-      });
-    }
-
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-export default router;
+module.exports = router;

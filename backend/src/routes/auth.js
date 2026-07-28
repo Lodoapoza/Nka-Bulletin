@@ -1,121 +1,38 @@
-import { Router } from 'express';
-import { getAccounts, getAccountById, insertAccount, deleteAccount, updateAccountTokens } from '../db.js';
-import { getProvider } from '../auth/index.js';
-import { verifyConnection as verifyImap, saveConfig as saveImapConfig } from '../auth/imap.js';
+const express = require('express');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const db = require('../db');
 
-const router = Router();
+const router = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET;
 
-// GET /api/auth/accounts — list all connected accounts
-router.get('/accounts', (req, res) => {
-  try {
-    const accounts = getAccounts();
-    // Strip sensitive tokens from response
-    const safe = accounts.map(a => ({
-      ...a,
-      refresh_token: a.refresh_token ? '***' : null,
-      access_token: a.access_token ? '***' : null
-    }));
-    res.json(safe);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+/**
+ * Le code PIN est un verrou LOCAL sur l'appareil (aucun compte externe n'est créé, conformément
+ * au cahier des charges). Le backend a seulement besoin de savoir quel "appareil" (device_id,
+ * UUID généré une fois par le frontend et stocké dans IndexedDB) fait la requête, afin de
+ * cloisonner les données. On délivre donc un token de session lié au device_id, pas à un mot de passe.
+ */
+router.post('/register-device', (req, res) => {
+  const deviceId = req.body.deviceId || crypto.randomUUID();
+  const existing = db.prepare('SELECT id FROM devices WHERE id = ?').get(deviceId);
+  if (!existing) {
+    db.prepare('INSERT INTO devices (id) VALUES (?)').run(deviceId);
   }
+  const token = jwt.sign({ deviceId }, JWT_SECRET, { expiresIn: '180d' });
+  res.json({ deviceId, token });
 });
 
-// DELETE /api/auth/accounts/:id
-router.delete('/accounts/:id', (req, res) => {
+function authMiddleware(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) return res.status(401).json({ error: 'Token manquant' });
   try {
-    const deleted = deleteAccount(req.params.id);
-    if (!deleted) return res.status(404).json({ error: 'Compte introuvable' });
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.deviceId = payload.deviceId;
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: 'Token invalide ou expiré' });
   }
-});
+}
 
-// POST /api/auth/imap/verify — test IMAP connection
-router.post('/imap/verify', async (req, res) => {
-  try {
-    const { host, port, user, password, useTls } = req.body;
-    if (!host || !port || !user || !password) {
-      return res.status(400).json({ error: 'Champs requis: host, port, user, password' });
-    }
-    const result = await verifyImap({ host, port, user, password, useTls });
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// POST /api/auth/imap/save — save IMAP account configuration
-router.post('/imap/save', async (req, res) => {
-  try {
-    const { email, host, port, user, password, useTls } = req.body;
-    if (!email || !host || !port || !user || !password) {
-      return res.status(400).json({ error: 'Champs requis: email, host, port, user, password' });
-    }
-
-    const config = saveImapConfig({ email, host, port, user, password, useTls });
-
-    const account = insertAccount({
-      email: config.email,
-      provider: 'imap',
-      config_json: config.config_json
-    });
-
-    res.status(201).json(account);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// GET /api/auth/:provider/login — generate OAuth URL
-router.get('/:provider/login', (req, res) => {
-  try {
-    const { provider } = req.params;
-    const authModule = getProvider(provider);
-
-    if (!authModule.getAuthUrl) {
-      return res.status(400).json({ error: `Le fournisseur ${provider} ne supporte pas OAuth` });
-    }
-
-    const state = encodeURIComponent(JSON.stringify({ provider }));
-    const url = authModule.getAuthUrl(state);
-    res.json({ url, provider });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// GET /api/auth/:provider/callback — handle OAuth callback
-router.get('/:provider/callback', async (req, res) => {
-  try {
-    const { provider } = req.params;
-    const { code, state } = req.query;
-
-    if (!code) {
-      return res.status(400).json({ error: 'Code d\'autorisation manquant' });
-    }
-
-    const authModule = getProvider(provider);
-
-    if (!authModule.handleCallback) {
-      return res.status(400).json({ error: `Le fournisseur ${provider} ne supporte pas OAuth` });
-    }
-
-    const profile = await authModule.handleCallback(code);
-
-    const account = insertAccount({
-      email: profile.email,
-      provider,
-      refresh_token: profile.refresh_token,
-      access_token: profile.access_token,
-      expiry_date: profile.expiry_date
-    });
-
-    res.json({ success: true, account });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-export default router;
+module.exports = { router, authMiddleware };

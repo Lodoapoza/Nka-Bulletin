@@ -1,30 +1,33 @@
-import { Router } from 'express';
-import { getSettings, updateSetting } from '../db.js';
+const express = require('express');
+const db = require('../db');
+const { rescheduleDevice } = require('../scheduler');
 
-const router = Router();
+const router = express.Router();
 
-// GET /api/settings — get all settings
 router.get('/', (req, res) => {
-  try {
-    const settings = getSettings();
-    res.json(settings);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  const row = db.prepare(
+    'SELECT id, sync_hour, sync_frequency, extract_amounts FROM devices WHERE id = ?'
+  ).get(req.deviceId);
+  res.json(row);
 });
 
-// PUT /api/settings — update a setting
 router.put('/', (req, res) => {
-  try {
-    const { key, value } = req.body;
-    if (!key || value === undefined) {
-      return res.status(400).json({ error: 'key et value requis' });
-    }
-    const result = updateSetting(key, value);
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  const { syncHour, syncFrequency, extractAmounts } = req.body;
+  db.prepare(`
+    UPDATE devices SET
+      sync_hour = COALESCE(?, sync_hour),
+      sync_frequency = COALESCE(?, sync_frequency),
+      extract_amounts = COALESCE(?, extract_amounts)
+    WHERE id = ?
+  `).run(
+    syncHour ?? null,
+    syncFrequency ?? null,
+    typeof extractAmounts === 'boolean' ? (extractAmounts ? 1 : 0) : null,
+    req.deviceId
+  );
+  rescheduleDevice(req.deviceId);
+  const updated = db.prepare('SELECT sync_hour, sync_frequency, extract_amounts FROM devices WHERE id = ?').get(req.deviceId);
+  res.json(updated);
 });
 
-export default router;
+module.exports = router;

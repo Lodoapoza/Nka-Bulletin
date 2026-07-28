@@ -1,0 +1,96 @@
+const { ImapFlow } = require('imapflow');
+const { simpleParser } = require('mailparser');
+const fs = require('fs');
+const path = require('path');
+const { hashMessage } = require('./crypto');
+
+// Presets réels des grands fournisseurs (l'utilisateur fournit login + mot de passe d'application)
+const PROVIDER_PRESETS = {
+  gmail:   { host: 'imap.gmail.com',        port: 993, secure: true },
+  outlook: { host: 'outlook.office365.com', port: 993, secure: true },
+  yahoo:   { host: 'imap.mail.yahoo.com',   port: 993, secure: true },
+};
+
+// Mots-clés reconnus dans le sujet ou le nom de la pièce jointe (FR + EN)
+const KEYWORDS = [
+  'bulletin de paie', 'bulletin de salaire', 'fiche de paie', 'fiche de paye',
+  'bulletin', 'paie', 'paye', 'payslip', 'pay slip', 'salary slip', 'salaire'
+];
+
+function matchesPayslipKeywords(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return KEYWORDS.some(k => lower.includes(k));
+}
+
+// Un bulletin de paie est censé arriver entre le 16 et le 31 du mois -> fenêtre de surveillance
+function isWithinWatchWindow(date) {
+  const day = date.getDate();
+  return day >= 16 && day <= 31;
+}
+
+/**
+ * Se connecte à la boîte mail et récupère les nouveaux bulletins depuis `sinceDate`.
+ * Retourne une liste de { filename, buffer, receivedAt, messageHash, subject }
+ */
+async function fetchPayslipsSince({ provider, host, port, secure, email, password, sinceDate }) {
+  const preset = PROVIDER_PRESETS[provider] || { host, port, secure };
+  const client = new ImapFlow({
+    host: preset.host,
+    port: preset.port,
+    secure: preset.secure,
+    auth: { user: email, pass: password },
+    logger: false,
+  });
+
+  const results = [];
+  await client.connect();
+  try {
+    let lock = await client.getMailboxLock('INBOX');
+    try {
+      // Recherche large côté serveur (depuis la dernière sync), filtrage fin fait côté client
+      const searchCriteria = { since: sinceDate };
+      for await (const message of client.fetch(searchCriteria, { envelope: true, source: true, internalDate: true })) {
+        const subject = message.envelope?.subject || '';
+        const receivedAt = message.internalDate || new Date();
+
+        if (!isWithinWatchWindow(receivedAt)) continue;
+
+        const parsed = await simpleParser(message.source);
+        const subjectMatches = matchesPayslipKeywords(subject);
+
+        for (const att of parsed.attachments || []) {
+          const isPdf = (att.contentType || '').includes('pdf') || /\.pdf$/i.test(att.filename || '');
+          if (!isPdf) continue;
+          const filenameMatches = matchesPayslipKeywords(att.filename || '');
+          if (!subjectMatches && !filenameMatches) continue;
+
+          const messageHash = hashMessage(`${message.envelope?.messageId || message.uid}-${att.filename}-${att.size}`);
+          results.push({
+            filename: att.filename || `bulletin-${receivedAt.getFullYear()}-${receivedAt.getMonth() + 1}.pdf`,
+            buffer: att.content,
+            receivedAt,
+            messageHash,
+            subject,
+          });
+        }
+      }
+    } finally {
+      lock.release();
+    }
+  } finally {
+    await client.logout();
+  }
+  return results;
+}
+
+function saveAttachment(storageDir, deviceId, buffer, filename) {
+  const dir = path.join(storageDir, deviceId);
+  fs.mkdirSync(dir, { recursive: true });
+  const safeName = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+  const fullPath = path.join(dir, safeName);
+  fs.writeFileSync(fullPath, buffer);
+  return fullPath;
+}
+
+module.exports = { fetchPayslipsSince, saveAttachment, PROVIDER_PRESETS };
