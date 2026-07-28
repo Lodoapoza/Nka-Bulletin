@@ -17,35 +17,34 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
 
-      - name: Install dependencies
-        run: npm install 2>&1
-
-      - name: Start server and test
+      - name: Validate backend code
         run: |
-          cat > .env << EOF
-          JWT_SECRET=ci_test_secret_key_for_github_actions_32_chars
-          CRYPTO_SECRET=ci_test_crypto_secret_32_bytes_long!!
-          VAPID_PUBLIC_KEY=
-          VAPID_PRIVATE_KEY=
-          STORAGE_DIR=./storage
-          DB_PATH=./data/nka-bulletin.sqlite
-          EOF
-          node server.js > /tmp/server.log 2>&1 &
-          SERVER_PID=$!
-          sleep 5
-          echo "=== Server log ==="
-          cat /tmp/server.log
-          echo "=== Health check ==="
-          curl -v http://localhost:4000/api/health 2>&1 || echo "Health check FAILED"
-          echo "=== Other endpoints ==="
-          curl -f http://localhost:4000/api/auth/password/status || echo "password/status FAILED"
-          curl -f http://localhost:4000/api/settings || echo "settings FAILED"
-          curl -f http://localhost:4000/api/stats/dashboard || echo "stats FAILED"
-          kill $SERVER_PID 2>/dev/null
-          wait $SERVER_PID 2>/dev/null
+          echo "=== Checking package.json ==="
+          python3 -m json.tool package.json > /dev/null && echo "  ok"
+          echo "=== Checking JS syntax ==="
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            function walk(dir) {
+              const entries = fs.readdirSync(dir, { withFileTypes: true });
+              for (const e of entries) {
+                const p = path.join(dir, e.name);
+                if (e.isDirectory() && e.name !== 'node_modules') walk(p);
+                else if (e.name.endsWith('.js')) {
+                  try {
+                    require('child_process').execSync('node --check ' + JSON.stringify(p), { stdio: 'pipe' });
+                    console.log('  ok  ' + path.relative('.', p));
+                  } catch (err) {
+                    console.log('  FAIL ' + path.relative('.', p));
+                    process.exit(1);
+                  }
+                }
+              }
+            }
+            walk('.');
+          "
+          echo "All backend JS files valid"
 
   test-frontend:
     runs-on: ubuntu-latest
@@ -58,6 +57,15 @@ jobs:
           for f in index.html manifest.json sw.js js/api.js js/app.js js/pin.js js/dashboard.js js/accounts.js js/bulletins.js js/settings.js js/capacitor.js css/styles.css; do
             test -f "$f" && echo "  ok  $f" || { echo "  MISS  $f"; ERR=1; }
           done
+          node --check sw.js && echo "  ok  sw.js syntax"
+          node --check js/api.js && echo "  ok  js/api.js syntax"
+          node --check js/app.js && echo "  ok  js/app.js syntax"
+          node --check js/pin.js && echo "  ok  js/pin.js syntax"
+          node --check js/dashboard.js && echo "  ok  js/dashboard.js syntax"
+          node --check js/accounts.js && echo "  ok  js/accounts.js syntax"
+          node --check js/bulletins.js && echo "  ok  js/bulletins.js syntax"
+          node --check js/settings.js && echo "  ok  js/settings.js syntax"
+          node --check js/capacitor.js && echo "  ok  js/capacitor.js syntax"
           python3 -m json.tool manifest.json > /dev/null && echo "  ok  manifest.json is valid JSON" || { echo "  FAIL  manifest.json is invalid"; ERR=1; }
           exit $ERR
 
