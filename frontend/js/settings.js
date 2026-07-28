@@ -6,12 +6,23 @@ const Settings = (() => {
     return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
   }
 
+  function updateThemeIcon(theme) {
+    const el = document.getElementById('theme-icon');
+    if (!el) return;
+    if (theme === 'dark') {
+      el.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>';
+    } else {
+      el.innerHTML = '<path d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.4 6.4l-1.4-1.4M6.6 6.6L5.2 5.2m12.2 0l-1.4 1.4M6.6 17.4l-1.4 1.4M12 8a4 4 0 100 8 4 4 0 000-8z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>';
+    }
+  }
+
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     document.getElementById('dark-mode-switch').checked = theme === 'dark';
     document.querySelector('meta[name="theme-color"]').setAttribute(
       'content', theme === 'dark' ? '#10201C' : '#1B6E5C'
     );
+    updateThemeIcon(theme);
   }
 
   function initTheme() {
@@ -59,6 +70,13 @@ const Settings = (() => {
   function bindActions() {
     initTheme();
     loadServerSettings();
+
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') || 'light';
+      const theme = current === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('nka_theme', theme);
+      applyTheme(theme);
+    });
 
     document.getElementById('save-settings-btn').addEventListener('click', async () => {
       try {
