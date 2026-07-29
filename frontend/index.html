@@ -131,25 +131,48 @@
       <div id="accounts-list"></div>
       <div class="card elevated hidden" id="add-account-form" style="margin-top:12px;">
         <div class="eyebrow" style="margin-bottom:10px;">Nouveau compte</div>
-        <div class="field">
-          <label>Fournisseur</label>
-          <select id="provider-select">
-            <option value="gmail">Gmail</option>
-            <option value="outlook">Microsoft Exchange / Outlook</option>
-            <option value="yahoo">Yahoo Mail</option>
-            <option value="imap">Personnalisé (IMAP/SMTP)</option>
-          </select>
+
+        <div style="margin-bottom:14px;">
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <button class="provider-mode active" data-mode="apppwd" style="flex:1;">Mot de passe app.</button>
+            <button class="provider-mode" data-mode="oauth" disabled style="flex:1;opacity:0.5;" title="Bientôt disponible">OAuth 2.0</button>
+          </div>
         </div>
-        <div id="custom-imap-fields" class="hidden">
-          <div class="field"><label>Serveur IMAP</label><input type="text" id="imap-host" placeholder="imap.monfournisseur.com"></div>
-          <div class="field"><label>Port</label><input type="number" id="imap-port" value="993"></div>
+
+        <div id="apppwd-fields">
+          <div class="field">
+            <label>Fournisseur</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <button class="provider-card active" data-provider="gmail" style="background:#EA4335;color:#fff;">Gmail</button>
+              <button class="provider-card" data-provider="yahoo" style="background:#6001D2;color:#fff;">Yahoo</button>
+              <button class="provider-card" data-provider="outlook" style="background:#0078D4;color:#fff;">Outlook</button>
+              <button class="provider-card" data-provider="imap" style="background:var(--md-surface-container-high);color:var(--md-on-surface);">IMAP perso</button>
+            </div>
+          </div>
+
+          <div id="imap-preset" style="background:var(--md-surface-container-high);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;">
+            <div style="font-size:0.78rem;color:var(--md-on-surface-variant);">IMAP : <span id="imap-host-display">imap.gmail.com</span>:<span id="imap-port-display">993</span> (SSL)</div>
+          </div>
+
+          <div id="custom-imap-fields" class="hidden">
+            <div class="field"><label>Serveur IMAP</label><input type="text" id="imap-host" placeholder="imap.monfournisseur.com"></div>
+            <div class="field"><label>Port</label><input type="number" id="imap-port" value="993"></div>
+          </div>
+
+          <div id="app-pwd-link" style="margin-bottom:14px;">
+            <a href="#" target="_blank" rel="noopener" id="app-pwd-url" style="font-size:0.85rem;color:var(--md-primary);text-decoration:none;font-weight:600;">
+              Créer un mot de passe d'application →
+            </a>
+            <div class="hint">Gmail / Yahoo / Outlook exigent un mot de passe d'application dédié, pas votre mot de passe principal.</div>
+          </div>
+
+          <div class="field"><label>Adresse email</label><input type="email" id="account-email" placeholder="vous@exemple.com"></div>
+          <div class="field">
+            <label>Mot de passe d'application</label>
+            <input type="password" id="account-password" placeholder="••••••••••••">
+          </div>
         </div>
-        <div class="field"><label>Adresse email</label><input type="email" id="account-email" placeholder="vous@exemple.com"></div>
-        <div class="field">
-          <label>Mot de passe d'application</label>
-          <input type="password" id="account-password" placeholder="••••••••••••">
-          <div class="hint">Gmail/Yahoo/Outlook exigent un « mot de passe d'application » dédié — jamais votre mot de passe principal.</div>
-        </div>
+
         <button class="btn btn-primary btn-full" id="submit-account-btn">Connecter</button>
         <button class="btn btn-text btn-full" id="cancel-account-btn">Annuler</button>
       </div>

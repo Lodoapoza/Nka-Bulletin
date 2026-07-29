@@ -228,6 +228,23 @@ a { color: inherit; }
 
 .switch-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--md-outline); }
 .switch-row:last-child { border-bottom: none; }
+
+.provider-card {
+  padding: 10px; border-radius: var(--radius-sm); border: none; font-weight: 700; font-size: 0.85rem;
+  cursor: pointer; text-align: center; transition: transform 0.12s, box-shadow 0.12s, opacity 0.15s;
+  font-family: var(--font-body);
+}
+.provider-card:active { transform: scale(0.96); }
+.provider-card.active { box-shadow: 0 0 0 2px var(--md-on-surface); }
+[data-theme="dark"] .provider-card.active { box-shadow: 0 0 0 2px var(--md-primary); }
+
+.provider-mode {
+  padding: 10px; border-radius: 100px; border: 1.5px solid var(--md-outline); background: transparent;
+  font-weight: 600; font-size: 0.82rem; cursor: pointer; text-align: center; color: var(--md-on-surface-variant);
+  font-family: var(--font-body); transition: all 0.15s;
+}
+.provider-mode.active { background: var(--md-primary); color: var(--md-surface); border-color: var(--md-primary); }
+[data-theme="dark"] .provider-mode.active { color: #06251D; }
 .switch { position: relative; width: 46px; height: 26px; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .switch .track { position: absolute; inset: 0; background: var(--md-outline); border-radius: 100px; transition: background 0.15s; cursor: pointer; }
