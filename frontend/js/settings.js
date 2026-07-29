@@ -55,7 +55,7 @@ const Settings = (() => {
         await NativeBridge.registerPush();
         return true;
       } catch (e) {
-        Toast.show(`Échec notifications natives : ${e.message}`);
+        Toast.show(ERR.msg(e));
         return false;
       }
     }
@@ -66,7 +66,7 @@ const Settings = (() => {
     try {
       const reg = await navigator.serviceWorker.ready;
       const { publicKey } = await Api.getVapidKey();
-      if (!publicKey) { Toast.show('Notifications indisponibles : clé VAPID non configurée côté serveur.'); return false; }
+      if (!publicKey) { Toast.show('Notifications désactivées'); return false; }
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
@@ -74,7 +74,7 @@ const Settings = (() => {
       await Api.subscribePush(sub);
       return true;
     } catch (e) {
-      Toast.show(`Échec de l'activation des notifications : ${e.message}`);
+      Toast.show(ERR.msg(e));
       return false;
     }
   }
@@ -102,7 +102,7 @@ const Settings = (() => {
           });
           Toast.show('Paramètres enregistrés.');
           Dashboard.refresh();
-        } catch (e) { Toast.show(`Erreur : ${e.message}`); }
+        } catch (e) { Toast.show(ERR.msg(e)); }
       });
     } catch (e) { console.warn('save-settings:', e); }
 

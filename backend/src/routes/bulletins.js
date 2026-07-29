@@ -10,7 +10,7 @@ const router = express.Router();
 router.get('/', (req, res) => {
   const { year, month, q } = req.query;
   let sql = `SELECT b.*, a.email as account_email, a.provider FROM bulletins b
-             JOIN accounts a ON a.id = b.account_id
+             LEFT JOIN accounts a ON a.id = b.account_id
              WHERE b.device_id = ?`;
   const params = [req.deviceId];
 
@@ -87,9 +87,12 @@ router.post('/export/merge', async (req, res) => {
       'SELECT * FROM bulletins WHERE device_id = ? AND year = ? ORDER BY month'
     ).all(req.deviceId, Number(year));
   } else if (lastNMonths) {
+    const n = Number(lastNMonths);
+    const now = new Date();
+    const threshold = now.getFullYear() * 12 + now.getMonth() + 1 - n + 1;
     rows = db.prepare(
-      'SELECT * FROM bulletins WHERE device_id = ? ORDER BY year DESC, month DESC LIMIT ?'
-    ).all(req.deviceId, Number(lastNMonths)).reverse();
+      'SELECT * FROM bulletins WHERE device_id = ? AND (year * 12 + month) >= ? ORDER BY year, month'
+    ).all(req.deviceId, threshold);
   } else {
     return res.status(400).json({ error: 'Fournir ids, year ou lastNMonths' });
   }

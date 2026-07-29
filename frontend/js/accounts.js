@@ -31,7 +31,7 @@ const Accounts = (() => {
             await Api.deleteAccount(btn.dataset.remove);
             Toast.show('Compte retiré.');
             refresh();
-          } catch (e) { Toast.show(e.message); }
+          } catch (e) { Toast.show(ERR.msg(e)); }
         });
       });
     } catch (e) {
@@ -77,7 +77,7 @@ const Accounts = (() => {
         document.getElementById('account-password').value = '';
         refresh();
       } catch (e) {
-        Toast.show(`Échec : ${e.message}`);
+        Toast.show(ERR.msg(e));
       } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Connecter';

@@ -32,7 +32,7 @@ const Dashboard = (() => {
         amountsCard.style.display = 'none';
       }
     } catch (e) {
-      Toast.show(`Impossible de charger le tableau de bord : ${e.message}`);
+      Toast.show(ERR.msg(e));
     }
 
     try {
@@ -68,7 +68,7 @@ const Dashboard = (() => {
           : 'Aucun nouveau bulletin pour le moment.');
         await refresh();
       } catch (e) {
-        Toast.show(`Échec de la synchronisation : ${e.message}`);
+        Toast.show(ERR.msg(e));
       } finally {
         btn.disabled = false;
         btn.textContent = 'Synchroniser';

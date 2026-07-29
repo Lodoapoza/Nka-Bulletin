@@ -1,22 +1,29 @@
-const CACHE_NAME = 'nka-bulletin-v7';
+const CACHE_NAME = 'nka-bulletin-v9';
 const APP_SHELL = [
-  '/index.html',
-  '/manifest.json',
-  '/css/styles.css',
-  '/js/app.js',
-  '/js/api.js',
-  '/js/pin.js',
-  '/js/dashboard.js',
-  '/js/accounts.js',
-  '/js/bulletins.js',
-  '/js/settings.js',
+  '/index.html?v=v9',
+  '/manifest.json?v=v9',
+  '/css/styles.css?v=v9',
+  '/js/app.js?v=v9',
+  '/js/api.js?v=v9',
+  '/js/pin.js?v=v9',
+  '/js/capacitor.js?v=v9',
+  '/js/dashboard.js?v=v9',
+  '/js/accounts.js?v=v9',
+  '/js/bulletins.js?v=v9',
+  '/js/settings.js?v=v9',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.allSettled(
+        APP_SHELL.map(url =>
+          cache.add(url).catch(() => {})
+        )
+      )
+    ).then(() => self.skipWaiting())
   );
 });
 
@@ -28,23 +35,37 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Stratégie: réseau d'abord pour l'API, cache d'abord pour la coquille de l'app
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(fetch(event.request).catch(() => new Response(JSON.stringify({ error: 'Hors ligne' }), { headers: { 'Content-Type': 'application/json' } })));
+    event.respondWith(
+      fetch(event.request).catch(() =>
+        new Response(JSON.stringify({ error: 'Hors ligne' }), { headers: { 'Content-Type': 'application/json' } })
+      )
+    );
+    return;
+  }
+  if (url.search.includes('sw-no-cache')) {
+    event.respondWith(fetch(event.request));
     return;
   }
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    caches.match(event.request).then((cached) => {
+      const fetchPromise = fetch(event.request).then((response) => {
+        if (response.ok) {
+          const cloned = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
+        }
+        return response;
+      }).catch(() => cached);
+      return cached || fetchPromise;
+    })
   );
 });
 
-// Notification push réelle envoyée par le backend (web-push) lors de la détection d'un nouveau bulletin
 self.addEventListener('push', (event) => {
   let data = { title: 'Nka Bulletin', body: 'Nouvel événement.' };
   try { data = event.data.json(); } catch (_) {}
-
   event.waitUntil(
     self.registration.showNotification(data.title || 'Nka Bulletin', {
       body: data.body,

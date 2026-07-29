@@ -111,7 +111,7 @@ const Bulletins = (() => {
       await shareOrDownloadBlob(blob, `nka-bulletins-${label}.pdf`);
       Toast.show('Export prêt à partager !');
     } catch (e) {
-      Toast.show(`Échec de la fusion : ${e.message}`);
+      Toast.show(ERR.msg(e));
     }
   }
 
@@ -127,7 +127,7 @@ const Bulletins = (() => {
       cache = await Api.getBulletins(params);
       renderList();
     } catch (e) {
-      Toast.show(`Erreur de chargement : ${e.message}`);
+      Toast.show(ERR.msg(e));
     }
   }
 
