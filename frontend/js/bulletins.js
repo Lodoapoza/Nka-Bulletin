@@ -63,16 +63,17 @@ const Bulletins = (() => {
     });
     listEl.querySelectorAll('[data-download]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const url = Api.downloadBulletin(btn.dataset.download);
-        if (NativeBridge && NativeBridge.isNative) {
-          try {
-            const r = await fetch(url);
-            const blob = await r.blob();
-            await NativeBridge.download(blob, `bulletin-${btn.dataset.download}.pdf`);
-            return;
-          } catch (_) {}
+        try {
+          const { blob, filename, objectUrl } = await Api.fetchBulletinBlob(btn.dataset.download);
+          if (NativeBridge && NativeBridge.isNative) {
+            await NativeBridge.download(blob, filename);
+            URL.revokeObjectURL(objectUrl);
+          } else {
+            window.open(objectUrl, '_blank');
+          }
+        } catch (e) {
+          Toast.show(ERR.msg(e));
         }
-        window.open(url, '_blank');
       });
     });
   }

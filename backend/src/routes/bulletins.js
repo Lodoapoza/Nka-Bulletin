@@ -2,7 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const db = require('../db');
-const { mergePdfs } = require('../pdfService');
+const { mergePdfs, extractNetAmount } = require('../pdfService');
 
 const router = express.Router();
 
@@ -113,6 +113,26 @@ router.post('/export/merge', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: `Échec de la fusion PDF : ${e.message}` });
   }
+});
+
+// Reprocess les bulletins existants sans montant net
+router.post('/reprocess-amounts', async (req, res) => {
+  const rows = db.prepare(
+    'SELECT id, filepath FROM bulletins WHERE device_id = ? AND net_amount IS NULL'
+  ).all(req.deviceId);
+
+  let processed = 0;
+  for (const row of rows) {
+    try {
+      if (!fs.existsSync(row.filepath)) continue;
+      const amount = await extractNetAmount(row.filepath);
+      if (amount !== null) {
+        db.prepare('UPDATE bulletins SET net_amount = ? WHERE id = ?').run(amount, row.id);
+        processed++;
+      }
+    } catch (_) { /* best-effort */ }
+  }
+  res.json({ ok: true, processed, total: rows.length });
 });
 
 module.exports = router;

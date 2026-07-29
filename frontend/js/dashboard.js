@@ -17,7 +17,14 @@ const Dashboard = (() => {
       if (stats.latest) {
         latestTitleEl.textContent = `Bulletin de ${MONTHS_FR[stats.latest.month - 1]} ${stats.latest.year}`;
         openBtn.style.display = 'inline-flex';
-        openBtn.onclick = () => window.open(Api.downloadBulletin(stats.latest.id), '_blank');
+        openBtn.onclick = async () => {
+          try {
+            const { objectUrl } = await Api.fetchBulletinBlob(stats.latest.id);
+            window.open(objectUrl, '_blank');
+          } catch (e) {
+            Toast.show(ERR.msg(e));
+          }
+        };
       } else {
         latestTitleEl.textContent = "Aucun bulletin pour l'instant";
         openBtn.style.display = 'none';

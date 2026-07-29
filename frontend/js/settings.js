@@ -100,6 +100,13 @@ const Settings = (() => {
             syncHour: Number(document.getElementById('sync-hour').value),
             extractAmounts: document.getElementById('amounts-switch').checked,
           });
+          if (document.getElementById('amounts-switch').checked) {
+            Toast.show('Analyse des bulletins en cours...');
+            Api.reprocessAmounts().then(r => {
+              if (r.processed > 0) Toast.show(`${r.processed} bulletin(s) analysé(s) avec succès`);
+              Dashboard.refresh();
+            }).catch(() => {});
+          }
           Toast.show('Paramètres enregistrés.');
           Dashboard.refresh();
         } catch (e) { Toast.show(ERR.msg(e)); }

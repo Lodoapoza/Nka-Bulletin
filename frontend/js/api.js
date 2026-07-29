@@ -93,6 +93,26 @@ const Api = (() => {
 
     getSettings: () => request('/settings'),
     saveSettings: (payload) => request('/settings', { method: 'PUT', body: JSON.stringify(payload) }),
+    reprocessAmounts: () => request('/bulletins/reprocess-amounts', { method: 'POST' }),
+
+    fetchBulletinBlob: async (id) => {
+      await ensureDevice();
+      const url = `${API_BASE}/bulletins/${id}/download`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        let msg;
+        try { msg = JSON.parse(text).error; } catch (_) { msg = text.slice(0, 200); }
+        throw new Error(msg || 'Impossible de charger le bulletin');
+      }
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename[^;=\n]*=["']?([^"';\n]*)["']?/);
+      const filename = match ? match[1].trim() : `bulletin-${id}.pdf`;
+      const blob = await res.blob();
+      return { blob, filename, objectUrl: URL.createObjectURL(blob) };
+    },
 
     getVapidKey: () => request('/push/vapid-public-key'),
     subscribePush: (subscription) => request('/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription }) }),
