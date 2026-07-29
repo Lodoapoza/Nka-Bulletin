@@ -229,6 +229,9 @@ a { color: inherit; }
 .switch-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--md-outline); }
 .switch-row:last-child { border-bottom: none; }
 
+#add-account-form { transition: opacity 0.2s ease, max-height 0.3s ease; overflow: hidden; }
+#add-account-form.hidden { display: none; }
+
 .provider-card {
   padding: 10px; border-radius: var(--radius-sm); border: none; font-weight: 700; font-size: 0.85rem;
   cursor: pointer; text-align: center; transition: transform 0.12s, box-shadow 0.12s, opacity 0.15s;

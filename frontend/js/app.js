@@ -1,4 +1,4 @@
-const VERSION = 'v9';
+const VERSION = 'v10';
 window.APP_VERSION = VERSION;
 
 const Toast = (() => {
@@ -100,7 +100,17 @@ async function bootApp() {
   Router.goTo('dashboard');
   showVersion();
 
-  if (!backendOk) retryBackend();
+  if (backendOk) {
+    Api.runSync().then(r => {
+      if (r.newBulletins > 0) {
+        Toast.show(`${r.newBulletins} nouveau(x) bulletin(s) trouvé(s) !`);
+        Dashboard.refresh();
+        Bulletins.refresh();
+      }
+    }).catch(() => {});
+  } else {
+    retryBackend();
+  }
 }
 
 function showVersion() {

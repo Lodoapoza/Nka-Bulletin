@@ -1,10 +1,11 @@
 const Accounts = (() => {
   const PROVIDER_LABELS = { gmail: 'Gmail', outlook: 'Microsoft Exchange / Outlook', yahoo: 'Yahoo Mail', imap: 'IMAP personnalisé' };
+  const PROVIDER_DISPLAY = { gmail: 'Gmail', outlook: 'Outlook', yahoo: 'Yahoo', imap: 'IMAP' };
   const PROVIDER_PRESETS = {
     gmail:   { host: 'imap.gmail.com',        port: 993, appPwdUrl: 'https://myaccount.google.com/apppasswords' },
     outlook: { host: 'outlook.office365.com', port: 993, appPwdUrl: 'https://account.live.com/apppasswords' },
     yahoo:   { host: 'imap.mail.yahoo.com',   port: 993, appPwdUrl: 'https://login.yahoo.com/account/security' },
-    imap:    { host: '',                       port: 993, appPwdUrl: null },
+    imap:    { host: 'imap.gmail.com',        port: 993, appPwdUrl: null },
   };
 
   let selectedProvider = 'gmail';
@@ -25,12 +26,14 @@ const Accounts = (() => {
       customFields.classList.remove('hidden');
       imapPreset.style.display = 'none';
       appPwdLink.style.display = 'none';
+      document.getElementById('imap-host').value = preset.host;
+      document.getElementById('imap-port').value = preset.port;
     } else {
       customFields.classList.add('hidden');
       imapPreset.style.display = 'block';
       appPwdLink.style.display = 'block';
-      const link = document.getElementById('app-pwd-url');
-      link.href = preset.appPwdUrl || '#';
+      document.getElementById('app-pwd-url').href = preset.appPwdUrl || '#';
+      document.getElementById('app-pwd-provider').textContent = PROVIDER_DISPLAY[provider] || provider;
     }
   }
 
