@@ -131,6 +131,25 @@ const Settings = (() => {
         Pin.promptChangePin();
       });
     } catch (e) { console.warn('change-pin:', e); }
+
+    try {
+      document.getElementById('rescan-all-btn').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        if (!confirm('Cela va re-scanner TOUS vos emails depuis le début. Les bulletins déjà importés ne seront pas dupliqués. Continuer ?')) return;
+        btn.disabled = true;
+        btn.textContent = 'Réinitialisation...';
+        try {
+          await Api.resetSync();
+          Toast.show('Synchronisation réinitialisée. Lancez une synchro pour tout re-scanner.');
+          Dashboard.refresh();
+        } catch (e) {
+          Toast.show(ERR.msg(e));
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '⟳ Tout re-scanner depuis le début';
+        }
+      });
+    } catch (e) { console.warn('rescan-btn:', e); }
   }
 
   return { bindActions, applyTheme };

@@ -17,10 +17,10 @@ async function runSyncForDevice(deviceId) {
   for (const account of accounts) {
     try {
       const password = decrypt(account.encrypted_credentials);
-      // Depuis la dernière synchro, ou depuis le 1er du mois en cours si jamais synchronisé
+      // Depuis la dernière synchro, ou depuis le début de la boîte si jamais synchronisé
       const sinceDate = account.last_sync_at
         ? new Date(account.last_sync_at)
-        : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        : new Date(2000, 0, 1);
 
       const found = await fetchPayslipsSince({
         provider: account.provider,
@@ -84,6 +84,13 @@ router.post('/run', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// Réinitialise la synchro : tout re-scanner depuis le début
+router.post('/reset', (req, res) => {
+  const info = db.prepare('UPDATE accounts SET last_sync_at = NULL WHERE device_id = ?');
+  const result = info.run(req.deviceId);
+  res.json({ ok: true, reset: result.changes });
 });
 
 router.get('/logs', (req, res) => {

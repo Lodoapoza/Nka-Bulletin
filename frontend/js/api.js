@@ -65,6 +65,7 @@ const Api = (() => {
     deleteAccount: (id) => request(`/accounts/${id}`, { method: 'DELETE' }),
 
     runSync: () => request('/sync/run', { method: 'POST' }),
+    resetSync: () => request('/sync/reset', { method: 'POST' }),
     getSyncLogs: () => request('/sync/logs'),
 
     getBulletins: (params = {}) => {
