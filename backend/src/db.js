@@ -8,6 +8,7 @@ fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS devices (
@@ -50,9 +51,6 @@ CREATE TABLE IF NOT EXISTS bulletins (
   FOREIGN KEY(account_id) REFERENCES accounts(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_bulletins_device ON bulletins(device_id);
-CREATE INDEX IF NOT EXISTS idx_bulletins_year_month ON bulletins(year, month);
-
 CREATE TABLE IF NOT EXISTS sync_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   device_id TEXT NOT NULL,
@@ -62,6 +60,34 @@ CREATE TABLE IF NOT EXISTS sync_logs (
   new_bulletins INTEGER DEFAULT 0,
   ran_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS sync_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  device_id TEXT NOT NULL,
+  status TEXT DEFAULT 'pending',       -- pending | running | done | failed | cancelled
+  new_bulletins INTEGER DEFAULT 0,
+  error_message TEXT,
+  requested_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_bulletins_device ON bulletins(device_id);
+CREATE INDEX IF NOT EXISTS idx_bulletins_year_month ON bulletins(year, month);
+CREATE INDEX IF NOT EXISTS idx_sync_requests_status ON sync_requests(status);
+CREATE INDEX IF NOT EXISTS idx_sync_logs_device ON sync_logs(device_id);
+
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 `);
+
+// Version des migrations
+const MIGRATION_VERSION = 2;
+const currentVersion = db.prepare("SELECT value FROM settings WHERE key = 'db_version'").get();
+if (!currentVersion) {
+  db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_version', ?)").run(String(MIGRATION_VERSION));
+  console.log('[db] Migration initiale v' + MIGRATION_VERSION);
+}
 
 module.exports = db;

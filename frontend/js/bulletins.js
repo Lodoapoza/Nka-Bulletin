@@ -36,23 +36,51 @@ const Bulletins = (() => {
       updateMergeBar();
       return;
     }
-    listEl.innerHTML = cache.map(b => `
-      <div class="bulletin-item">
-        <input type="checkbox" data-id="${b.id}" ${selected.has(b.id) ? 'checked' : ''}>
-        <div class="bulletin-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 3h9l3 3v15H6z" stroke="currentColor" stroke-width="1.6"/><path d="M9 9h6M9 12h6M9 15h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        </div>
-        <div class="bulletin-meta">
-          <div class="title">${MONTHS_FR[b.month - 1]} ${b.year}</div>
-          <div class="sub">${b.account_email}${b.net_amount ? ' · ' + new Intl.NumberFormat('fr-FR').format(b.net_amount) + ' XOF' : ''}</div>
-        </div>
-        <div class="bulletin-actions">
-          <button class="icon-btn" data-download="${b.id}" aria-label="Télécharger">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-        </div>
-      </div>
-    `).join('');
+    listEl.innerHTML = '';
+    cache.forEach(b => {
+      const row = document.createElement('div');
+      row.className = 'bulletin-item';
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.dataset.id = b.id;
+      if (selected.has(b.id)) checkbox.checked = true;
+      row.appendChild(checkbox);
+
+      const iconDiv = document.createElement('div');
+      iconDiv.className = 'bulletin-icon';
+      iconDiv.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 3h9l3 3v15H6z" stroke="currentColor" stroke-width="1.6"/><path d="M9 9h6M9 12h6M9 15h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+      row.appendChild(iconDiv);
+
+      const metaDiv = document.createElement('div');
+      metaDiv.className = 'bulletin-meta';
+
+      const titleDiv = document.createElement('div');
+      titleDiv.className = 'title';
+      titleDiv.textContent = `${MONTHS_FR[b.month - 1]} ${b.year}`;
+      metaDiv.appendChild(titleDiv);
+
+      const subDiv = document.createElement('div');
+      subDiv.className = 'sub';
+      subDiv.textContent = b.account_email + (b.net_amount ? ' · ' + new Intl.NumberFormat('fr-FR').format(b.net_amount) + ' XOF' : '');
+      metaDiv.appendChild(subDiv);
+
+      row.appendChild(metaDiv);
+
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'bulletin-actions';
+
+      const dlBtn = document.createElement('button');
+      dlBtn.className = 'icon-btn';
+      dlBtn.dataset.download = b.id;
+      dlBtn.setAttribute('aria-label', 'Télécharger');
+      dlBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      actionsDiv.appendChild(dlBtn);
+
+      row.appendChild(actionsDiv);
+
+      listEl.appendChild(row);
+    });
 
     listEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
       cb.addEventListener('change', () => {
@@ -70,6 +98,7 @@ const Bulletins = (() => {
             URL.revokeObjectURL(objectUrl);
           } else {
             window.open(objectUrl, '_blank');
+            setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
           }
         } catch (e) {
           Toast.show(ERR.msg(e));
@@ -124,10 +153,17 @@ const Bulletins = (() => {
     if (currentYear) params.year = currentYear;
     if (currentMonth) params.month = currentMonth;
     if (q) params.q = q;
+
+    // État de chargement
+    const listEl = document.getElementById('bulletins-list');
+    listEl.innerHTML = '<div class="loading-state"><div class="spinner"></div><div>Chargement des bulletins...</div></div>';
+
     try {
       cache = await Api.getBulletins(params);
       renderList();
     } catch (e) {
+      cache = [];
+      listEl.innerHTML = '';
       Toast.show(ERR.msg(e));
     }
   }

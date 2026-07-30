@@ -1,4 +1,5 @@
-const fs = require('fs');
+const fs = require('fs/promises');
+const { existsSync } = require('fs');
 const pdfParse = require('pdf-parse');
 const { PDFDocument } = require('pdf-lib');
 
@@ -18,7 +19,7 @@ function parseAmountToNumber(raw) {
 }
 
 async function extractNetAmount(filePathOrBuffer) {
-  const buffer = Buffer.isBuffer(filePathOrBuffer) ? filePathOrBuffer : fs.readFileSync(filePathOrBuffer);
+  const buffer = Buffer.isBuffer(filePathOrBuffer) ? filePathOrBuffer : await fs.readFile(filePathOrBuffer);
   const data = await pdfParse(buffer);
   const text = data.text || '';
   for (const pattern of NET_AMOUNT_PATTERNS) {
@@ -33,9 +34,13 @@ async function extractNetAmount(filePathOrBuffer) {
 
 async function mergePdfs(filePaths) {
   const merged = await PDFDocument.create();
-  for (const filePath of filePaths) {
-    const bytes = fs.readFileSync(filePath);
-    const doc = await PDFDocument.load(bytes);
+  const docs = await Promise.all(
+    filePaths.map(async (filePath) => {
+      const bytes = await fs.readFile(filePath);
+      return PDFDocument.load(bytes);
+    })
+  );
+  for (const doc of docs) {
     const copiedPages = await merged.copyPages(doc, doc.getPageIndices());
     copiedPages.forEach(page => merged.addPage(page));
   }

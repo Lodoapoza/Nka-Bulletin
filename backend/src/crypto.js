@@ -3,7 +3,8 @@ require('dotenv').config();
 
 const SECRET = process.env.CRYPTO_SECRET;
 if (!SECRET || SECRET.length < 32) {
-  console.warn('[crypto] ATTENTION: CRYPTO_SECRET manquant ou trop court dans .env — générez-en un avec `openssl rand -hex 32`');
+  console.error('[crypto] FATAL: CRYPTO_SECRET manquant ou trop court dans .env — générez-en un avec `openssl rand -hex 32`');
+  process.exit(1);
 }
 
 // On dérive une clé de 32 octets à partir du secret fourni (hex ou texte libre)

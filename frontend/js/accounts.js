@@ -39,26 +39,63 @@ const Accounts = (() => {
 
   async function refresh() {
     const listEl = document.getElementById('accounts-list');
+
+    // État de chargement
+    listEl.innerHTML = '<div class="loading-state"><div class="spinner"></div><div>Chargement des comptes...</div></div>';
+
     try {
       const accounts = await Api.getAccounts();
       if (!accounts.length) {
-        listEl.innerHTML = `
-          <div class="empty-state">
-            <div class="glyph">📬</div>
-            <div>Aucune messagerie connectée.</div>
-          </div>`;
+        listEl.innerHTML = '';
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        const glyph = document.createElement('div');
+        glyph.className = 'glyph';
+        glyph.textContent = '📬';
+        empty.appendChild(glyph);
+        const msg = document.createElement('div');
+        msg.textContent = 'Aucune messagerie connectée.';
+        empty.appendChild(msg);
+        listEl.appendChild(empty);
         return;
       }
-      listEl.innerHTML = accounts.map(a => `
-        <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--md-outline);">
-          <div style="flex:1;">
-            <div style="font-weight:700;">${a.label || a.email}</div>
-            <div class="hint">${PROVIDER_LABELS[a.provider] || a.provider} · ${a.email}</div>
-            <div class="hint">${a.last_sync_at ? 'Dernière synchro : ' + new Date(a.last_sync_at).toLocaleString('fr-FR') : 'Pas encore synchronisé'}</div>
-          </div>
-          <button class="btn btn-danger" data-remove="${a.id}">Retirer</button>
-        </div>
-      `).join('');
+      listEl.innerHTML = '';
+      accounts.forEach(a => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.gap = '12px';
+        row.style.padding = '12px 0';
+        row.style.borderBottom = '1px solid var(--md-outline)';
+
+        const infoDiv = document.createElement('div');
+        infoDiv.style.flex = '1';
+
+        const nameDiv = document.createElement('div');
+        nameDiv.style.fontWeight = '700';
+        nameDiv.textContent = a.label || a.email;
+        infoDiv.appendChild(nameDiv);
+
+        const providerHint = document.createElement('div');
+        providerHint.className = 'hint';
+        providerHint.textContent = `${PROVIDER_LABELS[a.provider] || a.provider} · ${a.email}`;
+        infoDiv.appendChild(providerHint);
+
+        const syncHint = document.createElement('div');
+        syncHint.className = 'hint';
+        syncHint.textContent = a.last_sync_at ? 'Dernière synchro : ' + new Date(a.last_sync_at).toLocaleString('fr-FR') : 'Pas encore synchronisé';
+        infoDiv.appendChild(syncHint);
+
+        row.appendChild(infoDiv);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'btn btn-danger';
+        removeBtn.dataset.remove = a.id;
+        removeBtn.textContent = 'Retirer';
+        row.appendChild(removeBtn);
+
+        listEl.appendChild(row);
+      });
 
       listEl.querySelectorAll('[data-remove]').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -71,7 +108,11 @@ const Accounts = (() => {
         });
       });
     } catch (e) {
-      listEl.innerHTML = `<div class="hint">Erreur : ${e.message}</div>`;
+      listEl.innerHTML = '';
+      const errHint = document.createElement('div');
+      errHint.className = 'hint';
+      errHint.textContent = 'Erreur : ' + e.message;
+      listEl.appendChild(errHint);
     }
   }
 
@@ -111,7 +152,8 @@ const Accounts = (() => {
       const host = provider === 'imap' ? document.getElementById('imap-host').value.trim() : preset.host;
       const port = provider === 'imap' ? document.getElementById('imap-port').value : preset.port;
 
-      if (!email || !password) { Toast.show('Adresse email et mot de passe requis.'); return; }
+      if (!email || !email.includes('@')) { Toast.show('Adresse email invalide.'); return; }
+      if (!password) { Toast.show('Mot de passe requis.'); return; }
       if (provider === 'imap' && !host) { Toast.show('Serveur IMAP requis pour un compte personnalisé.'); return; }
 
       submitBtn.disabled = true;

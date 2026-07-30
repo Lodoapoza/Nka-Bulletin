@@ -11,7 +11,7 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     process.env.VAPID_PRIVATE_KEY
   );
 } else {
-  console.warn('[push] Clés VAPID manquantes dans .env — générez-les avec `npx web-push generate-vapid-keys`');
+  console.warn('[push] VAPID keys manquantes — les notifications push sont désactivées');
 }
 
 router.get('/vapid-public-key', (req, res) => {

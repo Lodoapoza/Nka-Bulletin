@@ -1,6 +1,7 @@
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
-const fs = require('fs');
+const fs = require('fs/promises');
+const { mkdirSync } = require('fs');
 const path = require('path');
 const { hashMessage } = require('./crypto');
 
@@ -41,6 +42,8 @@ async function fetchPayslipsSince({ provider, host, port, secure, email, passwor
     secure: preset.secure,
     auth: { user: email, pass: password },
     logger: false,
+    connectTimeout: 10000,
+    maxBodySize: 10000000,
   });
 
   const results = [];
@@ -84,12 +87,14 @@ async function fetchPayslipsSince({ provider, host, port, secure, email, passwor
   return results;
 }
 
-function saveAttachment(storageDir, deviceId, buffer, filename) {
+async function saveAttachment(storageDir, deviceId, buffer, filename) {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(deviceId)) throw new Error(`Invalid deviceId: ${deviceId}`);
   const dir = path.join(storageDir, deviceId);
-  fs.mkdirSync(dir, { recursive: true });
+  mkdirSync(dir, { recursive: true }); // keep sync, called once per batch
   const safeName = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
   const fullPath = path.join(dir, safeName);
-  fs.writeFileSync(fullPath, buffer);
+  await fs.writeFile(fullPath, buffer);
   return fullPath;
 }
 

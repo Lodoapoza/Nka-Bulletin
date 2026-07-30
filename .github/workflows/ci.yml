@@ -54,11 +54,13 @@ jobs:
         working-directory: frontend
         run: |
           ERR=0
-          for f in index.html manifest.json sw.js js/api.js js/app.js js/pin.js js/dashboard.js js/accounts.js js/bulletins.js js/settings.js js/capacitor.js css/styles.css; do
+          for f in index.html manifest.json sworker.js theme.js version.js js/client.js js/app.js js/pin.js js/dashboard.js js/accounts.js js/bulletins.js js/settings.js js/capacitor.js css/app.css; do
             test -f "$f" && echo "  ok  $f" || { echo "  MISS  $f"; ERR=1; }
           done
-          node --check sw.js && echo "  ok  sw.js syntax"
-          node --check js/api.js && echo "  ok  js/api.js syntax"
+          node --check sworker.js && echo "  ok  sworker.js syntax"
+          node --check theme.js && echo "  ok  theme.js syntax"
+          node --check version.js && echo "  ok  version.js syntax"
+          node --check js/client.js && echo "  ok  js/client.js syntax"
           node --check js/app.js && echo "  ok  js/app.js syntax"
           node --check js/pin.js && echo "  ok  js/pin.js syntax"
           node --check js/dashboard.js && echo "  ok  js/dashboard.js syntax"

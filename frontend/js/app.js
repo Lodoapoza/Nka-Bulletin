@@ -1,5 +1,4 @@
-const VERSION = 'v10';
-window.APP_VERSION = VERSION;
+const VERSION = APP_VERSION || '2.0.0';
 
 const Toast = (() => {
   let queue = [];
@@ -75,7 +74,7 @@ const Router = (() => {
 
 async function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
-    try { await navigator.serviceWorker.register('/sw.js'); }
+    try { await navigator.serviceWorker.register('/sworker.js'); }
     catch (e) { console.warn('Service worker non enregistré :', e); }
   }
 }
@@ -99,15 +98,28 @@ async function bootApp() {
   safe('Accounts.refresh',  () => Accounts.refresh());
   Router.goTo('dashboard');
   showVersion();
+  initConnectionBadge();
 
   if (backendOk) {
-    Api.runSync().then(r => {
-      if (r.newBulletins > 0) {
-        Toast.show(`${r.newBulletins} nouveau(x) bulletin(s) trouvé(s) !`);
-        Dashboard.refresh();
-        Bulletins.refresh();
-      }
-    }).catch(() => {});
+    Api.runSync().then(() => {
+      // Poll le statut de la synchro automatique au démarrage
+      const poll = async () => {
+        for (let i = 0; i < 40; i++) {
+          await new Promise(r => setTimeout(r, 1500));
+          const status = await Api.getSyncStatus();
+          if (status.status === 'done') {
+            if (status.new_bulletins > 0) {
+              Toast.show(`${status.new_bulletins} nouveau(x) bulletin(s) trouvé(s) !`);
+              Dashboard.refresh();
+              Bulletins.refresh();
+            }
+            return;
+          }
+          if (status.status === 'failed') return;
+        }
+      };
+      poll();
+    }).catch(e => console.warn('[app]', e.message || e));
   } else {
     retryBackend();
   }
@@ -116,6 +128,42 @@ async function bootApp() {
 function showVersion() {
   const el = document.getElementById('app-version');
   if (el) el.textContent = 'v' + VERSION;
+}
+
+function updateConnectionBadge(online) {
+  const badge = document.getElementById('connection-badge');
+  if (!badge) return;
+  if (online) {
+    badge.classList.remove('visible');
+    badge.textContent = '';
+  } else {
+    badge.textContent = 'Hors connexion';
+    badge.classList.add('visible');
+  }
+}
+
+function initConnectionBadge() {
+  const setOnline = () => updateConnectionBadge(true);
+  const setOffline = () => updateConnectionBadge(false);
+
+  window.addEventListener('online', setOnline);
+  window.addEventListener('offline', setOffline);
+
+  // État initial
+  updateConnectionBadge(navigator.onLine);
+
+  // Polling de rattrapage toutes les 10s si hors-ligne
+  let pollCount = 0;
+  const pollTimer = setInterval(() => {
+    if (navigator.onLine) {
+      updateConnectionBadge(true);
+      pollCount = 0;
+    } else {
+      pollCount++;
+      // Après 60s sans connexion, espace le polling
+      if (pollCount > 6) clearInterval(pollTimer);
+    }
+  }, 10000);
 }
 
 let retryCount = 0;

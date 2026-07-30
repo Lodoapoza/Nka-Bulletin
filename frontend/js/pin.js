@@ -2,10 +2,14 @@
 const Pin = (() => {
   const STORAGE_KEY = 'nka_pin_record'; // { saltB64, hashB64 }
   const PIN_LENGTH = 4;
+  const MAX_ATTEMPTS = 5;
+  const COOLDOWN_SECONDS = 30;
   let entered = '';
   let mode = 'unlock'; // 'setup' | 'unlock' | 'confirm' | 'change-old' | 'change-new'
   let pendingNewPin = '';
   let onUnlocked = null;
+  let attemptCount = 0;
+  let cooldownTimer = null;
 
   const dotsEl = document.getElementById('pin-dots');
   const keypadEl = document.getElementById('pin-keypad');
@@ -68,6 +72,9 @@ const Pin = (() => {
   }
 
   async function handleKey(k) {
+    // Bloqué pendant le cooldown
+    if (cooldownTimer) return;
+
     errorEl.textContent = '';
     if (k === '⌫') { entered = entered.slice(0, -1); renderDots(); return; }
     if (k === '' || entered.length >= PIN_LENGTH) return;
@@ -104,11 +111,17 @@ const Pin = (() => {
     }
     if (mode === 'unlock') {
       const ok = await verifyPin(pin);
-      if (ok) { finishUnlock(); }
-      else {
+      if (ok) {
+        finishUnlock();
+      } else {
+        attemptCount++;
         errorEl.textContent = 'Code incorrect.';
         entered = '';
         renderDots();
+
+        if (attemptCount >= MAX_ATTEMPTS) {
+          startCooldown();
+        }
       }
       return;
     }
@@ -129,17 +142,55 @@ const Pin = (() => {
     }
   }
 
+  function startCooldown() {
+    let remaining = COOLDOWN_SECONDS;
+    errorEl.textContent = `Trop de tentatives — réessayez dans ${remaining} s`;
+    subtitleEl.textContent = 'Verrouillage temporaire';
+
+    cooldownTimer = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(cooldownTimer);
+        cooldownTimer = null;
+        attemptCount = 0;
+        errorEl.textContent = '';
+        entered = '';
+        const pinConfigured = hasPinConfigured();
+        subtitleEl.textContent = pinConfigured
+          ? 'Bienvenue de retour sur Nka Bulletin.'
+          : "Ce code protège l'accès à vos bulletins sur cet appareil.";
+        renderDots();
+      } else {
+        errorEl.textContent = `Trop de tentatives — réessayez dans ${remaining} s`;
+      }
+    }, 1000);
+  }
+
   function finishUnlock() {
     screenEl.classList.add('hidden');
     entered = '';
     mode = 'unlock';
+    attemptCount = 0;
+    if (cooldownTimer) {
+      clearInterval(cooldownTimer);
+      cooldownTimer = null;
+    }
     if (onUnlocked) onUnlocked();
+  }
+
+  function resetAttempts() {
+    attemptCount = 0;
+    if (cooldownTimer) {
+      clearInterval(cooldownTimer);
+      cooldownTimer = null;
+    }
   }
 
   function start(callback) {
     onUnlocked = callback;
     screenEl.classList.remove('hidden');
     renderKeypad();
+    resetAttempts();
     if (hasPinConfigured()) {
       mode = 'unlock';
       titleEl.textContent = 'Entrez votre code PIN';
@@ -160,6 +211,7 @@ const Pin = (() => {
     entered = '';
     onUnlocked = () => { Toast.show('Code PIN mis à jour.'); };
     renderDots();
+    resetAttempts();
   }
 
   return { start, promptChangePin, hasPinConfigured };

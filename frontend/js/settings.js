@@ -95,9 +95,14 @@ const Settings = (() => {
     try {
       document.getElementById('save-settings-btn').addEventListener('click', async () => {
         try {
+          const syncHour = Number(document.getElementById('sync-hour').value);
+          if (!Number.isInteger(syncHour) || syncHour < 0 || syncHour > 23) {
+            Toast.show('L\'heure de synchronisation doit être un nombre entier entre 0 et 23.');
+            return;
+          }
           await Api.saveSettings({
             syncFrequency: document.getElementById('sync-frequency').value,
-            syncHour: Number(document.getElementById('sync-hour').value),
+            syncHour,
             extractAmounts: document.getElementById('amounts-switch').checked,
           });
           if (document.getElementById('amounts-switch').checked) {
@@ -105,7 +110,7 @@ const Settings = (() => {
             Api.reprocessAmounts().then(r => {
               if (r.processed > 0) Toast.show(`${r.processed} bulletin(s) analysé(s) avec succès`);
               Dashboard.refresh();
-            }).catch(() => {});
+            }).catch(e => console.warn('[settings]', e.message || e));
           }
           Toast.show('Paramètres enregistrés.');
           Dashboard.refresh();
@@ -120,7 +125,7 @@ const Settings = (() => {
           if (!ok) e.target.checked = false;
           else Toast.show('Notifications activées.');
         } else {
-          await Api.unsubscribePush().catch(() => {});
+          await Api.unsubscribePush().catch(e => console.warn('[settings]', e.message || e));
           Toast.show('Notifications désactivées.');
         }
       });

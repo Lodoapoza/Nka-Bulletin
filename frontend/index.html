@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Nka Bulletin</title>
-<script>(function(){var t=localStorage.getItem('nka_theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})();</script>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; font-src 'self' https://fonts.gstatic.com; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; script-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://nka-backend.louissamake.com; manifest-src 'self'; frame-ancestors 'none'; form-action 'none'">
+<script src="js/theme.js"></script>
 <meta name="theme-color" content="#1B6E5C">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -15,7 +16,7 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/plusjakartasans/v12/LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yygg_vb.woff2">
 <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/robotomono/v31/L0x5DF4xlVMF-BfR8bXMIjhLq3-cXbKD.woff2">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@500;600&display=optional">
-<link rel="stylesheet" href="css/styles.css?v=v10">
+<link rel="stylesheet" href="css/app.css?v=v11">
 </head>
 <body>
 
@@ -40,9 +41,12 @@
         <div class="eyebrow" id="header-sub">Tableau de bord</div>
       </div>
     </div>
-    <button class="icon-btn" id="theme-toggle" aria-label="Changer de thème">
-      <svg id="theme-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.4 6.4l-1.4-1.4M6.6 6.6L5.2 5.2m12.2 0l-1.4 1.4M6.6 17.4l-1.4 1.4M12 8a4 4 0 100 8 4 4 0 000-8z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-    </button>
+    <div class="topbar-actions">
+      <span id="connection-badge" class="conn-badge"></span>
+      <button class="icon-btn" id="theme-toggle" aria-label="Changer de thème">
+        <svg id="theme-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.4 6.4l-1.4-1.4M6.6 6.6L5.2 5.2m12.2 0l-1.4 1.4M6.6 17.4l-1.4 1.4M12 8a4 4 0 100 8 4 4 0 000-8z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+    </div>
   </div>
 
   <!-- ===== Vue : Tableau de bord ===== -->
@@ -253,13 +257,14 @@
   <div class="app-version" id="app-version"></div>
 </div>
 
-<script src="js/capacitor.js?v=v10"></script>
-<script src="js/api.js?v=v10"></script>
-<script src="js/pin.js?v=v10"></script>
-<script src="js/dashboard.js?v=v10"></script>
-<script src="js/accounts.js?v=v10"></script>
-<script src="js/bulletins.js?v=v10"></script>
-<script src="js/settings.js?v=v10"></script>
-<script src="js/app.js?v=v10"></script>
+<script src="js/capacitor.js?v=v11"></script>
+<script src="js/client.js?v=v11"></script>
+<script src="js/pin.js?v=v11"></script>
+<script src="js/dashboard.js?v=v11"></script>
+<script src="js/accounts.js?v=v11"></script>
+<script src="js/bulletins.js?v=v11"></script>
+<script src="js/settings.js?v=v11"></script>
+<script src="js/version.js?v=v11"></script>
+<script src="js/app.js?v=v11"></script>
 </body>
 </html>

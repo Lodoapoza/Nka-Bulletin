@@ -7,7 +7,7 @@ const Api = (() => {
   let deviceId = localStorage.getItem('nka_device_id');
 
   async function ensureDevice(retries = 2) {
-    if (token && deviceId) return { token, deviceId };
+    if (token) return { token, deviceId };
     if (!deviceId) {
       deviceId = crypto.randomUUID();
       localStorage.setItem('nka_device_id', deviceId);
@@ -35,7 +35,7 @@ const Api = (() => {
     return { token, deviceId };
   }
 
-  async function request(path, options = {}) {
+  async function request(path, options = {}, retried = false) {
     await ensureDevice();
     const url = `${API_BASE}${path}`;
     const res = await fetch(url, {
@@ -46,6 +46,11 @@ const Api = (() => {
         ...(options.headers || {}),
       },
     });
+    if (res.status === 401 && !retried) {
+      token = null;
+      localStorage.removeItem('nka_token');
+      return request(path, options, true);
+    }
     const text = await res.text();
     let data;
     try { data = JSON.parse(text); }
@@ -65,6 +70,7 @@ const Api = (() => {
     deleteAccount: (id) => request(`/accounts/${id}`, { method: 'DELETE' }),
 
     runSync: () => request('/sync/run', { method: 'POST' }),
+    getSyncStatus: () => request('/sync/status'),
     resetSync: () => request('/sync/reset', { method: 'POST' }),
     getSyncLogs: () => request('/sync/logs'),
 
@@ -75,7 +81,7 @@ const Api = (() => {
     getStats: () => request('/bulletins/stats'),
     downloadBulletin: (id) => `${API_BASE}/bulletins/${id}/download`,
     deleteBulletin: (id) => request(`/bulletins/${id}`, { method: 'DELETE' }),
-    mergeBulletins: async (payload) => {
+    mergeBulletins: async (payload, retried = false) => {
       await ensureDevice();
       const url = `${API_BASE}/bulletins/export/merge`;
       const res = await fetch(url, {
@@ -83,6 +89,10 @@ const Api = (() => {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
+      if (res.status === 401 && !retried) {
+        token = null; localStorage.removeItem('nka_token');
+        return Api.mergeBulletins(payload, true);
+      }
       if (!res.ok) {
         const text = await res.text();
         let msg;
@@ -96,12 +106,16 @@ const Api = (() => {
     saveSettings: (payload) => request('/settings', { method: 'PUT', body: JSON.stringify(payload) }),
     reprocessAmounts: () => request('/bulletins/reprocess-amounts', { method: 'POST' }),
 
-    fetchBulletinBlob: async (id) => {
+    fetchBulletinBlob: async (id, retried = false) => {
       await ensureDevice();
       const url = `${API_BASE}/bulletins/${id}/download`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (res.status === 401 && !retried) {
+        token = null; localStorage.removeItem('nka_token');
+        return Api.fetchBulletinBlob(id, true);
+      }
       if (!res.ok) {
         const text = await res.text();
         let msg;
