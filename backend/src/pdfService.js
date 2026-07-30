@@ -3,19 +3,26 @@ const { existsSync } = require('fs');
 const pdfParse = require('pdf-parse');
 const { PDFDocument } = require('pdf-lib');
 
-// Motifs courants sur les bulletins de paie francophones pour repérer le "net à payer"
 const NET_AMOUNT_PATTERNS = [
-  /net\s*[àa]\s*payer[^0-9]{0,20}([\d]{1,3}(?:[\s.,]\d{3})*(?:[.,]\d{1,2})?)/i,
-  /net\s*payé[^0-9]{0,20}([\d]{1,3}(?:[\s.,]\d{3})*(?:[.,]\d{1,2})?)/i,
-  /salaire\s*net[^0-9]{0,20}([\d]{1,3}(?:[\s.,]\d{3})*(?:[.,]\d{1,2})?)/i,
+  /net\s*[àa]\s*(?:payer|percevoir)[^0-9XOFCFA€\s]{0,30}(?:[XOFCFA€\s]*)([\d]{1,3}(?:[\s.,]\d{3})*(?:[.,]\d{1,2})?)/i,
+  /net\s*payé[^0-9XOFCFA€\s]{0,30}(?:[XOFCFA€\s]*)([\d]{1,3}(?:[\s.,]\d{3})*(?:[.,]\d{1,2})?)/i,
+  /salaire\s*net[^0-9XOFCFA€\s]{0,30}(?:[XOFCFA€\s]*)([\d]{1,3}(?:[\s.,]\d{3})*(?:[.,]\d{1,2})?)/i,
+  /net\s*mensuel[^0-9XOFCFA€\s]{0,30}(?:[XOFCFA€\s]*)([\d]{1,3}(?:[\s.,]\d{3})*(?:[.,]\d{1,2})?)/i,
+  /total\s*net[^0-9XOFCFA€\s]{0,30}(?:[XOFCFA€\s]*)([\d]{1,3}(?:[\s.,]\d{3})*(?:[.,]\d{1,2})?)/i,
+  /net\s*à\s*payer\s*:?[^0-9]{0,40}(\d[\d\s.,]*)/i,
 ];
 
 function parseAmountToNumber(raw) {
   if (!raw) return null;
-  // On retire les espaces (séparateur de milliers) et on normalise la virgule décimale
-  const cleaned = raw.replace(/\s/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
+  const s = raw.trim();
+  if (/,\d{1,2}$/.test(s)) {
+    const normalized = s.replace(/[\s.]/g, '').replace(',', '.');
+    const n = parseFloat(normalized);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  const cleaned = s.replace(/[,\s]/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '');
   const n = parseFloat(cleaned);
-  return Number.isFinite(n) ? n : null;
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 async function extractNetAmount(filePathOrBuffer) {
@@ -34,17 +41,19 @@ async function extractNetAmount(filePathOrBuffer) {
 
 async function mergePdfs(filePaths) {
   const merged = await PDFDocument.create();
-  const docs = await Promise.all(
-    filePaths.map(async (filePath) => {
+  for (const filePath of filePaths) {
+    try {
       const bytes = await fs.readFile(filePath);
-      return PDFDocument.load(bytes);
-    })
-  );
-  for (const doc of docs) {
-    const copiedPages = await merged.copyPages(doc, doc.getPageIndices());
-    copiedPages.forEach(page => merged.addPage(page));
+      const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+      const copiedPages = await merged.copyPages(doc, doc.getPageIndices());
+      copiedPages.forEach(page => merged.addPage(page));
+    } catch (err) {
+      console.error('[mergePdfs] Skipping file, load error:', filePath, err.message);
+    }
   }
-  return merged.save(); // Uint8Array
+  const pageCount = merged.getPageCount();
+  if (pageCount === 0) throw new Error('Aucune page valide à fusionner');
+  return merged.save();
 }
 
 module.exports = { extractNetAmount, mergePdfs };
