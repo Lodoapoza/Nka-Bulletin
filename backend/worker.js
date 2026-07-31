@@ -1,8 +1,18 @@
 require('dotenv').config();
+
 process.on('unhandledRejection', (reason) => {
   console.error('[worker] UNHANDLED REJECTION:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[worker] UNCAUGHT EXCEPTION:', err);
   process.exit(1);
 });
+
+setInterval(() => {
+  if (process.send) process.send({ type: 'heartbeat' });
+}, 30000);
+
 const db = require('./src/db');
 const { runSyncForDevice } = require('./src/syncService');
 
@@ -35,7 +45,6 @@ async function processOne() {
 }
 
 async function main() {
-  // Nettoyage des syncs orphelines (worker crash précédent)
   const resetCount = db.prepare(
     "UPDATE sync_requests SET status = 'pending', error_message = 'relancé après redémarrage worker' WHERE status = 'running'"
   ).run();

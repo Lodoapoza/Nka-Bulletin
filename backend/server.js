@@ -6,10 +6,26 @@ if (process.env.NODE_ENV === 'production') {
   process.env.NODE_ENV = 'development';
 }
 
+let server;
+let workerProcess = null;
+let workerRestartCount = 0;
+let workerRestartTimer = null;
+const MAX_WORKER_RESTARTS = 10;
+
 process.on('unhandledRejection', (reason) => {
   console.error('[server] UNHANDLED REJECTION:', reason);
-  process.exit(1);
 });
+
+process.on('uncaughtException', (err) => {
+  console.error('[server] UNCAUGHT EXCEPTION:', err);
+  if (server) {
+    server.close(() => process.exit(1));
+    setTimeout(() => process.exit(1), 5000);
+  } else {
+    process.exit(1);
+  }
+});
+
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -26,8 +42,10 @@ const bulletinsRouter = require('./src/routes/bulletins');
 const { router: pushRouter } = require('./src/routes/push');
 const settingsRouter = require('./src/routes/settings');
 const { initScheduler } = require('./src/scheduler');
+const { updateHeartbeat } = require('./src/heartbeat');
 
 const app = express();
+
 app.use(compression());
 app.use(helmet({
   contentSecurityPolicy: false,
@@ -37,8 +55,22 @@ app.use(cors());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'short'));
 app.use(express.json({ limit: '15mb' }));
 
+const REQUEST_TIMEOUT = Number(process.env.REQUEST_TIMEOUT) || 25000;
+app.use((req, res, next) => {
+  res.setTimeout(REQUEST_TIMEOUT, () => {
+    console.error('[server] Timeout:', req.method, req.path);
+    if (!res.headersSent) res.status(503).json({ error: 'Délai dépassé', code: 'TIMEOUT' });
+    req.destroy();
+  });
+  next();
+});
+
+const asyncHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
+
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 20,
   message: { error: 'Trop de tentatives, réessayez plus tard' },
   standardHeaders: true,
@@ -53,30 +85,68 @@ app.use('/api/bulletins', authMiddleware, bulletinsRouter);
 app.use('/api/push', authMiddleware, pushRouter);
 app.use('/api/settings', authMiddleware, settingsRouter);
 
-app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
+app.get('/api/health', (req, res) => {
+  const mem = process.memoryUsage();
+  res.json({
+    ok: true,
+    time: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    memory: { heapUsed: Math.round(mem.heapUsed / 1024 / 1024), heapTotal: Math.round(mem.heapTotal / 1024 / 1024) },
+    worker: { alive: workerProcess !== null && !!workerProcess.connected, restarts: workerRestartCount },
+  });
+});
 
-// Gestion globale des erreurs Express
 app.use((err, req, res, next) => {
   console.error('[server] Unhandled error:', err);
   res.status(500).json({ error: 'Erreur interne du serveur' });
 });
 
-let workerProcess = null;
 function startWorker() {
-  workerProcess = fork(path.join(__dirname, 'worker.js'), [], { stdio: 'inherit' });
-  workerProcess.on('exit', (code) => {
-    console.error(`[server] Worker terminé (code ${code}), redémarrage dans 2s`);
-    setTimeout(startWorker, 2000);
-  });
-  console.log('[server] Worker démarré, PID', workerProcess.pid);
+  if (workerRestartCount >= MAX_WORKER_RESTARTS) {
+    console.error('[server] Trop de redémarrages worker, attente prochain restart Passenger');
+    return;
+  }
+  if (workerRestartTimer) clearTimeout(workerRestartTimer);
+  try {
+    workerProcess = fork(path.join(__dirname, 'worker.js'), [], { stdio: 'inherit' });
+    workerProcess.on('message', (msg) => {
+      if (msg && msg.type === 'heartbeat' && workerRestartCount > 0) {
+        workerRestartCount--;
+      }
+    });
+    workerProcess.on('exit', (code) => {
+      workerProcess = null;
+      const delay = Math.min(60000, 2000 * Math.pow(2, workerRestartCount));
+      workerRestartCount++;
+      console.error(`[server] Worker terminé (code ${code}), redémarrage #${workerRestartCount} dans ${delay}ms`);
+      workerRestartTimer = setTimeout(startWorker, delay);
+    });
+    console.log('[server] Worker démarré, PID', workerProcess.pid);
+  } catch (err) {
+    console.error('[server] Erreur fork worker:', err.message);
+    workerRestartTimer = setTimeout(startWorker, 30000);
+  }
 }
 
 const PORT = process.env.PORT || 4000;
-const server = app.listen(PORT, () => {
+server = app.listen(PORT, () => {
   console.log(`✅ Nka Bulletin backend démarré sur http://localhost:${PORT}`);
   initScheduler();
   startWorker();
+
+  setInterval(() => {
+    const mem = process.memoryUsage();
+    updateHeartbeat({
+      memory: Math.round(mem.heapUsed / 1024 / 1024),
+      workerAlive: workerProcess !== null && !!workerProcess.connected,
+      workerRestarts: workerRestartCount,
+    });
+    if (mem.heapUsed > 400 * 1024 * 1024) {
+      console.warn('[server] Mémoire haute:', Math.round(mem.heapUsed / 1024 / 1024), 'MB');
+    }
+  }, 60000);
 });
+
 function shutdown(signal) {
   console.log(`[server] Signal ${signal} reçu, arrêt en cours...`);
   if (workerProcess) workerProcess.kill(signal);

@@ -142,6 +142,13 @@ function updateConnectionBadge(online) {
   }
 }
 
+function setReconnecting() {
+  const badge = document.getElementById('connection-badge');
+  if (!badge) return;
+  badge.textContent = 'Reconnexion…';
+  badge.classList.add('visible');
+}
+
 function initConnectionBadge() {
   const setOnline = () => updateConnectionBadge(true);
   const setOffline = () => updateConnectionBadge(false);
@@ -168,8 +175,11 @@ function initConnectionBadge() {
 
 let retryCount = 0;
 async function retryBackend() {
+  setReconnecting();
   const ok = await Api.ensureDevice().then(() => true).catch(() => false);
   if (ok) {
+    retryCount = 0;
+    updateConnectionBadge(true);
     Toast.show('Backend reconnecté.');
     Dashboard.refresh();
     Bulletins.refresh();
@@ -180,6 +190,18 @@ async function retryBackend() {
   const delay = Math.min(30000, 5000 * retryCount);
   setTimeout(retryBackend, delay);
 }
+
+window.addEventListener('nka-connection', (e) => {
+  const state = e.detail;
+  if (state === 'online') {
+    retryCount = 0;
+    updateConnectionBadge(true);
+  } else if (state === 'reconnecting') {
+    setReconnecting();
+  } else if (state === 'offline') {
+    updateConnectionBadge(false);
+  }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
   registerServiceWorker();
