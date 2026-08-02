@@ -3,12 +3,10 @@
   "startup_file": "server.js",
   "environment": "production",
   "min_instances": 1,
-  "max_instances": 1,
-  "max_pool_size": 1,
+  "max_instances": 2,
+  "max_pool_size": 2,
   "pool_idle_time": 0,
-  "start_timeout": 30000,
   "max_request_queue_size": 100,
   "log_file": "./logs/passenger.log",
-  "nodejs_command": "node",
-  "nodejs_options": "--max-old-space-size=512"
+  "nodejs_command": "node"
 }

@@ -24,17 +24,11 @@ function matchesPayslipKeywords(text) {
   return KEYWORDS.some(k => lower.includes(k));
 }
 
-// Un bulletin de paie est censé arriver entre le 16 et le 31 du mois -> fenêtre de surveillance
-function isWithinWatchWindow(date) {
-  const day = date.getDate();
-  return day >= 16 && day <= 31;
-}
-
 /**
  * Se connecte à la boîte mail et récupère les nouveaux bulletins depuis `sinceDate`.
  * Retourne une liste de { filename, buffer, receivedAt, messageHash, subject }
  */
-async function fetchPayslipsSince({ provider, host, port, secure, email, password, sinceDate }) {
+async function fetchPayslipsSince({ provider, host, port, secure, email, password, sinceDate, beforeDate }) {
   const preset = PROVIDER_PRESETS[provider] || { host, port, secure };
   const client = new ImapFlow({
     host: preset.host,
@@ -43,8 +37,10 @@ async function fetchPayslipsSince({ provider, host, port, secure, email, passwor
     auth: { user: email, pass: password },
     logger: false,
     connectTimeout: 10000,
-    maxBodySize: 10000000,
+    socketTimeout: Number(process.env.IMAP_SOCKET_TIMEOUT) || 600000,
+    maxBodySize: 60000000,
   });
+  client.on('error', () => {});
 
   const results = [];
   await client.connect();
@@ -53,11 +49,10 @@ async function fetchPayslipsSince({ provider, host, port, secure, email, passwor
     try {
       // Recherche large côté serveur (depuis la dernière sync), filtrage fin fait côté client
       const searchCriteria = { since: sinceDate };
+      if (beforeDate) searchCriteria.before = beforeDate;
       for await (const message of client.fetch(searchCriteria, { envelope: true, source: true, internalDate: true })) {
         const subject = message.envelope?.subject || '';
         const receivedAt = message.internalDate || new Date();
-
-        if (!isWithinWatchWindow(receivedAt)) continue;
 
         const parsed = await simpleParser(message.source);
         const subjectMatches = matchesPayslipKeywords(subject);
@@ -67,6 +62,10 @@ async function fetchPayslipsSince({ provider, host, port, secure, email, passwor
           if (!isPdf) continue;
           const filenameMatches = matchesPayslipKeywords(att.filename || '');
           if (!subjectMatches && !filenameMatches) continue;
+
+          if (!att.content || att.content.length === 0) continue;
+          const head = att.content.subarray(0, 1024).toString('latin1');
+          if (!head.includes('%PDF')) continue;
 
           const messageHash = hashMessage(`${message.envelope?.messageId || message.uid}-${att.filename}-${att.size}`);
           results.push({

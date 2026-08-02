@@ -2,16 +2,66 @@ const db = require('./db');
 const { decrypt } = require('./crypto');
 const { fetchPayslipsSince, saveAttachment } = require('./imapService');
 const { extractNetAmount } = require('./pdfService');
+const { parsePeriodFromPayslip } = require('./period');
 const { sendNotification } = require('./routes/push');
 
 const STORAGE_DIR = process.env.STORAGE_DIR || './storage';
 const MONTH_NAMES_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const SYNC_TIMEOUT_MS = Number(process.env.SYNC_TIMEOUT) || 60000;
 
 function withTimeout(promise, ms) {
   return Promise.race([
     promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout IMAP dépassé (60s)')), ms)),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout IMAP dépassé')), ms)),
   ]);
+}
+
+/**
+ * Déduplique et enregistre une liste d'attachments (fichiers trouvés par IMAP).
+ * Retourne le nombre de nouveaux bulletins insérés.
+ */
+async function importFound(device, account, items) {
+  let newCount = 0;
+  for (const item of items) {
+    const alreadyHash = db.prepare('SELECT id FROM bulletins WHERE message_hash = ?').get(item.messageHash);
+
+    const period = parsePeriodFromPayslip(`${item.filename} ${item.subject}`);
+    const year = period ? period.year : item.receivedAt.getFullYear();
+    const month = period ? period.month : item.receivedAt.getMonth() + 1;
+
+    const alreadyPeriod = db.prepare(
+      'SELECT id FROM bulletins WHERE account_id = ? AND filename = ? AND year = ? AND month = ?'
+    ).get(account.id, item.filename, year, month);
+    if (alreadyHash || alreadyPeriod) continue;
+
+    if (!item.buffer || item.buffer.length === 0) continue;
+
+    const filepath = await saveAttachment(STORAGE_DIR, account.device_id, item.buffer, item.filename);
+    let netAmount = null;
+    if (device && device.extract_amounts) {
+      try { netAmount = await extractNetAmount(item.buffer); } catch (_) {}
+    }
+
+    db.prepare(`
+      INSERT INTO bulletins (device_id, account_id, year, month, filename, filepath, message_hash, received_at, net_amount)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      account.device_id, account.id,
+      year, month,
+      item.filename, filepath, item.messageHash, item.receivedAt.toISOString(),
+      netAmount
+    );
+    newCount++;
+
+    if (device && device.push_subscription) {
+      const monthLabel = MONTH_NAMES_FR[month - 1];
+      await sendNotification(JSON.parse(device.push_subscription), {
+        title: 'Nouveau bulletin détecté',
+        body: `Votre bulletin de paie de ${monthLabel} ${year} est disponible.`,
+      }).catch(() => {});
+    }
+  }
+  return newCount;
 }
 
 async function runSyncForDevice(deviceId) {
@@ -34,38 +84,9 @@ async function runSyncForDevice(deviceId) {
         email: account.email,
         password,
         sinceDate,
-      }), 60000);
+      }), SYNC_TIMEOUT_MS);
 
-      let newCount = 0;
-      for (const item of found) {
-        const already = db.prepare('SELECT id FROM bulletins WHERE message_hash = ?').get(item.messageHash);
-        if (already) continue;
-
-        const filepath = await saveAttachment(STORAGE_DIR, deviceId, item.buffer, item.filename);
-        let netAmount = null;
-        if (device && device.extract_amounts) {
-          try { netAmount = await extractNetAmount(item.buffer); } catch (_) {}
-        }
-
-        db.prepare(`
-          INSERT INTO bulletins (device_id, account_id, year, month, filename, filepath, message_hash, received_at, net_amount)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          deviceId, account.id,
-          item.receivedAt.getFullYear(), item.receivedAt.getMonth() + 1,
-          item.filename, filepath, item.messageHash, item.receivedAt.toISOString(),
-          netAmount
-        );
-        newCount++;
-
-        if (device && device.push_subscription) {
-          const monthLabel = MONTH_NAMES_FR[item.receivedAt.getMonth()];
-          await sendNotification(JSON.parse(device.push_subscription), {
-            title: 'Nouveau bulletin détecté',
-            body: `Votre bulletin de paie de ${monthLabel} ${item.receivedAt.getFullYear()} est disponible.`,
-          }).catch(() => {});
-        }
-      }
+      const newCount = await importFound(device, account, found);
 
       totalNew += newCount;
       db.prepare('UPDATE accounts SET last_sync_at = ? WHERE id = ?').run(new Date().toISOString(), account.id);
@@ -80,4 +101,4 @@ async function runSyncForDevice(deviceId) {
   return totalNew;
 }
 
-module.exports = { runSyncForDevice };
+module.exports = { runSyncForDevice, importFound };
