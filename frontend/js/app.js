@@ -87,6 +87,7 @@ async function bootApp() {
   safe('Accounts',  () => Accounts.bindForm());
   safe('Bulletins', () => Bulletins.bindActions());
   safe('Settings',  () => Settings.bindActions());
+  safe('Keyboard',  () => NativeBridge && NativeBridge.ensureKeyboard && NativeBridge.ensureKeyboard());
 
   const backendOk = await Api.ensureDevice().then(() => true).catch((e) => {
     Toast.show(ERR.msg(e));

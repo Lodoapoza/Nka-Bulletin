@@ -16,7 +16,7 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/plusjakartasans/v12/LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yygg_vb.woff2">
 <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/robotomono/v31/L0x5DF4xlVMF-BfR8bXMIjhLq3-cXbKD.woff2">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@500;600&display=optional">
-<link rel="stylesheet" href="css/app.css?v=v12">
+<link rel="stylesheet" href="css/app.css?v=v13">
 </head>
 <body>
 
@@ -200,6 +200,11 @@
         </div>
         <label class="switch"><input type="checkbox" id="amounts-switch"><span class="track"><span class="thumb"></span></span></label>
       </div>
+      <div class="field" style="margin-top:14px;">
+        <label>Matricule (filtre des bulletins)</label>
+        <input type="text" id="owner-matricule" placeholder="F2558" autocapitalize="characters">
+        <div class="hint">Seuls les bulletins portant ce matricule sont importés. Vide = tous.</div>
+      </div>
     </div>
 
     <div class="card">
@@ -257,14 +262,14 @@
   <div class="app-version" id="app-version"></div>
 </div>
 
-<script src="js/capacitor.js?v=v12"></script>
-<script src="js/client.js?v=v12"></script>
-<script src="js/pin.js?v=v12"></script>
-<script src="js/dashboard.js?v=v12"></script>
-<script src="js/accounts.js?v=v12"></script>
-<script src="js/bulletins.js?v=v12"></script>
-<script src="js/settings.js?v=v12"></script>
-<script src="js/version.js?v=v12"></script>
-<script src="js/app.js?v=v12"></script>
+<script src="js/capacitor.js?v=v13"></script>
+<script src="js/client.js?v=v13"></script>
+<script src="js/pin.js?v=v13"></script>
+<script src="js/dashboard.js?v=v13"></script>
+<script src="js/accounts.js?v=v13"></script>
+<script src="js/bulletins.js?v=v13"></script>
+<script src="js/settings.js?v=v13"></script>
+<script src="js/version.js?v=v13"></script>
+<script src="js/app.js?v=v13"></script>
 </body>
 </html>

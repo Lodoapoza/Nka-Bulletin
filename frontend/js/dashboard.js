@@ -21,9 +21,14 @@ const Dashboard = (() => {
         openBtn.style.display = 'inline-flex';
           openBtn.onclick = async () => {
             try {
-              const { objectUrl } = await Api.fetchBulletinBlob(stats.latest.id);
-              window.open(objectUrl, '_blank');
-              setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+              const { blob, filename, objectUrl } = await Api.fetchBulletinBlob(stats.latest.id);
+              if (NativeBridge && NativeBridge.isNative) {
+                await NativeBridge.shareFile(blob, filename);
+                URL.revokeObjectURL(objectUrl);
+              } else {
+                window.open(objectUrl, '_blank');
+                setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+              }
             } catch (e) {
               Toast.show(ERR.msg(e));
             }

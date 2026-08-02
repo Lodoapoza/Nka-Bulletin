@@ -83,11 +83,28 @@ CREATE TABLE IF NOT EXISTS settings (
 `);
 
 // Version des migrations
-const MIGRATION_VERSION = 2;
+const MIGRATION_VERSION = 3;
 const currentVersion = db.prepare("SELECT value FROM settings WHERE key = 'db_version'").get();
 if (!currentVersion) {
   db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_version', ?)").run(String(MIGRATION_VERSION));
   console.log('[db] Migration initiale v' + MIGRATION_VERSION);
+}
+
+// Migrations incrémentales (v3)
+function hasColumn(table, column) {
+  return db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === column);
+}
+if (!hasColumn('bulletins', 'nom')) {
+  db.exec("ALTER TABLE bulletins ADD COLUMN nom TEXT");
+  console.log('[db] colonne bulletins.nom ajoutée');
+}
+if (!hasColumn('bulletins', 'matricule')) {
+  db.exec("ALTER TABLE bulletins ADD COLUMN matricule TEXT");
+  console.log('[db] colonne bulletins.matricule ajoutée');
+}
+if (!hasColumn('devices', 'owner_matricule')) {
+  db.exec("ALTER TABLE devices ADD COLUMN owner_matricule TEXT");
+  console.log('[db] colonne devices.owner_matricule ajoutée');
 }
 
 module.exports = db;

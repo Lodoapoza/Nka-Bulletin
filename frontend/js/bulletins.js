@@ -62,7 +62,8 @@ const Bulletins = (() => {
 
       const subDiv = document.createElement('div');
       subDiv.className = 'sub';
-      subDiv.textContent = b.account_email + (b.net_amount ? ' · ' + new Intl.NumberFormat('fr-FR').format(b.net_amount) + ' XOF' : '');
+      const identity = b.nom ? b.nom + (b.matricule ? ' · ' + b.matricule : '') : (b.matricule || '');
+      subDiv.textContent = (identity ? identity + ' · ' : '') + b.account_email + (b.net_amount ? ' · ' + new Intl.NumberFormat('fr-FR').format(b.net_amount) + ' XOF' : '');
       metaDiv.appendChild(subDiv);
 
       row.appendChild(metaDiv);
@@ -94,7 +95,7 @@ const Bulletins = (() => {
         try {
           const { blob, filename, objectUrl } = await Api.fetchBulletinBlob(btn.dataset.download);
           if (NativeBridge && NativeBridge.isNative) {
-            await NativeBridge.download(blob, filename);
+            await NativeBridge.shareFile(blob, filename);
             URL.revokeObjectURL(objectUrl);
           } else {
             window.open(objectUrl, '_blank');
@@ -116,7 +117,7 @@ const Bulletins = (() => {
   async function shareOrDownloadBlob(blob, filename) {
     if (NativeBridge && NativeBridge.isNative) {
       try {
-        await NativeBridge.download(blob, filename);
+        await NativeBridge.shareFile(blob, filename);
         return;
       } catch (_) {}
     }

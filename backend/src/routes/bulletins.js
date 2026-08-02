@@ -2,7 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const db = require('../db');
-const { mergePdfs, extractNetAmount } = require('../pdfService');
+const { mergePdfs, analyzePdf } = require('../pdfService');
 
 const router = express.Router();
 
@@ -57,7 +57,9 @@ router.get('/:id/download', (req, res) => {
   const row = db.prepare('SELECT * FROM bulletins WHERE id = ? AND device_id = ?').get(req.params.id, req.deviceId);
   if (!row) return res.status(404).json({ error: 'Bulletin introuvable' });
   if (!fs.existsSync(row.filepath)) return res.status(410).json({ error: 'Fichier manquant sur le disque' });
-  res.download(row.filepath, row.filename);
+  const mm = String(row.month).padStart(2, '0');
+  const filename = `Bulletin_${row.year}-${mm}${row.matricule ? '_' + row.matricule : ''}.pdf`;
+  res.download(row.filepath, filename);
 });
 
 router.delete('/:id', (req, res) => {
@@ -115,24 +117,24 @@ router.post('/export/merge', async (req, res) => {
   }
 });
 
-// Reprocess les bulletins existants sans montant net
+// Reprocess les bulletins existants : extrait net + nom + matricule (avec OCR si scanné)
 router.post('/reprocess-amounts', async (req, res) => {
   const rows = db.prepare(
-    'SELECT id, filepath FROM bulletins WHERE device_id = ? AND net_amount IS NULL'
+    'SELECT id, filepath FROM bulletins WHERE device_id = ?'
   ).all(req.deviceId);
 
   let processed = 0;
+  let errors = 0;
   for (const row of rows) {
     try {
       if (!fs.existsSync(row.filepath)) continue;
-      const amount = await extractNetAmount(row.filepath);
-      if (amount !== null) {
-        db.prepare('UPDATE bulletins SET net_amount = ? WHERE id = ?').run(amount, row.id);
-        processed++;
-      }
-    } catch (_) { /* best-effort */ }
+      const analysis = await analyzePdf(row.filepath);
+      db.prepare('UPDATE bulletins SET net_amount = ?, nom = ?, matricule = ? WHERE id = ?')
+        .run(analysis.netAmount, analysis.nom, analysis.matricule, row.id);
+      processed++;
+    } catch (_) { errors++; }
   }
-  res.json({ ok: true, processed, total: rows.length });
+  res.json({ ok: true, processed, total: rows.length, errors });
 });
 
 module.exports = router;

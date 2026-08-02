@@ -4,6 +4,7 @@ const fs = require('fs/promises');
 const { mkdirSync } = require('fs');
 const path = require('path');
 const { hashMessage } = require('./crypto');
+const { isDeniedFilename } = require('./pdfService');
 
 // Presets réels des grands fournisseurs (l'utilisateur fournit login + mot de passe d'application)
 const PROVIDER_PRESETS = {
@@ -62,6 +63,8 @@ async function fetchPayslipsSince({ provider, host, port, secure, email, passwor
           if (!isPdf) continue;
           const filenameMatches = matchesPayslipKeywords(att.filename || '');
           if (!subjectMatches && !filenameMatches) continue;
+          // Noms de fichiers manifestement PAS des bulletins (comparatif, devis, support…)
+          if (isDeniedFilename(att.filename)) continue;
 
           if (!att.content || att.content.length === 0) continue;
           const head = att.content.subarray(0, 1024).toString('latin1');

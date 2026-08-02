@@ -1,7 +1,7 @@
 const db = require('./db');
 const { decrypt } = require('./crypto');
 const { fetchPayslipsSince, saveAttachment } = require('./imapService');
-const { extractNetAmount } = require('./pdfService');
+const { analyzePdf, matchesOwner } = require('./pdfService');
 const { parsePeriodFromPayslip } = require('./period');
 const { sendNotification } = require('./routes/push');
 
@@ -36,20 +36,42 @@ async function importFound(device, account, items) {
 
     if (!item.buffer || item.buffer.length === 0) continue;
 
-    const filepath = await saveAttachment(STORAGE_DIR, account.device_id, item.buffer, item.filename);
-    let netAmount = null;
-    if (device && device.extract_amounts) {
-      try { netAmount = await extractNetAmount(item.buffer); } catch (_) {}
+    // Validation du CONTENU : on n'importe que de vrais bulletins, et on filtre
+    // par matricule du propriétaire si configuré sur l'appareil.
+    let analysis = null;
+    try {
+      analysis = await analyzePdf(item.buffer);
+    } catch (err) {
+      console.warn('[sync] Analyse PDF impossible:', err.message);
     }
 
+    const ownerMatricule = device && device.owner_matricule ? device.owner_matricule : null;
+    const isOwned = matchesOwner(analysis, ownerMatricule);
+    if (!analysis || !analysis.isPayslip || !isOwned) {
+      if (!analysis) {
+        db.prepare('INSERT INTO sync_logs (device_id, account_id, status, message) VALUES (?,?,?,?)')
+          .run(account.device_id, account.id, 'error', 'Impossible d\'analyser la pièce jointe.');
+      } else {
+        const reason = analysis.isPayslip
+          ? 'bulletin d\'un autre salarié (matricule exclu)'
+          : 'document non reconnu comme bulletin de paie';
+        db.prepare('INSERT INTO sync_logs (device_id, account_id, status, message) VALUES (?,?,?,?)')
+          .run(account.device_id, account.id, 'success', `Ignoré : ${reason} (« ${item.filename} »)`);
+      }
+      continue;
+    }
+
+    const filepath = await saveAttachment(STORAGE_DIR, account.device_id, item.buffer, item.filename);
+    const netAmount = device && device.extract_amounts ? analysis.netAmount : null;
+
     db.prepare(`
-      INSERT INTO bulletins (device_id, account_id, year, month, filename, filepath, message_hash, received_at, net_amount)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO bulletins (device_id, account_id, year, month, filename, filepath, message_hash, received_at, net_amount, nom, matricule)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       account.device_id, account.id,
       year, month,
       item.filename, filepath, item.messageHash, item.receivedAt.toISOString(),
-      netAmount
+      netAmount, analysis.nom, analysis.matricule
     );
     newCount++;
 

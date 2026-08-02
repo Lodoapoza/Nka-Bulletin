@@ -140,7 +140,11 @@ const Accounts = (() => {
       e.preventDefault();
       const preset = PROVIDER_PRESETS[selectedProvider];
       if (preset && preset.appPwdUrl) {
-        window.open(preset.appPwdUrl, '_blank');
+        if (NativeBridge && NativeBridge.isNative) {
+          NativeBridge.openExternal(preset.appPwdUrl).catch(() => {});
+        } else {
+          window.open(preset.appPwdUrl, '_blank');
+        }
       }
     });
 

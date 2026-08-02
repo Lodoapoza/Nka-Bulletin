@@ -46,6 +46,7 @@ const Settings = (() => {
       document.getElementById('amounts-switch').checked = !!s.extract_amounts;
       document.getElementById('sync-frequency').value = s.sync_frequency || 'daily';
       document.getElementById('sync-hour').value = s.sync_hour ?? 8;
+      document.getElementById('owner-matricule').value = s.owner_matricule || '';
     } catch (e) { /* backend peut-être hors ligne au premier chargement */ }
   }
 
@@ -104,6 +105,7 @@ const Settings = (() => {
             syncFrequency: document.getElementById('sync-frequency').value,
             syncHour,
             extractAmounts: document.getElementById('amounts-switch').checked,
+            ownerMatricule: document.getElementById('owner-matricule').value.trim(),
           });
           if (document.getElementById('amounts-switch').checked) {
             Toast.show('Analyse des bulletins en cours...');
