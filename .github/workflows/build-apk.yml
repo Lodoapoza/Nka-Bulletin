@@ -44,6 +44,9 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      - name: Generate app icons & splash
+        run: npx capacitor-assets generate --android
+
       - name: Ensure android assets directory
         run: mkdir -p android/app/src/main/assets
 
