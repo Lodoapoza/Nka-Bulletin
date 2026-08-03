@@ -1,9 +1,19 @@
 const Bulletins = (() => {
   const MONTHS_FR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
+  const ICON_DOWNLOAD = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICON_CACHED = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   let currentYear = null;
   let currentMonth = null;
   let selected = new Set();
   let cache = [];
+  let cachedSet = new Set();
+
+  function markCached(btn) {
+    btn.setAttribute('aria-label', 'En local');
+    btn.title = 'Disponible hors ligne';
+    btn.style.color = 'var(--md-primary)';
+    btn.innerHTML = ICON_CACHED;
+  }
 
   function renderYearChips() {
     const wrap = document.getElementById('year-chips');
@@ -74,8 +84,12 @@ const Bulletins = (() => {
       const dlBtn = document.createElement('button');
       dlBtn.className = 'icon-btn';
       dlBtn.dataset.download = b.id;
-      dlBtn.setAttribute('aria-label', 'Télécharger');
-      dlBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      if (cachedSet.has(String(b.id))) {
+        markCached(dlBtn);
+      } else {
+        dlBtn.setAttribute('aria-label', 'Télécharger');
+        dlBtn.innerHTML = ICON_DOWNLOAD;
+      }
       actionsDiv.appendChild(dlBtn);
 
       row.appendChild(actionsDiv);
@@ -94,6 +108,11 @@ const Bulletins = (() => {
       btn.addEventListener('click', async () => {
         try {
           const { blob, filename, objectUrl } = await Api.fetchBulletinBlob(btn.dataset.download);
+          const cachedId = String(btn.dataset.download);
+          if (!cachedSet.has(cachedId)) {
+            cachedSet.add(cachedId);
+            markCached(btn);
+          }
           if (NativeBridge && NativeBridge.isNative) {
             await NativeBridge.shareFile(blob, filename);
             URL.revokeObjectURL(objectUrl);
@@ -161,6 +180,8 @@ const Bulletins = (() => {
 
     try {
       cache = await Api.getBulletins(params);
+      const ids = await Api.getCachedBulletinIds();
+      cachedSet = new Set((ids || []).map(String));
       renderList();
     } catch (e) {
       cache = [];

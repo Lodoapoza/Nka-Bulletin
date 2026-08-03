@@ -238,6 +238,11 @@ const Api = (() => {
         if (!rec) return undefined;
         return { blob: rec.blob, filename: rec.filename, cachedAt: rec.cachedAt };
       },
+      async listPdfIds() {
+        const keys = await withStore('pdf', 'readonly', (store) => store.getAllKeys());
+        if (!keys) return [];
+        return keys.map(String);
+      },
     };
   })();
 
@@ -262,6 +267,7 @@ const Api = (() => {
     },
     getStats: () => request('/bulletins/stats'),
     downloadBulletin: (id) => `${API_BASE}/bulletins/${id}/download`,
+    getCachedBulletinIds: () => OfflineCache.listPdfIds(),
     deleteBulletin: (id) => request(`/bulletins/${id}`, { method: 'DELETE' }),
     mergeBulletins: async (payload, retried = false) => {
       await ensureDevice();
