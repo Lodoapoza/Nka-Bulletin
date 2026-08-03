@@ -47,16 +47,20 @@ const ERR = (() => {
 
 const Router = (() => {
   const views = ['dashboard', 'bulletins', 'settings'];
-  const HEADER_LABELS = { dashboard: 'Tableau de bord', bulletins: 'Mes bulletins', settings: 'Paramètres' };
+  const TITLES = { dashboard: 'Accueil', bulletins: 'Mes bulletins', settings: 'Réglages', about: 'À propos' };
 
   function goTo(viewName) {
     views.forEach(v => {
       document.getElementById(`view-${v}`).classList.toggle('hidden', v !== viewName);
     });
+    const aboutView = document.getElementById('view-about');
+    if (aboutView) aboutView.classList.toggle('hidden', viewName !== 'about');
     document.querySelectorAll('.nav-item').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.view === viewName);
+      const active = viewName === 'about' ? btn.dataset.view === 'settings' : btn.dataset.view === viewName;
+      btn.classList.toggle('active', active);
     });
-    document.getElementById('header-sub').textContent = HEADER_LABELS[viewName];
+    const titleEl = document.getElementById('topbar-title');
+    if (titleEl) titleEl.textContent = TITLES[viewName];
 
     if (viewName === 'dashboard') Dashboard.refresh();
     if (viewName === 'bulletins') Bulletins.refresh();

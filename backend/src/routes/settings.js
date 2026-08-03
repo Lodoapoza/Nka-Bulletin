@@ -6,8 +6,9 @@ const router = express.Router();
 
 router.get('/', (req, res) => {
   const row = db.prepare(
-    'SELECT id, sync_hour, sync_frequency, extract_amounts, owner_matricule FROM devices WHERE id = ?'
+    'SELECT id, sync_hour, sync_frequency, extract_amounts, owner_matricule, push_subscription FROM devices WHERE id = ?'
   ).get(req.deviceId);
+  if (row) row.push_enabled = !!row.push_subscription;
   res.json(row);
 });
 

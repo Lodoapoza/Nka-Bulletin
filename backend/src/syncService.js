@@ -7,7 +7,7 @@ const { sendNotification } = require('./routes/push');
 
 const STORAGE_DIR = process.env.STORAGE_DIR || './storage';
 const MONTH_NAMES_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-const SYNC_TIMEOUT_MS = Number(process.env.SYNC_TIMEOUT) || 60000;
+const SYNC_TIMEOUT_MS = Number(process.env.SYNC_TIMEOUT) || 600000;
 
 function withTimeout(promise, ms) {
   return Promise.race([
@@ -23,7 +23,7 @@ function withTimeout(promise, ms) {
 async function importFound(device, account, items) {
   let newCount = 0;
   for (const item of items) {
-    const alreadyHash = db.prepare('SELECT id FROM bulletins WHERE message_hash = ?').get(item.messageHash);
+    const alreadyHash = db.prepare('SELECT id FROM bulletins WHERE message_hash = ? AND device_id = ?').get(item.messageHash, account.device_id);
 
     const period = parsePeriodFromPayslip(`${item.filename} ${item.subject}`);
     const year = period ? period.year : item.receivedAt.getFullYear();

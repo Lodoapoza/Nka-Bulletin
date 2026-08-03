@@ -1,1 +1,1 @@
-(function(){var t=localStorage.getItem('nka_theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})();
+(function(){var t=localStorage.getItem('nka_theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t);var a=localStorage.getItem('nka_accent')||'emerald';document.documentElement.setAttribute('data-accent',a)})();

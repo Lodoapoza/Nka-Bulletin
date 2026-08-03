@@ -6,6 +6,13 @@ const Settings = (() => {
     return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
   }
 
+  const ACCENT_COLORS = {
+    emerald: { light: '#1B6E5C', dark: '#10201C' },
+    sapphire: { light: '#1E5AA8', dark: '#10201C' },
+    amber: { light: '#B47800', dark: '#10201C' },
+    ruby: { light: '#A5343A', dark: '#10201C' },
+  };
+
   function updateThemeIcon(theme) {
     const el = document.getElementById('theme-icon');
     if (!el) return;
@@ -16,28 +23,49 @@ const Settings = (() => {
     }
   }
 
-  function applyTheme(theme) {
+  function syncAccentSwatches(accent) {
+    document.querySelectorAll('.accent-swatch').forEach(el => {
+      el.classList.toggle('active', el.dataset.accent === accent);
+    });
+  }
+
+  function applyTheme(theme, accent) {
+    accent = accent || localStorage.getItem('nka_accent') || 'emerald';
     document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-accent', accent);
     try {
       document.getElementById('dark-mode-switch').checked = theme === 'dark';
     } catch (e) {}
+    syncAccentSwatches(accent);
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', theme === 'dark' ? '#10201C' : '#1B6E5C');
+    if (meta) {
+      const colors = ACCENT_COLORS[accent] || ACCENT_COLORS.emerald;
+      meta.setAttribute('content', theme === 'dark' ? colors.dark : colors.light);
+    }
     updateThemeIcon(theme);
   }
 
   function initTheme() {
     const saved = localStorage.getItem('nka_theme');
     const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    applyTheme(saved || (systemDark ? 'dark' : 'light'));
+    const theme = saved || (systemDark ? 'dark' : 'light');
+    const accent = localStorage.getItem('nka_accent') || 'emerald';
+    applyTheme(theme, accent);
     const sw = document.getElementById('dark-mode-switch');
     if (sw) {
       sw.addEventListener('change', (e) => {
-        const theme = e.target.checked ? 'dark' : 'light';
-        localStorage.setItem('nka_theme', theme);
-        applyTheme(theme);
+        const t = e.target.checked ? 'dark' : 'light';
+        localStorage.setItem('nka_theme', t);
+        applyTheme(t);
       });
     }
+    document.querySelectorAll('.accent-swatch').forEach(el => {
+      el.addEventListener('click', () => {
+        const a = el.dataset.accent;
+        localStorage.setItem('nka_accent', a);
+        applyTheme(document.documentElement.getAttribute('data-theme') || 'light', a);
+      });
+    });
   }
 
   async function loadServerSettings() {
@@ -47,6 +75,8 @@ const Settings = (() => {
       document.getElementById('sync-frequency').value = s.sync_frequency || 'daily';
       document.getElementById('sync-hour').value = s.sync_hour ?? 8;
       document.getElementById('owner-matricule').value = s.owner_matricule || '';
+      const push = document.getElementById('push-switch');
+      if (push) push.checked = !!s.push_enabled;
     } catch (e) { /* backend peut-être hors ligne au premier chargement */ }
   }
 
@@ -83,6 +113,17 @@ const Settings = (() => {
   function bindActions() {
     try { initTheme(); } catch (e) { console.warn('initTheme:', e); }
     loadServerSettings();
+
+    try {
+      document.getElementById('about-btn').addEventListener('click', () => Router.goTo('about'));
+      document.getElementById('about-back-btn').addEventListener('click', () => Router.goTo('settings'));
+      document.getElementById('about-website-btn').addEventListener('click', () => {
+        NativeBridge && NativeBridge.openExternal('https://www.glocal-innov.com')
+          .catch(e => Toast.show(ERR.msg(e)));
+      });
+      const verEl = document.getElementById('about-version');
+      if (verEl) verEl.textContent = 'Version ' + (APP_VERSION || '2.1.0');
+    } catch (e) { console.warn('about:', e); }
 
     try {
       document.getElementById('theme-toggle').addEventListener('click', () => {

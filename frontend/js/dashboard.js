@@ -6,6 +6,31 @@ const Dashboard = (() => {
     return new Intl.NumberFormat('fr-FR').format(n) + ' XOF';
   }
 
+  const MASK = '•••• ••••';
+
+  let amountsHidden = localStorage.getItem('nka_amounts_hidden') === '1';
+
+  function renderAmounts() {
+    const last = document.getElementById('dash-last-net');
+    const cumul = document.getElementById('dash-cumul-net');
+    const icon = document.getElementById('amounts-eye-icon');
+    if (last) last.textContent = amountsHidden ? MASK : last.dataset.value || '—';
+    if (cumul) cumul.textContent = amountsHidden ? MASK : cumul.dataset.value || '—';
+    if (icon) {
+      if (amountsHidden) {
+        icon.innerHTML = '<path d="M3 3l18 18M10.6 10.6a2.5 2.5 0 002.8 2.8M6.9 6.9C4.5 8.2 3 12 3 12s3.5 7 10 7c1.5 0 2.8-.4 3.9-1M9.9 5.2A10 10 0 0112 5c6.5 0 10 7 10 7a15 15 0 01-2.2 3.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
+      } else {
+        icon.innerHTML = '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/>';
+      }
+    }
+  }
+
+  function toggleAmountsVisibility() {
+    amountsHidden = !amountsHidden;
+    localStorage.setItem('nka_amounts_hidden', amountsHidden ? '1' : '0');
+    renderAmounts();
+  }
+
   async function refresh() {
     const syncStatus = document.getElementById('dash-sync-status');
     if (syncStatus) syncStatus.textContent = 'Chargement...';
@@ -41,8 +66,10 @@ const Dashboard = (() => {
       const amountsCard = document.getElementById('dash-amounts-card');
       if (stats.amountsEnabled) {
         amountsCard.style.display = 'block';
-        document.getElementById('dash-last-net').textContent = formatCurrency(stats.lastNetAmount);
-        document.getElementById('dash-cumul-net').textContent = formatCurrency(stats.cumulativeNetThisYear);
+        document.getElementById('dash-cumul-label').textContent = `Cumul ${new Date().getFullYear()}`;
+        document.getElementById('dash-last-net').dataset.value = formatCurrency(stats.lastNetAmount);
+        document.getElementById('dash-cumul-net').dataset.value = formatCurrency(stats.cumulativeNetThisYear);
+        renderAmounts();
       } else {
         amountsCard.style.display = 'none';
       }
@@ -68,6 +95,11 @@ const Dashboard = (() => {
   }
 
   function bindActions() {
+    const eye = document.getElementById('amounts-eye');
+    if (eye) {
+      eye.addEventListener('click', toggleAmountsVisibility);
+      renderAmounts();
+    }
     if (NativeBridge && NativeBridge.isNative) {
       try {
         NativeBridge.onNetworkChange((c) => {

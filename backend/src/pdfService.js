@@ -124,11 +124,21 @@ function isPayslipText(text) {
   return weakCount >= 2 && !!matricule;
 }
 
+/**
+ * Vérifie que le bulletin appartient à l'un des matricules autorisés.
+ * `ownerMatricule` peut contenir plusieurs matricules séparés par ';' (ou ',').
+ */
 function matchesOwner(analysis, ownerMatricule) {
   if (!ownerMatricule) return true;
   if (!analysis || !analysis.matricule) return false;
   const digits = s => String(s || '').toUpperCase().replace(/\D/g, '');
-  return digits(analysis.matricule) === digits(ownerMatricule);
+  const expected = String(ownerMatricule)
+    .split(/[;,]/)
+    .map(s => s.trim())
+    .filter(Boolean);
+  if (expected.length === 0) return true;
+  const target = digits(analysis.matricule);
+  return expected.some(m => digits(m) === target);
 }
 
 function isDeniedFilename(filename) {
