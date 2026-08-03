@@ -1,18 +1,18 @@
-const CACHE_NAME = 'nka-bulletin-v13';
+const CACHE_NAME = 'nka-bulletin-v14';
 const APP_SHELL = [
-  '/index.html?v=v22',
-  '/manifest.json?v=v22',
-  '/css/app.css?v=v22',
-  '/js/app.js?v=v22',
-  '/js/client.js?v=v22',
-  '/js/pin.js?v=v22',
-  '/js/capacitor.js?v=v22',
-  '/js/dashboard.js?v=v22',
-  '/js/accounts.js?v=v22',
-  '/js/bulletins.js?v=v22',
-  '/js/settings.js?v=v22',
-  '/js/theme.js?v=v22',
-  '/js/version.js?v=v22',
+  '/index.html?v=v23',
+  '/manifest.json?v=v23',
+  '/css/app.css?v=v23',
+  '/js/app.js?v=v23',
+  '/js/client.js?v=v23',
+  '/js/pin.js?v=v23',
+  '/js/capacitor.js?v=v23',
+  '/js/dashboard.js?v=v23',
+  '/js/accounts.js?v=v23',
+  '/js/bulletins.js?v=v23',
+  '/js/settings.js?v=v23',
+  '/js/theme.js?v=v23',
+  '/js/version.js?v=v23',
   '/icons/logo.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -40,28 +40,32 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(event.request).catch(() =>
-        new Response(JSON.stringify({ error: 'Hors ligne' }), { headers: { 'Content-Type': 'application/json' } })
-      )
-    );
+  // Téléchargements PDF et requêtes non-GET : jamais interceptés.
+  // Hors ligne, ils échoueront réellement (le client gère le fallback IndexedDB).
+  if (url.pathname.includes('/download') || event.request.method !== 'GET') {
     return;
   }
   if (url.search.includes('sw-no-cache')) {
     event.respondWith(fetch(event.request));
     return;
   }
+  // Stratégie NETWORK-FIRST : données toujours fraîches quand le réseau est là.
+  // Le cache ne sert qu'en échec réseau, marqué X-Cache: hit.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetchPromise = fetch(event.request).then((response) => {
-        if (response.ok) {
-          const cloned = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
-        }
-        return response;
-      }).catch(() => cached);
-      return cached || fetchPromise;
+    fetch(event.request).then((response) => {
+      if (response.ok) {
+        const cloned = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned)).catch(() => {});
+      }
+      return response;
+    }).catch(async () => {
+      const cached = await caches.match(event.request);
+      if (cached) {
+        const headers = new Headers(cached.headers);
+        headers.set('X-Cache', 'hit');
+        return new Response(cached.body, { status: cached.status, statusText: cached.statusText, headers });
+      }
+      return new Response(JSON.stringify({ error: 'Hors ligne' }), { status: 503, headers: { 'Content-Type': 'application/json' } });
     })
   );
 });

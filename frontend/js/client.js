@@ -60,6 +60,7 @@ const Api = (() => {
   async function request(path, options = {}, retried = false) {
     await ensureDevice();
     const url = `${API_BASE}${path}`;
+    const isGet = !options.method || options.method.toUpperCase() === 'GET';
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       let res;
@@ -80,6 +81,14 @@ const Api = (() => {
           console.warn(`[client] Retry ${path} (${isTimeout ? 'timeout' : 'réseau'}) dans ${Math.round(delay)}ms (tentative ${attempt + 1}/${MAX_RETRIES})`);
           await new Promise(r => setTimeout(r, delay));
           continue;
+        }
+        if (isGet) {
+          const cached = await OfflineCache.getApi(path);
+          if (cached) {
+            notifyConnection('offline');
+            dispatchCacheHit(path, cached.cachedAt);
+            return cached.data;
+          }
         }
         notifyConnection('offline');
         throw new Error(isTimeout ? 'Le serveur met trop de temps à répondre' : 'Serveur indisponible, réessayez dans un instant');
@@ -117,12 +126,123 @@ const Api = (() => {
       }
 
       if (!res.ok) {
+        if (isGet) {
+          const cached = await OfflineCache.getApi(path);
+          if (cached) {
+            notifyConnection('offline');
+            dispatchCacheHit(path, cached.cachedAt);
+            return cached.data;
+          }
+        }
         notifyConnection('offline');
         throw new Error(data.error || `Erreur ${res.status}`);
       }
       notifyConnection('online');
+      if (isGet && res.ok) {
+        OfflineCache.setApi(path, data).catch(() => {});
+        if (res.headers.get('X-Cache') === 'hit') {
+          dispatchCacheHit(path, Date.now());
+        }
+      }
       return data;
     }
+  }
+
+  // ===== Cache hors-ligne (IndexedDB) =====
+  const DB_NAME = 'nka-offline-cache';
+  const DB_VERSION = 1;
+
+  const OfflineCache = (() => {
+    let dbPromise = null;
+
+    function openDb() {
+      if (!dbPromise) {
+        dbPromise = new Promise((resolve) => {
+          const req = indexedDB.open(DB_NAME, DB_VERSION);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains('api')) {
+              db.createObjectStore('api', { keyPath: 'key' });
+            }
+            if (!db.objectStoreNames.contains('pdf')) {
+              db.createObjectStore('pdf', { keyPath: 'key' });
+            }
+          };
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => {
+            console.warn('[offline-cache] Ouverture IndexedDB impossible', req.error);
+            resolve(null);
+          };
+        });
+      }
+      return dbPromise;
+    }
+
+    async function withStore(storeName, mode, fn) {
+      const db = await openDb();
+      if (!db) return undefined;
+      return new Promise((resolve) => {
+        try {
+          const tx = db.transaction(storeName, mode);
+          const req = fn(tx.objectStore(storeName));
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => {
+            console.warn(`[offline-cache] Lecture ${storeName} impossible`, req.error);
+            resolve(undefined);
+          };
+        } catch (e) {
+          console.warn(`[offline-cache] Transaction ${storeName} impossible`, e);
+          resolve(undefined);
+        }
+      });
+    }
+
+    async function write(storeName, record) {
+      try {
+        const db = await openDb();
+        if (!db) return;
+        await new Promise((resolve) => {
+          const tx = db.transaction(storeName, 'readwrite');
+          tx.objectStore(storeName).put(record);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => {
+            console.warn(`[offline-cache] Écriture ${storeName} impossible`, tx.error);
+            resolve();
+          };
+          tx.onabort = () => {
+            if (tx.error && tx.error.name === 'QuotaExceededError') {
+              console.warn('[offline-cache] Quota dépassé, écriture ignorée');
+            }
+            resolve();
+          };
+        });
+      } catch (e) {
+        console.warn(`[offline-cache] Écriture ${storeName} impossible`, e);
+      }
+    }
+
+    return {
+      setApi(path, data) {
+        return write('api', { key: path, data, cachedAt: Date.now() });
+      },
+      async getApi(path) {
+        const rec = await withStore('api', 'readonly', (store) => store.get(path));
+        if (!rec) return undefined;
+        return { data: rec.data, cachedAt: rec.cachedAt };
+      },
+      setPdf(id, blob, filename) {
+        return write('pdf', { key: String(id), blob, filename, cachedAt: Date.now() });
+      },
+      async getPdf(id) {
+        const rec = await withStore('pdf', 'readonly', (store) => store.get(String(id)));
+        if (!rec) return undefined;
+        return { blob: rec.blob, filename: rec.filename, cachedAt: rec.cachedAt };
+      },
+    };
+  })();
+
+  function dispatchCacheHit(path, cachedAt) {
+    window.dispatchEvent(new CustomEvent('nka-cache-hit', { detail: { path, cachedAt } }));
   }
 
   return {
@@ -208,6 +328,12 @@ const Api = (() => {
             await new Promise(r => setTimeout(r, delay));
             continue;
           }
+          const cachedPdf = await OfflineCache.getPdf(id);
+          if (cachedPdf) {
+            notifyConnection('offline');
+            dispatchCacheHit(`pdf:${id}`, cachedPdf.cachedAt);
+            return { blob: cachedPdf.blob, filename: cachedPdf.filename, objectUrl: URL.createObjectURL(cachedPdf.blob) };
+          }
           notifyConnection('offline');
           throw new Error('Serveur indisponible, réessayez dans un instant');
         }
@@ -225,6 +351,12 @@ const Api = (() => {
           const text = await res.text();
           let msg;
           try { msg = JSON.parse(text).error; } catch (_) { msg = text.slice(0, 200); }
+          const cachedPdf = await OfflineCache.getPdf(id);
+          if (cachedPdf) {
+            notifyConnection('offline');
+            dispatchCacheHit(`pdf:${id}`, cachedPdf.cachedAt);
+            return { blob: cachedPdf.blob, filename: cachedPdf.filename, objectUrl: URL.createObjectURL(cachedPdf.blob) };
+          }
           notifyConnection('offline');
           throw new Error(msg || 'Impossible de charger le bulletin');
         }
@@ -233,6 +365,7 @@ const Api = (() => {
         const match = disposition.match(/filename[^;=\n]*=["']?([^"';\n]*)["']?/);
         const filename = match ? match[1].trim() : `bulletin-${id}.pdf`;
         const blob = await res.blob();
+        OfflineCache.setPdf(id, blob, filename).catch(() => {});
         return { blob, filename, objectUrl: URL.createObjectURL(blob) };
       }
     },

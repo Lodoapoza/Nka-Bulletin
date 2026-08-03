@@ -75,7 +75,9 @@ const Dashboard = (() => {
       }
     } catch (e) {
       Toast.show(ERR.msg(e));
-      if (syncStatus) syncStatus.textContent = 'Erreur de chargement';
+      // Hors ligne : les données en cache arrivent via le client (X-Cache: hit) ;
+      // le statut ne doit pas être alarmiste.
+      if (syncStatus) syncStatus.textContent = navigator.onLine ? 'Erreur de chargement' : 'Hors ligne — données en cache';
     }
 
     try {
@@ -142,6 +144,17 @@ const Dashboard = (() => {
       }
     });
   }
+
+  // Si des données en cache sont servies alors que le statut est en erreur
+  // ou hors ligne, adoucir le message : les données ne sont pas perdues.
+  window.addEventListener('nka-cache-hit', () => {
+    const syncStatus = document.getElementById('dash-sync-status');
+    if (!syncStatus) return;
+    const t = syncStatus.textContent;
+    if (t === 'Erreur de chargement' || t === 'Hors ligne') {
+      syncStatus.textContent = 'Hors ligne — données en cache';
+    }
+  });
 
   return { refresh, bindActions };
 })();

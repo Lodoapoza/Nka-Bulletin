@@ -208,6 +208,65 @@ window.addEventListener('nka-connection', (e) => {
   }
 });
 
+/* ===== Bandeau « données en cache » =====
+   Affiché quand le service worker ou le client sert des données
+   depuis un cache (événement nka-cache-hit), retiré au retour du réseau.
+   Styles alignés sur les tokens du design system (app.css). */
+function showOfflineCacheBanner() {
+  if (document.getElementById('offline-cache-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'offline-cache-banner';
+  banner.setAttribute('role', 'status');
+  banner.style.cssText = [
+    'position: sticky',
+    'top: 0',
+    'z-index: 60',
+    'display: flex',
+    'align-items: center',
+    'justify-content: space-between',
+    'gap: 12px',
+    'background: var(--md-primary-container)',
+    'color: var(--md-on-primary-container)',
+    'padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 8px',
+    'font-family: var(--font-body)',
+    'font-size: 0.8rem',
+    'font-weight: 600',
+    'box-shadow: var(--shadow-soft)',
+  ].join(';');
+
+  const text = document.createElement('span');
+  text.textContent = 'Hors ligne — données en cache';
+
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.setAttribute('aria-label', 'Fermer');
+  close.textContent = '×';
+  close.style.cssText = [
+    'background: transparent',
+    'border: none',
+    'color: inherit',
+    'font-size: 1.15rem',
+    'line-height: 1',
+    'padding: 2px 8px',
+    'cursor: pointer',
+    'border-radius: 50%',
+    'flex-shrink: 0',
+  ].join(';');
+  close.addEventListener('click', () => banner.remove());
+
+  banner.appendChild(text);
+  banner.appendChild(close);
+  document.body.insertBefore(banner, document.body.firstChild);
+}
+
+window.addEventListener('nka-cache-hit', showOfflineCacheBanner);
+window.addEventListener('nka-connection', (e) => {
+  if (e.detail === 'online') {
+    const banner = document.getElementById('offline-cache-banner');
+    if (banner) banner.remove();
+  }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
   registerServiceWorker();
   Pin.start(bootApp);
