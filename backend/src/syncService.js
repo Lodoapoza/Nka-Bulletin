@@ -9,11 +9,14 @@ const STORAGE_DIR = process.env.STORAGE_DIR || './storage';
 const MONTH_NAMES_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 const SYNC_TIMEOUT_MS = Number(process.env.SYNC_TIMEOUT) || 600000;
 
-function withTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout IMAP dépassé')), ms)),
-  ]);
+function withTimeout(promise, ms, signal) {
+  let reject;
+  const timer = setTimeout(() => {
+    if (signal) signal.abort();
+    reject(new Error('Timeout IMAP dépassé'));
+  }, ms);
+  const timeoutPromise = new Promise((_, rej) => { reject = rej; });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
 }
 
 /**
@@ -86,18 +89,31 @@ async function importFound(device, account, items) {
   return newCount;
 }
 
+/**
+ * Synchronise tous les comptes d'un appareil.
+ * Retourne un résultat structuré :
+ * - ok : true si AU MOINS UN compte a terminé sans erreur (même avec 0 bulletin),
+ *        false si TOUS les comptes ont échoué.
+ * - totalNew : nombre total de bulletins importés.
+ * - errors : messages d'erreur de chaque compte en échec.
+ */
 async function runSyncForDevice(deviceId) {
   const device = db.prepare('SELECT * FROM devices WHERE id = ?').get(deviceId);
   const accounts = db.prepare('SELECT * FROM accounts WHERE device_id = ?').all(deviceId);
   let totalNew = 0;
+  const errors = [];
+  let successCount = 0;
 
   for (const account of accounts) {
     try {
       const password = decrypt(account.encrypted_credentials);
+      // Grace period 48h : ne jamais perdre un message en cas d'échec ponctuel
+      // sur un message proche de la fenêtre de scan (dédupliqué par hash ensuite).
       const sinceDate = account.last_sync_at
-        ? new Date(account.last_sync_at)
+        ? new Date(new Date(account.last_sync_at).getTime() - 48 * 60 * 60 * 1000)
         : new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000);
 
+      const controller = new AbortController();
       const found = await withTimeout(fetchPayslipsSince({
         provider: account.provider,
         host: account.imap_host,
@@ -106,7 +122,7 @@ async function runSyncForDevice(deviceId) {
         email: account.email,
         password,
         sinceDate,
-      }), SYNC_TIMEOUT_MS);
+      }, { signal: controller.signal }), SYNC_TIMEOUT_MS, controller.signal);
 
       const newCount = await importFound(device, account, found);
 
@@ -114,13 +130,21 @@ async function runSyncForDevice(deviceId) {
       db.prepare('UPDATE accounts SET last_sync_at = ? WHERE id = ?').run(new Date().toISOString(), account.id);
       db.prepare('INSERT INTO sync_logs (device_id, account_id, status, message, new_bulletins) VALUES (?,?,?,?,?)')
         .run(deviceId, account.id, 'success', `${newCount} nouveau(x) bulletin(s)`, newCount);
+      successCount++;
 
     } catch (err) {
+      errors.push(err.message);
       db.prepare('INSERT INTO sync_logs (device_id, account_id, status, message) VALUES (?,?,?,?)')
         .run(deviceId, account.id, 'error', err.message);
     }
   }
-  return totalNew;
+
+  return {
+    // Aucun compte configuré : rien n'a échoué, la sync est un succès (comportement historique).
+    ok: successCount > 0 || accounts.length === 0,
+    totalNew,
+    errors,
+  };
 }
 
 module.exports = { runSyncForDevice, importFound };

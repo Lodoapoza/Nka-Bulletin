@@ -19,28 +19,55 @@ const { runSyncForDevice } = require('./src/syncService');
 const POLL_INTERVAL = Number(process.env.WORKER_POLL_INTERVAL) || 2000;
 
 async function processOne() {
-  const atomicClaim = db.transaction(() => {
-    const row = db.prepare("SELECT id FROM sync_requests WHERE status = 'pending' ORDER BY id LIMIT 1").get();
-    if (!row) return null;
-    db.prepare("UPDATE sync_requests SET status = 'running' WHERE id = ?").run(row.id);
-    return db.prepare("SELECT * FROM sync_requests WHERE id = ?").get(row.id);
-  });
-  const req = atomicClaim();
-  if (!req) return;
+  // Claim atomique multi-process : on sélectionne l'id puis on passe en 'running'
+  // avec un UPDATE conditionnel par status. Si un autre worker a pris la requête
+  // entre les deux (changes === 0), on passe à la suivante. Pas besoin de transaction.
+  const row = db.prepare("SELECT id FROM sync_requests WHERE status = 'pending' ORDER BY id LIMIT 1").get();
+  if (!row) return;
+
+  const claimed = db.prepare(
+    "UPDATE sync_requests SET status = 'running' WHERE id = ? AND status = 'pending'"
+  ).run(row.id);
+  if (claimed.changes === 0) return; // déjà prise par un autre worker
+
+  const req = db.prepare("SELECT * FROM sync_requests WHERE id = ?").get(row.id);
 
   console.log(`[worker] Début sync ${req.id} pour ${req.device_id}`);
 
+  const now = new Date().toISOString();
+
   try {
-    const totalNew = await runSyncForDevice(req.device_id);
-    db.prepare(
-      "UPDATE sync_requests SET status = 'done', new_bulletins = ?, completed_at = ? WHERE id = ?"
-    ).run(totalNew, new Date().toISOString(), req.id);
-    console.log(`[worker] ✓ Sync ${req.id} pour ${req.device_id}: ${totalNew} nouveaux`);
+    const result = await runSyncForDevice(req.device_id);
+    if (result.ok) {
+      // Guard `AND status = 'running'` : un request annulé entre-temps n'est pas écrasé.
+      const info = db.prepare(
+        "UPDATE sync_requests SET status = 'done', new_bulletins = ?, completed_at = ? WHERE id = ? AND status = 'running'"
+      ).run(result.totalNew, now, req.id);
+      if (info.changes === 0) {
+        console.warn(`[worker] Sync ${req.id} ignorée : la requête n'est plus 'running' (annulée entre-temps ?)`);
+      } else {
+        console.log(`[worker] ✓ Sync ${req.id} pour ${req.device_id}: ${result.totalNew} nouveaux`);
+      }
+    } else {
+      const message = (result.errors && result.errors[0]) || 'Échec de la synchronisation';
+      const info = db.prepare(
+        "UPDATE sync_requests SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ? AND status = 'running'"
+      ).run(message, now, req.id);
+      if (info.changes === 0) {
+        console.warn(`[worker] Sync ${req.id} ignorée : la requête n'est plus 'running' (annulée entre-temps ?)`);
+      } else {
+        console.error(`[worker] ✗ Sync ${req.id} pour ${req.device_id}: ${message}`);
+      }
+    }
   } catch (e) {
-    db.prepare(
-      "UPDATE sync_requests SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?"
-    ).run(e.message, new Date().toISOString(), req.id);
-    console.error(`[worker] ✗ Sync ${req.id} pour ${req.device_id}:`, e.message);
+    const info = db.prepare(
+      "UPDATE sync_requests SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ? AND status = 'running'"
+    ).run(e.message, now, req.id);
+    if (info.changes === 0) {
+      console.warn(`[worker] Sync ${req.id} ignorée : la requête n'est plus 'running' (annulée entre-temps ?)`);
+    } else {
+      console.error(`[worker] ✗ Sync ${req.id} pour ${req.device_id}:`, e.message);
+    }
   }
 }
 

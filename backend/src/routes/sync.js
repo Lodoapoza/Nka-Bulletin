@@ -5,11 +5,14 @@ const router = express.Router();
 
 router.post('/run', (req, res) => {
   try {
+    // Dédoublonnage : on annule uniquement les requêtes encore en attente ('pending').
+    // Une requête 'running' n'est jamais annulée : le nouveau 'pending' sera
+    // traité à sa suite (sûr et acceptable).
     const existing = db.prepare(
-      "SELECT id FROM sync_requests WHERE device_id = ? AND status IN ('pending','running')"
+      "SELECT id FROM sync_requests WHERE device_id = ? AND status = 'pending'"
     ).get(req.deviceId);
     if (existing) {
-      db.prepare("UPDATE sync_requests SET status = 'cancelled', completed_at = ? WHERE id = ?")
+      db.prepare("UPDATE sync_requests SET status = 'cancelled', completed_at = ? WHERE id = ? AND status = 'pending'")
         .run(new Date().toISOString(), existing.id);
     }
     const info = db.prepare("INSERT INTO sync_requests (device_id) VALUES (?)").run(req.deviceId);
