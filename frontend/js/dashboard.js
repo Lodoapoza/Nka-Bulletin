@@ -103,7 +103,13 @@ const Dashboard = (() => {
     if (NativeBridge && NativeBridge.isNative) {
       try {
         NativeBridge.onNetworkChange((c) => {
-          document.getElementById('dash-sync-status').textContent = c ? 'Connecté' : 'Hors ligne';
+          // N'afficher l'état réseau que lorsqu'on est hors ligne ;
+          // sinon, recharger le vrai statut (comptes, dernière synchro).
+          if (!c) {
+            document.getElementById('dash-sync-status').textContent = 'Hors ligne';
+          } else {
+            refresh();
+          }
         });
       } catch (_) {}
     }
