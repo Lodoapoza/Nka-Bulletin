@@ -96,7 +96,7 @@ async function runSyncForDevice(deviceId) {
       const password = decrypt(account.encrypted_credentials);
       const sinceDate = account.last_sync_at
         ? new Date(account.last_sync_at)
-        : new Date(2000, 0, 1);
+        : new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000);
 
       const found = await withTimeout(fetchPayslipsSince({
         provider: account.provider,

@@ -27,7 +27,10 @@ function matchesPayslipKeywords(text) {
 
 /**
  * Se connecte à la boîte mail et récupère les nouveaux bulletins depuis `sinceDate`.
- * Retourne une liste de { filename, buffer, receivedAt, messageHash, subject }
+ * Stratégie 2 passes :
+ *   1) envelope + uid (léger) → filtrage par mots-clés sujet → liste de UIDs candidats
+ *   2) source complet uniquement pour les UIDs candidats → extraction PDF
+ * Cela réduit drastiquement le trafic IMAP (passe 1 = quelques Ko par email au lieu de Mo).
  */
 async function fetchPayslipsSince({ provider, host, port, secure, email, password, sinceDate, beforeDate }) {
   const preset = PROVIDER_PRESETS[provider] || { host, port, secure };
@@ -37,7 +40,7 @@ async function fetchPayslipsSince({ provider, host, port, secure, email, passwor
     secure: preset.secure,
     auth: { user: email, pass: password },
     logger: false,
-    connectTimeout: 10000,
+    connectTimeout: 30000,
     socketTimeout: Number(process.env.IMAP_SOCKET_TIMEOUT) || 600000,
     maxBodySize: 60000000,
   });
@@ -48,36 +51,49 @@ async function fetchPayslipsSince({ provider, host, port, secure, email, passwor
   try {
     let lock = await client.getMailboxLock('INBOX');
     try {
-      // Recherche large côté serveur (depuis la dernière sync), filtrage fin fait côté client
       const searchCriteria = { since: sinceDate };
       if (beforeDate) searchCriteria.before = beforeDate;
-      for await (const message of client.fetch(searchCriteria, { envelope: true, source: true, internalDate: true })) {
-        const subject = message.envelope?.subject || '';
-        const receivedAt = message.internalDate || new Date();
 
-        const parsed = await simpleParser(message.source);
+      // Passe 1 : récupérer envelope + uid pour filtrage léger côté client
+      const candidateUids = [];
+      for await (const msg of client.fetch(searchCriteria, { envelope: true, uid: true, internalDate: true })) {
+        const subject = msg.envelope?.subject || '';
         const subjectMatches = matchesPayslipKeywords(subject);
+        if (subjectMatches && msg.uid) {
+          candidateUids.push({ uid: msg.uid, subject, receivedAt: msg.internalDate || new Date(), messageId: msg.envelope?.messageId });
+        }
+      }
 
-        for (const att of parsed.attachments || []) {
-          const isPdf = (att.contentType || '').includes('pdf') || /\.pdf$/i.test(att.filename || '');
-          if (!isPdf) continue;
-          const filenameMatches = matchesPayslipKeywords(att.filename || '');
-          if (!subjectMatches && !filenameMatches) continue;
-          // Noms de fichiers manifestement PAS des bulletins (comparatif, devis, support…)
-          if (isDeniedFilename(att.filename)) continue;
+      // Passe 2 : fetch le source complet uniquement pour les candidats
+      for (const cand of candidateUids) {
+        let fullMsg;
+        try {
+          fullMsg = await client.fetch(cand.uid, { source: true, uid: true });
+        } catch (_) { continue; }
+        // client.fetch avec UID unique retourne un async iter d'1 seul élément
+        for await (const m of fullMsg) {
+          if (!m.source) continue;
+          const parsed = await simpleParser(m.source);
+          for (const att of parsed.attachments || []) {
+            const isPdf = (att.contentType || '').includes('pdf') || /\.pdf$/i.test(att.filename || '');
+            if (!isPdf) continue;
+            const filenameMatches = matchesPayslipKeywords(att.filename || '');
+            if (!filenameMatches) continue; // passe 1 a déjà filtré par sujet
+            if (isDeniedFilename(att.filename)) continue;
 
-          if (!att.content || att.content.length === 0) continue;
-          const head = att.content.subarray(0, 1024).toString('latin1');
-          if (!head.includes('%PDF')) continue;
+            if (!att.content || att.content.length === 0) continue;
+            const head = att.content.subarray(0, 1024).toString('latin1');
+            if (!head.includes('%PDF')) continue;
 
-          const messageHash = hashMessage(`${message.envelope?.messageId || message.uid}-${att.filename}-${att.size}`);
-          results.push({
-            filename: att.filename || `bulletin-${receivedAt.getFullYear()}-${receivedAt.getMonth() + 1}.pdf`,
-            buffer: att.content,
-            receivedAt,
-            messageHash,
-            subject,
-          });
+            const messageHash = hashMessage(`${cand.messageId || cand.uid}-${att.filename}-${att.size}`);
+            results.push({
+              filename: att.filename || `bulletin-${cand.receivedAt.getFullYear()}-${cand.receivedAt.getMonth() + 1}.pdf`,
+              buffer: att.content,
+              receivedAt: cand.receivedAt,
+              messageHash,
+              subject: cand.subject,
+            });
+          }
         }
       }
     } finally {
