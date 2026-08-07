@@ -212,8 +212,22 @@ window.addEventListener('nka-connection', (e) => {
    Affiché quand le service worker ou le client sert des données
    depuis un cache (événement nka-cache-hit), retiré au retour du réseau.
    Styles alignés sur les tokens du design system (app.css). */
-function showOfflineCacheBanner() {
-  if (document.getElementById('offline-cache-banner')) return;
+function showOfflineCacheBanner(e) {
+  const cachedAt = e && e.detail && e.detail.cachedAt;
+  const label = cachedAt
+    ? `Hors ligne — données en cache du ${new Date(cachedAt).toLocaleString('fr-FR')}`
+    : 'Hors ligne — données en cache';
+
+  // Un seul bandeau : s'il existe déjà, on met juste à jour la date si elle arrive.
+  const existing = document.getElementById('offline-cache-banner');
+  if (existing) {
+    if (cachedAt) {
+      const text = existing.querySelector('span');
+      if (text) text.textContent = label;
+    }
+    return;
+  }
+
   const banner = document.createElement('div');
   banner.id = 'offline-cache-banner';
   banner.setAttribute('role', 'status');
@@ -235,7 +249,7 @@ function showOfflineCacheBanner() {
   ].join(';');
 
   const text = document.createElement('span');
-  text.textContent = 'Hors ligne — données en cache';
+  text.textContent = label;
 
   const close = document.createElement('button');
   close.type = 'button';
@@ -259,7 +273,7 @@ function showOfflineCacheBanner() {
   document.body.insertBefore(banner, document.body.firstChild);
 }
 
-window.addEventListener('nka-cache-hit', showOfflineCacheBanner);
+window.addEventListener('nka-cache-hit', (e) => showOfflineCacheBanner(e));
 window.addEventListener('nka-connection', (e) => {
   if (e.detail === 'online') {
     const banner = document.getElementById('offline-cache-banner');

@@ -40,8 +40,10 @@ const Accounts = (() => {
   async function refresh() {
     const listEl = document.getElementById('accounts-list');
 
-    // État de chargement
-    listEl.innerHTML = '<div class="loading-state"><div class="spinner"></div><div>Chargement des comptes...</div></div>';
+    // État de chargement (ne pas effacer des comptes déjà rendus)
+    if (!listEl.querySelector('[data-remove]')) {
+      listEl.innerHTML = '<div class="loading-state"><div class="spinner"></div><div>Chargement des comptes...</div></div>';
+    }
 
     try {
       const accounts = await Api.getAccounts();
@@ -108,6 +110,17 @@ const Accounts = (() => {
         });
       });
     } catch (e) {
+      // Hors ligne : message doux, ne pas effacer les comptes déjà rendus.
+      if (!navigator.onLine) {
+        if (!listEl.querySelector('[data-remove]')) {
+          listEl.innerHTML = '';
+          const hint = document.createElement('div');
+          hint.className = 'hint';
+          hint.textContent = 'Hors ligne — comptes en cache';
+          listEl.appendChild(hint);
+        }
+        return;
+      }
       listEl.innerHTML = '';
       const errHint = document.createElement('div');
       errHint.className = 'hint';
@@ -115,6 +128,17 @@ const Accounts = (() => {
       listEl.appendChild(errHint);
     }
   }
+
+  // Données en cache servies (nka-cache-hit) : si la liste est vide ou en
+  // erreur, re-render — le client sert déjà les données du cache via
+  // Api.getAccounts(), le refresh suffit.
+  window.addEventListener('nka-cache-hit', () => {
+    const listEl = document.getElementById('accounts-list');
+    if (!listEl) return;
+    const hasAccounts = !!listEl.querySelector('[data-remove]');
+    const inError = listEl.textContent.includes('Erreur');
+    if (!hasAccounts || inError) refresh();
+  });
 
   function bindForm() {
     const formCard = document.getElementById('add-account-form');

@@ -110,6 +110,64 @@ const Settings = (() => {
     }
   }
 
+  // ===== Hors ligne : préparation du cache complet =====
+  function ensureOfflineCard() {
+    const view = document.getElementById('view-settings');
+    if (!view || document.getElementById('offline-card')) return;
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = 'offline-card';
+    card.innerHTML =
+      '<div class="eyebrow" style="margin-bottom:12px;">Hors ligne</div>' +
+      '<button class="btn btn-primary btn-full" id="prepare-offline-btn">Préparer hors ligne</button>' +
+      '<div class="hint" id="offline-status" style="margin-top:10px;">Télécharge tous les bulletins pour les consulter sans connexion.</div>';
+    const pushSwitch = document.getElementById('push-switch');
+    const anchor = pushSwitch ? pushSwitch.closest('.card') : null;
+    if (anchor && anchor.parentNode === view) view.insertBefore(card, anchor);
+    else view.appendChild(card);
+  }
+
+  async function prepareOffline(btn, statusEl) {
+    if (navigator.onLine === false) {
+      statusEl.textContent = 'Hors ligne — impossible de préparer';
+      return;
+    }
+    btn.disabled = true;
+    try {
+      const list = (await Api.getBulletins()) || [];
+      const cached = new Set((await Api.getCachedBulletinIds()) || []);
+      const toFetch = list.filter(b => !cached.has(String(b.id)));
+      if (list.length === 0) {
+        statusEl.textContent = 'Aucun bulletin à télécharger';
+        return;
+      }
+      if (toFetch.length === 0) {
+        statusEl.textContent = `Prêt : ${list.length} ${list.length > 1 ? 'bulletins disponibles' : 'bulletin disponible'} hors ligne`;
+        Toast.show('Bulletins disponibles hors ligne');
+        return;
+      }
+      const already = list.length - toFetch.length;
+      let done = 0;
+      statusEl.textContent =
+        (already > 0 ? `${already} déjà en cache — ` : '') +
+        `téléchargement de ${toFetch.length} ${toFetch.length > 1 ? 'bulletins' : 'bulletin'}…`;
+      for (const b of toFetch) {
+        const r = await Api.fetchBulletinBlob(b.id);
+        if (r && r.objectUrl) URL.revokeObjectURL(r.objectUrl);
+        done++;
+        statusEl.textContent = `${already + done}/${list.length} bulletins téléchargés…`;
+      }
+      statusEl.textContent = `Prêt : ${list.length} ${list.length > 1 ? 'bulletins disponibles' : 'bulletin disponible'} hors ligne`;
+      Toast.show('Bulletins disponibles hors ligne');
+    } catch (e) {
+      console.warn('[settings] prepareOffline:', e);
+      statusEl.textContent = 'Échec du téléchargement (réseau ?) — réessayez.';
+      Toast.show(ERR.msg(e));
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function bindActions() {
     try { initTheme(); } catch (e) { console.warn('initTheme:', e); }
     loadServerSettings();
@@ -173,6 +231,16 @@ const Settings = (() => {
         }
       });
     } catch (e) { console.warn('push-switch:', e); }
+
+    try {
+      ensureOfflineCard();
+      const offBtn = document.getElementById('prepare-offline-btn');
+      if (offBtn) {
+        offBtn.addEventListener('click', () => {
+          prepareOffline(offBtn, document.getElementById('offline-status'));
+        });
+      }
+    } catch (e) { console.warn('prepare-offline:', e); }
 
     try {
       document.getElementById('change-pin-btn').addEventListener('click', () => {

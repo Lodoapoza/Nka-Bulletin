@@ -1,18 +1,18 @@
-const CACHE_NAME = 'nka-bulletin-v14';
+const CACHE_NAME = 'nka-bulletin-v15';
 const APP_SHELL = [
-  '/index.html?v=v23',
-  '/manifest.json?v=v23',
-  '/css/app.css?v=v23',
-  '/js/app.js?v=v23',
-  '/js/client.js?v=v23',
-  '/js/pin.js?v=v23',
-  '/js/capacitor.js?v=v23',
-  '/js/dashboard.js?v=v23',
-  '/js/accounts.js?v=v23',
-  '/js/bulletins.js?v=v23',
-  '/js/settings.js?v=v23',
-  '/js/theme.js?v=v23',
-  '/js/version.js?v=v23',
+  '/index.html?v=v24',
+  '/manifest.json?v=v24',
+  '/css/app.css?v=v24',
+  '/js/app.js?v=v24',
+  '/js/client.js?v=v24',
+  '/js/pin.js?v=v24',
+  '/js/capacitor.js?v=v24',
+  '/js/dashboard.js?v=v24',
+  '/js/accounts.js?v=v24',
+  '/js/bulletins.js?v=v24',
+  '/js/settings.js?v=v24',
+  '/js/theme.js?v=v24',
+  '/js/version.js?v=v24',
   '/icons/logo.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -49,23 +49,86 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(fetch(event.request));
     return;
   }
-  // Stratégie NETWORK-FIRST : données toujours fraîches quand le réseau est là.
-  // Le cache ne sert qu'en échec réseau, marqué X-Cache: hit.
+
+  // Navigation (ouverture de la PWA) : servir /index.html depuis le cache
+  // immédiatement (cache-first), revalidation en arrière-plan. La navigation
+  // demande /index.html SANS query string, alors que le précache stocke
+  // /index.html?v=v24 — on matche donc explicitement /index.html.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      caches.match('/index.html').then((cached) => {
+        const fetchPromise = fetch(event.request).then((response) => {
+          if (response.ok) {
+            const cloned = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', cloned)).catch(() => {});
+          }
+          return response;
+        }).catch(() => cached);
+        return cached || fetchPromise;
+      })
+    );
+    return;
+  }
+
+  // API (/api/* GET) : NETWORK-FIRST — données toujours fraîches en ligne,
+  // cache servi uniquement en échec réseau (marqué X-Cache: hit).
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(event.request).then((response) => {
+        if (response.ok) {
+          const cloned = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned)).catch(() => {});
+        }
+        return response;
+      }).catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) {
+          const headers = new Headers(cached.headers);
+          headers.set('X-Cache', 'hit');
+          return new Response(cached.body, {
+            status: cached.status,
+            statusText: cached.statusText,
+            headers,
+          });
+        }
+        return new Response(JSON.stringify({ error: 'Hors ligne' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      })
+    );
+    return;
+  }
+
+  // Assets statiques (APP_SHELL) : CACHE-FIRST avec revalidation en arrière-plan
+  // (stale-while-revalidate) — la coquille s'affiche instantanément hors-ligne.
   event.respondWith(
-    fetch(event.request).then((response) => {
-      if (response.ok) {
-        const cloned = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned)).catch(() => {});
-      }
-      return response;
-    }).catch(async () => {
-      const cached = await caches.match(event.request);
+    caches.match(event.request).then((cached) => {
       if (cached) {
-        const headers = new Headers(cached.headers);
-        headers.set('X-Cache', 'hit');
-        return new Response(cached.body, { status: cached.status, statusText: cached.statusText, headers });
+        fetch(event.request)
+          .then((response) => {
+            if (response.ok) {
+              const cloned = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned)).catch(() => {});
+            }
+          })
+          .catch(() => {});
+        return cached;
       }
-      return new Response(JSON.stringify({ error: 'Hors ligne' }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+      return fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const cloned = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned)).catch(() => {});
+          }
+          return response;
+        })
+        .catch(() =>
+          new Response(JSON.stringify({ error: 'Hors ligne' }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        );
     })
   );
 });

@@ -147,12 +147,15 @@ const Dashboard = (() => {
 
   // Si des données en cache sont servies alors que le statut est en erreur
   // ou hors ligne, adoucir le message : les données ne sont pas perdues.
-  window.addEventListener('nka-cache-hit', () => {
+  window.addEventListener('nka-cache-hit', (e) => {
     const syncStatus = document.getElementById('dash-sync-status');
     if (!syncStatus) return;
     const t = syncStatus.textContent;
     if (t === 'Erreur de chargement' || t === 'Hors ligne') {
-      syncStatus.textContent = 'Hors ligne — données en cache';
+      const cachedAt = e.detail && e.detail.cachedAt;
+      syncStatus.textContent = cachedAt
+        ? `Données en cache du ${new Date(cachedAt).toLocaleString('fr-FR')}`
+        : 'Hors ligne — données en cache';
     }
   });
 

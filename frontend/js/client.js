@@ -6,12 +6,17 @@ const Api = (() => {
   let token = localStorage.getItem('nka_token');
   let deviceId = localStorage.getItem('nka_device_id');
 
+  function isOnline() {
+    return navigator.onLine !== false;
+  }
+
   async function ensureDevice(retries = 2) {
     if (token) return { token, deviceId };
     if (!deviceId) {
       deviceId = crypto.randomUUID();
       localStorage.setItem('nka_device_id', deviceId);
     }
+    if (!isOnline()) return { token: null, deviceId };
     const url = `${API_BASE}/auth/register-device`;
     const res = await fetch(url, {
       method: 'POST',
@@ -62,16 +67,33 @@ const Api = (() => {
     const url = `${API_BASE}${path}`;
     const isGet = !options.method || options.method.toUpperCase() === 'GET';
 
+    if (!isOnline()) {
+      if (isGet) {
+        const cached = await OfflineCache.getApi(path);
+        if (cached) {
+          notifyConnection('offline');
+          dispatchCacheHit(path, cached.cachedAt);
+          return cached.data;
+        }
+        notifyConnection('offline');
+        throw new Error('Hors ligne — données non disponibles en cache');
+      }
+      notifyConnection('offline');
+      throw new Error('Hors ligne — action impossible sans connexion');
+    }
+
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       let res;
       try {
         res = await fetchWithTimeout(url, {
           ...options,
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-            ...(options.headers || {}),
-          },
+          headers,
         });
       } catch (err) {
         const isTimeout = err.name === 'AbortError';
@@ -271,13 +293,19 @@ const Api = (() => {
     deleteBulletin: (id) => request(`/bulletins/${id}`, { method: 'DELETE' }),
     mergeBulletins: async (payload, retried = false) => {
       await ensureDevice();
+      if (!isOnline()) {
+        notifyConnection('offline');
+        throw new Error('Hors ligne — action impossible');
+      }
       const url = `${API_BASE}/bulletins/export/merge`;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         let res;
         try {
           res = await fetchWithTimeout(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            headers,
             body: JSON.stringify(payload),
           });
         } catch (err) {
@@ -320,13 +348,23 @@ const Api = (() => {
 
     fetchBulletinBlob: async (id, retried = false) => {
       await ensureDevice();
+      if (!isOnline()) {
+        const cachedPdf = await OfflineCache.getPdf(id);
+        if (cachedPdf) {
+          notifyConnection('offline');
+          dispatchCacheHit(`pdf:${id}`, cachedPdf.cachedAt);
+          return { blob: cachedPdf.blob, filename: cachedPdf.filename, objectUrl: URL.createObjectURL(cachedPdf.blob) };
+        }
+        notifyConnection('offline');
+        throw new Error('Hors ligne — bulletin non disponible en cache');
+      }
       const url = `${API_BASE}/bulletins/${id}/download`;
+      const headers = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         let res;
         try {
-          res = await fetchWithTimeout(url, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
+          res = await fetchWithTimeout(url, { headers });
         } catch (err) {
           if (attempt < MAX_RETRIES) {
             notifyConnection('reconnecting');
