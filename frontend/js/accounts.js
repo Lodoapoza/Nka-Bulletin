@@ -100,7 +100,13 @@ const Accounts = (() => {
 
       listEl.querySelectorAll('[data-remove]').forEach(btn => {
         btn.addEventListener('click', async () => {
-          if (!confirm('Retirer ce compte ? Les bulletins déjà téléchargés resteront archivés.')) return;
+          const ok = await Confirm.open({
+            title: 'Retirer ce compte ?',
+            message: 'Les bulletins déjà téléchargés resteront archivés.',
+            confirmText: 'Retirer',
+            danger: true,
+          });
+          if (!ok) return;
           try {
             await Api.deleteAccount(btn.dataset.remove);
             Toast.show('Compte retiré.');

@@ -258,9 +258,13 @@ const Settings = (() => {
     try {
       document.getElementById('rescan-all-btn').addEventListener('click', async (e) => {
         const btn = e.currentTarget;
-        if (!confirm('Cela va re-scanner TOUS vos emails depuis le début. Les bulletins déjà importés ne seront pas dupliqués. Continuer ?')) return;
+        if (!await Confirm.open({
+          title: 'Tout re-scanner depuis le début ?',
+          message: 'Tous vos emails vont être re-scannés. Les bulletins déjà importés ne seront pas dupliqués.',
+          confirmText: 'Re-scanner',
+        })) return;
         btn.disabled = true;
-        btn.textContent = 'Réinitialisation...';
+        btn.textContent = 'Re-scan en cours...';
         try {
           await Api.resetSync();
           Toast.show('Synchronisation réinitialisée. Lancez une synchro pour tout re-scanner.');
