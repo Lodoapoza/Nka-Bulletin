@@ -295,6 +295,7 @@ const Api = (() => {
       return request(`/bulletins${qs ? '?' + qs : ''}`);
     },
     getStats: () => request('/bulletins/stats'),
+    getAnalyseSalary: (year) => request(`/analyse/salary${year ? '?year=' + encodeURIComponent(year) : ''}`),
     downloadBulletin: (id) => `${API_BASE}/bulletins/${id}/download`,
     getCachedBulletinIds: () => OfflineCache.listPdfIds(),
     deleteBulletin: (id) => request(`/bulletins/${id}`, { method: 'DELETE' }),

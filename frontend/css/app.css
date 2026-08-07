@@ -428,3 +428,23 @@ a { color: inherit; }
 .state-revoked { color: var(--md-on-surface-variant); }
 .btn-xs { padding: 6px 10px; font-size: 0.72rem; border-radius: 100px; }
 .hidden { display: none !important; }
+
+/* ===== Analyse (évolution des salaires) ===== */
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.stat-tile .stat-value { font-size: 1.05rem; margin: 2px 0; }
+.stat-tile .hint { font-size: 0.74rem; line-height: 1.35; }
+.analyse-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 11px 0; border-bottom: 1px solid var(--md-outline-variant);
+}
+.analyse-row:last-child { border-bottom: none; }
+.analyse-month { font-weight: 600; font-size: 0.9rem; }
+.analyse-side { display: flex; align-items: center; gap: 10px; }
+.analyse-net { font-size: 0.9rem; }
+.badge-delta {
+  padding: 3px 8px; border-radius: 100px; font-size: 0.72rem; font-weight: 700;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.badge-delta.delta-up { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+.badge-delta.delta-down { background: var(--md-error-container, rgba(179, 38, 30, .14)); color: var(--md-on-error-container, #B3261E); }
+.badge-delta.delta-flat { background: var(--md-surface-container-high); color: var(--md-on-surface-variant); }

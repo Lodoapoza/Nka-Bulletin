@@ -46,8 +46,8 @@ const ERR = (() => {
 })();
 
 const Router = (() => {
-  const views = ['dashboard', 'bulletins', 'settings'];
-  const TITLES = { dashboard: 'Accueil', bulletins: 'Mes bulletins', settings: 'Réglages', about: 'À propos' };
+  const views = ['dashboard', 'bulletins', 'analyse', 'settings'];
+  const TITLES = { dashboard: 'Accueil', bulletins: 'Mes bulletins', analyse: 'Analyse', settings: 'Réglages', about: 'À propos' };
 
   function goTo(viewName) {
     views.forEach(v => {
@@ -64,6 +64,7 @@ const Router = (() => {
 
     if (viewName === 'dashboard') Dashboard.refresh();
     if (viewName === 'bulletins') Bulletins.refresh();
+    if (viewName === 'analyse') Analyse.refresh();
     if (viewName === 'settings') Accounts.refresh();
   }
 
@@ -90,6 +91,7 @@ async function bootApp() {
   safe('Dashboard', () => Dashboard.bindActions());
   safe('Accounts',  () => Accounts.bindForm());
   safe('Bulletins', () => Bulletins.bindActions());
+  safe('Analyse',   () => Analyse.bindActions());
   safe('Settings',  () => Settings.bindActions());
   safe('Keyboard',  () => NativeBridge && NativeBridge.ensureKeyboard && NativeBridge.ensureKeyboard());
 
