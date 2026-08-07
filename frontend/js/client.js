@@ -147,6 +147,13 @@ const Api = (() => {
         continue;
       }
 
+      if (res.status === 403 && data && data.code === 'LICENCE_EXPIRED') {
+        // Blocage abonnement : ne PAS servir le cache offline (contournement impossible).
+        notifyConnection('online');
+        window.dispatchEvent(new CustomEvent('nka-licence-expired', { detail: data }));
+        throw new Error(data.error || 'Abonnement expiré');
+      }
+
       if (!res.ok) {
         if (isGet) {
           const cached = await OfflineCache.getApi(path);
@@ -333,7 +340,13 @@ const Api = (() => {
         if (!res.ok) {
           const text = await res.text();
           let msg;
-          try { msg = JSON.parse(text).error; } catch (_) { msg = text.slice(0, 200); }
+          let body;
+          try { body = JSON.parse(text); msg = body.error; } catch (_) { msg = text.slice(0, 200); }
+          if (res.status === 403 && body && body.code === 'LICENCE_EXPIRED') {
+            notifyConnection('online');
+            window.dispatchEvent(new CustomEvent('nka-licence-expired', { detail: body }));
+            throw new Error(msg || 'Abonnement expiré');
+          }
           notifyConnection('offline');
           throw new Error(msg || 'Échec de la fusion');
         }
@@ -398,7 +411,13 @@ const Api = (() => {
         if (!res.ok) {
           const text = await res.text();
           let msg;
-          try { msg = JSON.parse(text).error; } catch (_) { msg = text.slice(0, 200); }
+          let body;
+          try { body = JSON.parse(text); msg = body.error; } catch (_) { msg = text.slice(0, 200); }
+          if (res.status === 403 && body && body.code === 'LICENCE_EXPIRED') {
+            notifyConnection('online');
+            window.dispatchEvent(new CustomEvent('nka-licence-expired', { detail: body }));
+            throw new Error(msg || 'Abonnement expiré');
+          }
           const cachedPdf = await OfflineCache.getPdf(id);
           if (cachedPdf) {
             notifyConnection('offline');
@@ -421,5 +440,25 @@ const Api = (() => {
     getVapidKey: () => request('/push/vapid-public-key'),
     subscribePush: (subscription) => request('/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription }) }),
     unsubscribePush: () => request('/push/unsubscribe', { method: 'POST' }),
+
+    // ===== Admin (système de licences) =====
+    // Appels authentifiés par X-Admin-Token (indépendants de la session device).
+    async admin(path, adminToken, options = {}) {
+      if (!isOnline()) throw new Error('Hors ligne — impossible de contacter le serveur');
+      const url = `${API_BASE}${path}`;
+      const res = await fetchWithTimeout(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Token': adminToken,
+          ...(options.headers || {}),
+        },
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch (_) { data = { error: text.slice(0, 200) }; }
+      if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
+      return data;
+    },
   };
 })();

@@ -389,3 +389,41 @@ a { color: inherit; }
 .reset-actions .btn { flex: 1; }
 .reset-actions .btn-danger { background: var(--md-error); color: #fff; border: none; }
 .reset-actions .btn-danger:disabled { opacity: .6; }
+
+/* ===== Licence / Administration (overlays) ===== */
+.fullscreen-overlay {
+  position: fixed; inset: 0; z-index: 1200;
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  display: flex; align-items: center; justify-content: flex-start;
+  padding: 20px; overflow-y: auto;
+}
+.overlay-card {
+  background: var(--md-surface);
+  border-radius: 20px; padding: 24px;
+  max-width: 420px; width: 100%;
+  box-shadow: var(--shadow-elevated);
+  margin: 24px auto;
+}
+.overlay-card-wide { max-width: 480px; }
+.admin-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.admin-error { color: var(--md-error); margin-top: 8px; }
+.license-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--md-outline-variant);
+}
+.license-row:last-child { border-bottom: none; }
+.license-main { min-width: 0; }
+.license-matricule { font-weight: 700; font-size: 0.95rem; }
+.license-sub { font-size: 0.76rem; color: var(--md-on-surface-variant); margin-top: 2px; }
+.license-side { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.license-state {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.license-state .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.state-active { color: var(--md-primary); }
+.state-expired { color: var(--md-error); }
+.state-revoked { color: var(--md-on-surface-variant); }
+.btn-xs { padding: 6px 10px; font-size: 0.72rem; border-radius: 100px; }

@@ -16,7 +16,7 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/plusjakartasans/v12/LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yygg_vb.woff2">
 <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/robotomono/v31/L0x5DF4xlVMF-BfR8bXMIjhLq3-cXbKD.woff2">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@500;600&display=optional">
-<link rel="stylesheet" href="css/app.css?v=v27">
+<link rel="stylesheet" href="css/app.css?v=v28">
 </head>
 <body>
 
@@ -325,10 +325,71 @@
 
   <div id="toast"></div>
   <div class="app-version" id="app-version"></div>
+
+  <!-- ===== Écran « Abonnement expiré » (blocage licence) ===== -->
+  <div class="fullscreen-overlay hidden" id="licence-screen">
+    <div class="overlay-card">
+      <div class="eyebrow">Accès restreint</div>
+      <h2>Abonnement expiré ou révoqué</h2>
+      <p style="font-size:0.92rem;line-height:1.55;opacity:.85;margin:0 0 14px;" id="licence-msg">
+        Votre abonnement n'est plus actif. Vos bulletins ne peuvent momentanément pas être consultés.
+      </p>
+      <button class="btn btn-primary btn-full" id="licence-close-btn">Fermer</button>
+    </div>
+  </div>
+
+  <!-- ===== Écran d'administration (5 taps sur la version) ===== -->
+  <div class="fullscreen-overlay hidden" id="admin-screen">
+    <div class="overlay-card overlay-card-wide">
+      <div class="admin-header">
+        <div>
+          <div class="eyebrow">Administration</div>
+          <h2 style="margin:0;">Licences</h2>
+        </div>
+        <button class="icon-btn" id="admin-close-btn" aria-label="Fermer">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <!-- mot de passe -->
+      <div class="field" id="admin-login-block" style="margin-top:14px;">
+        <label>Mot de passe administrateur</label>
+        <input type="password" id="admin-password" placeholder="••••••••••••" autocomplete="off">
+        <button class="btn btn-primary btn-full" id="admin-login-btn" style="margin-top:10px;">Se connecter</button>
+        <div class="hint admin-error" id="admin-error"></div>
+      </div>
+
+      <!-- panneau admin (visible une fois connecté) -->
+      <div class="hidden" id="admin-panel">
+        <div class="card" style="margin-top:14px;">
+          <div class="eyebrow" style="margin-bottom:10px;">Autoriser un matricule</div>
+          <div class="field">
+            <label>Matricule</label>
+            <input type="text" id="admin-matricule" placeholder="AB123" autocapitalize="characters" autocomplete="off">
+          </div>
+          <div class="field">
+            <label>Durée</label>
+            <select id="admin-duration">
+              <option value="12">1 an</option>
+              <option value="6">6 mois</option>
+              <option value="1">1 mois</option>
+              <option value="0">Illimité</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-full" id="admin-grant-btn">Autoriser</button>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <div class="eyebrow" style="margin-bottom:10px;">Matricules autorisés</div>
+          <div id="admin-licenses"><div class="hint">Chargement…</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="js/capacitor.js?v=v27"></script>
-<script src="js/client.js?v=v26"></script>
+<script src="js/client.js?v=v28"></script>
 <script src="js/pin.js?v=v25"></script>
 <script src="js/dashboard.js?v=v25"></script>
 <script src="js/accounts.js?v=v25"></script>
@@ -336,6 +397,7 @@
 <script src="js/settings.js?v=v25"></script>
 <script src="js/reset.js?v=v25"></script>
 <script src="js/version.js?v=v25"></script>
+<script src="js/admin.js?v=v28"></script>
 <script src="js/app.js?v=v25"></script>
 </body>
 </html>

@@ -148,4 +148,30 @@ if (!hasColumn('devices', 'owner_matricule')) {
   console.log('[db] colonne devices.owner_matricule ajoutée');
 }
 
+// ----- Licences (v5) -----
+// L'accès au service est accordé par matricule. Une licence active (status='active',
+// expires_at NULL = illimité ou > maintenant) autorise le device qui déclare ce matricule.
+db.exec(`
+CREATE TABLE IF NOT EXISTS licenses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  matricule TEXT NOT NULL UNIQUE,
+  granted_by TEXT NOT NULL DEFAULT 'admin',   -- 'admin' | 'paydunya'
+  months INTEGER,                             -- durée en mois (NULL = illimité)
+  expires_at TEXT,                            -- ISO 8601, NULL = sans limite
+  status TEXT NOT NULL DEFAULT 'active',      -- 'active' | 'revoked'
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_licenses_matricule ON licenses(matricule);
+`);
+
+// Seed : la licence du propriétaire/admin F2558 (démarrage propre du système, évite de
+// se retrouver soi-même bloqué au premier déploiement).
+if (!db.prepare('SELECT id FROM licenses WHERE matricule = ?').get('F2558')) {
+  const seed = new Date(); seed.setMonth(seed.getMonth() + 12);
+  db.prepare(
+    "INSERT INTO licenses (matricule, granted_by, months, expires_at, status) VALUES (?, 'admin', 12, ?, 'active')"
+  ).run('F2558', seed.toISOString());
+  console.log('[db] Licence de départ F2558 créée (12 mois)');
+}
+
 module.exports = db;

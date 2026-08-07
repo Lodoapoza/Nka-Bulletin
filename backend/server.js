@@ -36,6 +36,7 @@ const path = require('path');
 const { fork } = require('child_process');
 
 const { router: authRouter, authMiddleware } = require('./src/routes/auth');
+const { router: adminRouter, licenceGate } = require('./src/routes/admin');
 const accountsRouter = require('./src/routes/accounts');
 const { router: syncRouter } = require('./src/routes/sync');
 const bulletinsRouter = require('./src/routes/bulletins');
@@ -80,9 +81,22 @@ const authLimiter = rateLimit({
 
 app.use('/api/auth', authLimiter, authRouter);
 
+// Admin : rate limit ne comptant QUE les échecs (5 tentatives de mot de passe / 10 min / IP).
+const adminLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 5,
+  skipSuccessfulRequests: true,
+  message: { error: 'Trop de tentatives, réessayez plus tard' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use('/api/admin', adminLimiter, adminRouter);
+
+// licenceGate : un appareil qui déclare un owner_matricule sans licence active est bloqué (403).
 app.use('/api/accounts', authMiddleware, accountsRouter);
-app.use('/api/sync', authMiddleware, syncRouter);
-app.use('/api/bulletins', authMiddleware, bulletinsRouter);
+app.use('/api/sync', authMiddleware, licenceGate, syncRouter);
+app.use('/api/bulletins', authMiddleware, licenceGate, bulletinsRouter);
 app.use('/api/push', authMiddleware, pushRouter);
 app.use('/api/settings', authMiddleware, settingsRouter);
 app.use('/api/device', authMiddleware, deviceRouter);
