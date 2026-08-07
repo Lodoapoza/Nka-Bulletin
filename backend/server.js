@@ -85,7 +85,7 @@ app.use('/api/sync', authMiddleware, syncRouter);
 app.use('/api/bulletins', authMiddleware, bulletinsRouter);
 app.use('/api/push', authMiddleware, pushRouter);
 app.use('/api/settings', authMiddleware, settingsRouter);
-app.use('/api', authMiddleware, deviceRouter);
+app.use('/api/device', authMiddleware, deviceRouter);
 
 app.get('/api/health', (req, res) => {
   const mem = process.memoryUsage();

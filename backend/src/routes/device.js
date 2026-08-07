@@ -7,7 +7,7 @@ const router = express.Router();
 
 // Reset complet de l'appareil : supprime toutes les données liées au device_id.
 // Idempotent : si le device n'existe pas, répond quand même { ok: true }.
-router.delete('/device', (req, res) => {
+router.delete('/', (req, res) => {
   const deviceId = req.deviceId;
 
   const tx = db.transaction(() => {
