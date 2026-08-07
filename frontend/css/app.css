@@ -427,3 +427,4 @@ a { color: inherit; }
 .state-expired { color: var(--md-error); }
 .state-revoked { color: var(--md-on-surface-variant); }
 .btn-xs { padding: 6px 10px; font-size: 0.72rem; border-radius: 100px; }
+.hidden { display: none !important; }
