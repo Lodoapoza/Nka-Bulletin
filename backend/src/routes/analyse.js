@@ -85,12 +85,16 @@ router.get('/salary', (req, res) => {
     });
   }
 
-  // Mois manquants : calculé pour l'année filtrée (ou la seule année disponible).
+  // Mois manquants : uniquement les mois déjà écoulés — ni le mois courant
+  // (son bulletin n'arrive qu'en fin de mois), ni les mois futurs, ni une année future.
   let missing = [];
+  const nowYear = new Date().getFullYear();
+  const nowMonth = new Date().getMonth() + 1;
   const targetYear = yearQ || (years.length === 1 ? years[0] : null);
-  if (targetYear) {
+  if (targetYear && targetYear <= nowYear) {
+    const lastMonth = targetYear === nowYear ? Math.max(0, nowMonth - 1) : 12;
     const present = new Set(byYear[targetYear] ? byYear[targetYear].map(r => r.month) : []);
-    for (let m = 1; m <= 12; m++) {
+    for (let m = 1; m <= lastMonth; m++) {
       if (!present.has(m)) missing.push(`${targetYear}-${pad2(m)}`);
     }
   }

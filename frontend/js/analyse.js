@@ -9,7 +9,8 @@ const Analyse = (() => {
   const MONTHS_SHORT = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
   const MASK = '•••• ••••';
 
-  let currentYear = null; // null = toutes les années
+  let currentYear = new Date().getFullYear(); // par défaut : année en cours
+  let userSelected = false;                    // false tant que l'utilisateur n'a pas choisi
   let lastData = null;
 
   function amountsHidden() {
@@ -34,47 +35,47 @@ const Analyse = (() => {
   }
 
   // ---------- Sélecteur d'année ----------
+  // L'année en cours est affichée en premier (décroissant), « Toutes » en dernier.
   function renderChips(data) {
     const el = document.getElementById('analyse-chips');
     el.innerHTML = '';
+    const yrs = (data.years || []).slice().sort((a, b) => b - a);
     const mk = (label, value) => {
       const b = document.createElement('button');
       b.className = 'chip' + (currentYear === value ? ' active' : '');
       b.textContent = label;
       b.addEventListener('click', () => {
+        userSelected = true;
         if (currentYear !== value) { currentYear = value; refresh(); }
       });
       el.appendChild(b);
     };
+    yrs.forEach((y) => mk(String(y), y));
     mk('Toutes', null);
-    (data.years || []).slice().reverse().forEach((y) => mk(String(y), y));
   }
 
   // ---------- Cartes stats ----------
+  // Cartes calculées sur la période affichée (année sélectionnée, sinon tout l'historique).
   function renderStats(data) {
     const yr = currentYear ? data.perYear[String(currentYear)] : null;
-    const totals = data.totals || {};
-    const avg = yr ? yr.avgNet : totals.avgNet;
-    const total = yr ? yr.totalNet : totals.totalNet;
-    const count = yr ? yr.count : totals.count;
+    const scope = yr || data.totals || {};
+    const scopeLabel = currentYear ? `Année ${currentYear}` : 'Toutes les années';
+    const periodLabel = data.period.startMonth
+      ? `Du ${fmtMonthYear(data.period.startMonth)} au ${fmtMonthYear(data.period.endMonth)}`
+      : (currentYear ? `Année ${currentYear}` : '');
 
     const set = (id, value, sub) => {
       document.getElementById(id).textContent = value;
       document.getElementById(id + '-sub').textContent = sub;
     };
 
-    set('analyse-max', hide(totals.max ? fmt(totals.max.net) : '—'), fmtMonthYear(totals.max && totals.max.year + '-' + String(totals.max.month).padStart(2, '0')));
-    set('analyse-min', hide(totals.min ? fmt(totals.min.net) : '—'), fmtMonthYear(totals.min && totals.min.year + '-' + String(totals.min.month).padStart(2, '0')));
+    const scopeMax = scope.max || null;
+    const scopeMin = scope.min || null;
+    set('analyse-max', hide(scopeMax ? fmt(scopeMax.net) : '—'), scopeMax ? fmtMonthYear(scopeMax.year + '-' + String(scopeMax.month).padStart(2, '0')) : '');
+    set('analyse-min', hide(scopeMin ? fmt(scopeMin.net) : '—'), scopeMin ? fmtMonthYear(scopeMin.year + '-' + String(scopeMin.month).padStart(2, '0')) : '');
 
-    if (currentYear && yr) {
-      const yMax = document.getElementById('analyse-max-sub');
-      const yMin = document.getElementById('analyse-min-sub');
-      yMax.textContent += ` · ${currentYear} : ${hide(fmt(yr.max.net))}`;
-      yMin.textContent += ` · ${currentYear} : ${hide(fmt(yr.min.net))}`;
-    }
-
-    set('analyse-avg', hide(avg != null ? fmt(avg) : '—'), count ? `Sur ${count} ${count > 1 ? 'bulletins' : 'bulletin'}` : '');
-    set('analyse-total', hide(total != null ? fmt(total) : '—'), currentYear ? `Année ${currentYear}` : (data.period.startMonth ? `Du ${fmtMonthYear(data.period.startMonth)} au ${fmtMonthYear(data.period.endMonth)}` : ''));
+    set('analyse-avg', hide(scope.avgNet != null ? fmt(scope.avgNet) : '—'), scope.count ? `Sur ${scope.count} ${scope.count > 1 ? 'bulletins' : 'bulletin'}` : '');
+    set('analyse-total', hide(scope.totalNet != null ? fmt(scope.totalNet) : '—'), scopeLabel + (periodLabel && scopeLabel !== periodLabel ? ` · ${periodLabel}` : ''));
   }
 
   // ---------- Graphique SVG (courbe ligne + pointillés min/max) ----------
@@ -142,7 +143,7 @@ const Analyse = (() => {
     const rows = series.map((p, i) => {
       const d = byKey[`${p.year}-${p.month}`];
       const isFirst = i === 0;
-      let badge = '<span class="hint">—</span>';
+      let badge = '<span class="badge-delta delta-flat" style="visibility:hidden;">—</span>';
       if (!isFirst && d && d.pct !== null && !hidden) {
         const abs = Math.abs(d.pct);
         const cls = abs > 10 ? (d.pct > 0 ? 'delta-up' : 'delta-down') : 'delta-flat';
@@ -151,14 +152,12 @@ const Analyse = (() => {
       }
       return `
         <div class="analyse-row">
-          <div>
+          <div class="analyse-left">
             <div class="analyse-month">${MONTHS_FR[p.month - 1]} ${p.year}</div>
             ${isFirst ? '<div class="hint">base</div>' : ''}
           </div>
-          <div class="analyse-side">
-            <span class="mono analyse-net">${hide(fmt(p.net))}</span>
-            ${badge}
-          </div>
+          <span class="mono analyse-net">${hide(fmt(p.net))}</span>
+          ${badge}
         </div>`;
     });
     el.innerHTML = rows.join('');
@@ -175,7 +174,11 @@ const Analyse = (() => {
       items.push(`Mois manquant : ${fmtMonthYear(ym)}`);
     });
     if (data.totals && data.totals.max) {
-      items.push(`Meilleur salaire : ${fmtMonthYear(data.totals.max.year + '-' + String(data.totals.max.month).padStart(2, '0'))}`);
+      const yr = currentYear ? data.perYear[String(currentYear)] : null;
+      const scope = yr || data.totals;
+      if (scope && scope.max) {
+        items.push(`Meilleur salaire : ${fmtMonthYear(scope.max.year + '-' + String(scope.max.month).padStart(2, '0'))}`);
+      }
     }
     if (data.trend === 'up') items.push('Net en hausse sur la période');
     if (data.trend === 'down') items.push('Net en baisse sur la période');
@@ -210,7 +213,7 @@ const Analyse = (() => {
 
   async function refresh() {
     try {
-      const data = await Api.getAnalyseSalary(currentYear);
+      let data = await Api.getAnalyseSalary(currentYear);
       if (data.hidden) {
         lastData = null;
         document.getElementById('analyse-chips').innerHTML = '';
@@ -222,6 +225,12 @@ const Analyse = (() => {
           'Activez « Analyse des montants PDF » dans Réglages pour voir l\'évolution de vos salaires.';
         document.getElementById('analyse-empty').classList.remove('hidden');
         return;
+      }
+      // Au premier affichage, si l'année en cours n'a pas encore de données,
+      // bascule automatiquement sur la plus récente disponible.
+      if (!userSelected && data.years && data.years.length && !data.years.includes(currentYear)) {
+        currentYear = data.years[data.years.length - 1];
+        data = await Api.getAnalyseSalary(currentYear);
       }
       document.getElementById('analyse-stats').style.display = '';
       document.getElementById('analyse-chart-card').classList.remove('hidden');
