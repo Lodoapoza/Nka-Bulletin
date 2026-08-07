@@ -91,7 +91,9 @@ router.post('/export/merge', async (req, res) => {
   } else if (lastNMonths) {
     const n = Number(lastNMonths);
     const now = new Date();
-    const threshold = now.getFullYear() * 12 + now.getMonth() + 1 - n + 1;
+    // Mois 1-indexé du mois courant + fenêtre de n mois (ex: août 2026, n=3 → mai).
+    // Attention : ne PAS ajouter +1 ici — le seuil doit être le premier mois inclus.
+    const threshold = now.getFullYear() * 12 + now.getMonth() + 1 - n;
     rows = db.prepare(
       'SELECT * FROM bulletins WHERE device_id = ? AND (year * 12 + month) >= ? ORDER BY year, month'
     ).all(req.deviceId, threshold);
@@ -106,7 +108,17 @@ router.post('/export/merge', async (req, res) => {
 
   try {
     const mergedBytes = await mergePdfs(filePaths);
-    const filename = `nka-bulletins-fusion-${Date.now()}.pdf`;
+    // Nom descriptif : période réelle des bulletins fusionnés + matricule
+    // (ex. "Bulletins_2026-01_a_2026-07_F2558.pdf", ou "Bulletin_2026-07_F2558.pdf" si un seul)
+    const sorted = [...rows].sort((a, b) => (a.year * 12 + a.month) - (b.year * 12 + b.month));
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    const matricule = rows.find(r => r.matricule)?.matricule || '';
+    const mm = (m) => String(m).padStart(2, '0');
+    const period = first.year === last.year && first.month === last.month
+      ? `${first.year}-${mm(first.month)}`
+      : `${first.year}-${mm(first.month)}_a_${last.year}-${mm(last.month)}`;
+    const filename = `${rows.length === 1 ? 'Bulletin' : 'Bulletins'}_${period}${matricule ? '_' + matricule : ''}.pdf`;
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${filename}"`,

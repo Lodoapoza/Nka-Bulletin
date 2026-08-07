@@ -157,8 +157,8 @@ const Bulletins = (() => {
   async function mergeAndExport(payload, label) {
     Toast.show('Fusion des bulletins en cours...');
     try {
-      const blob = await Api.mergeBulletins(payload);
-      await shareOrDownloadBlob(blob, `nka-bulletins-${label}.pdf`);
+      const { blob, filename } = await Api.mergeBulletins(payload);
+      await shareOrDownloadBlob(blob, filename);
       Toast.show('Export prêt à partager !');
     } catch (e) {
       Toast.show(ERR.msg(e));

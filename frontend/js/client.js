@@ -338,7 +338,11 @@ const Api = (() => {
           throw new Error(msg || 'Échec de la fusion');
         }
         notifyConnection('online');
-        return res.blob();
+        const disposition = res.headers.get('Content-Disposition') || '';
+        const match = disposition.match(/filename[^;=\n]*=["']?([^"';\n]*)["']?/);
+        const filename = match ? match[1].trim() : 'bulletins-fusionnes.pdf';
+        const blob = await res.blob();
+        return { blob, filename };
       }
     },
 
