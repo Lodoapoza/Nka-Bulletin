@@ -15,22 +15,21 @@ const Accounts = (() => {
     document.querySelectorAll('.provider-card').forEach(c => c.classList.toggle('active', c.dataset.provider === provider));
 
     const preset = PROVIDER_PRESETS[provider];
-    document.getElementById('imap-host-display').textContent = preset.host || '—';
-    document.getElementById('imap-port-display').textContent = preset.port;
+
+    // Pré-remplissage automatique du serveur IMAP selon le fournisseur.
+    // Les champs ne sont visibles que pour « IMAP personnalisé », mais on
+    // les remplit toujours pour que la soumission envoie les bonnes valeurs.
+    document.getElementById('imap-host').value = preset.host;
+    document.getElementById('imap-port').value = preset.port;
 
     const customFields = document.getElementById('custom-imap-fields');
-    const imapPreset = document.getElementById('imap-preset');
     const appPwdLink = document.getElementById('app-pwd-link');
 
     if (provider === 'imap') {
       customFields.classList.remove('hidden');
-      imapPreset.style.display = 'none';
       appPwdLink.style.display = 'none';
-      document.getElementById('imap-host').value = preset.host;
-      document.getElementById('imap-port').value = preset.port;
     } else {
       customFields.classList.add('hidden');
-      imapPreset.style.display = 'block';
       appPwdLink.style.display = 'block';
       document.getElementById('app-pwd-url').href = preset.appPwdUrl || '#';
       document.getElementById('app-pwd-provider').textContent = PROVIDER_DISPLAY[provider] || provider;

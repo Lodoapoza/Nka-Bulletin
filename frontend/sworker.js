@@ -1,18 +1,19 @@
-const CACHE_NAME = 'nka-bulletin-v15';
+const CACHE_NAME = 'nka-bulletin-v16';
 const APP_SHELL = [
-  '/index.html?v=v24',
-  '/manifest.json?v=v24',
-  '/css/app.css?v=v24',
-  '/js/app.js?v=v24',
-  '/js/client.js?v=v24',
-  '/js/pin.js?v=v24',
-  '/js/capacitor.js?v=v24',
-  '/js/dashboard.js?v=v24',
-  '/js/accounts.js?v=v24',
-  '/js/bulletins.js?v=v24',
-  '/js/settings.js?v=v24',
-  '/js/theme.js?v=v24',
-  '/js/version.js?v=v24',
+  '/index.html?v=v25',
+  '/manifest.json?v=v25',
+  '/css/app.css?v=v25',
+  '/js/app.js?v=v25',
+  '/js/client.js?v=v25',
+  '/js/pin.js?v=v25',
+  '/js/capacitor.js?v=v25',
+  '/js/dashboard.js?v=v25',
+  '/js/accounts.js?v=v25',
+  '/js/bulletins.js?v=v25',
+  '/js/settings.js?v=v25',
+  '/js/reset.js?v=v25',
+  '/js/theme.js?v=v25',
+  '/js/version.js?v=v25',
   '/icons/logo.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -53,7 +54,7 @@ self.addEventListener('fetch', (event) => {
   // Navigation (ouverture de la PWA) : servir /index.html depuis le cache
   // immédiatement (cache-first), revalidation en arrière-plan. La navigation
   // demande /index.html SANS query string, alors que le précache stocke
-  // /index.html?v=v24 — on matche donc explicitement /index.html.
+  // /index.html?v=v25 — on matche donc explicitement /index.html.
   if (event.request.mode === 'navigate') {
     event.respondWith(
       caches.match('/index.html').then((cached) => {

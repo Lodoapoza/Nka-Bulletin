@@ -364,20 +364,17 @@ a { color: inherit; }
   padding: 24px;
 }
 .reset-modal {
-  background: var(--surface, #fff);
+  background: var(--md-surface);
+  color: var(--md-on-surface);
   border-radius: 16px; padding: 24px;
   max-width: 360px; width: 100%;
   text-align: center;
-  box-shadow: 0 12px 40px rgba(0,0,0,.3);
+  box-shadow: var(--shadow-elevated);
 }
 .reset-icon { font-size: 2rem; margin-bottom: 8px; }
-.reset-modal h3 { margin: 0 0 8px; }
-.reset-modal p { font-size: .9rem; line-height: 1.5; opacity: .85; margin: 0 0 16px; }
+.reset-modal h3 { margin: 0 0 8px; color: var(--md-on-surface); }
+.reset-modal p { font-size: .9rem; line-height: 1.5; opacity: .85; margin: 0 0 16px; color: var(--md-on-surface-variant); }
 .reset-actions { display: flex; gap: 10px; }
 .reset-actions .btn { flex: 1; }
-.btn-danger {
-  background: #c0392b; color: #fff;
-  border: none; border-radius: 12px;
-  padding: 12px 16px; font-weight: 600; cursor: pointer;
-}
-.btn-danger:disabled { opacity: .6; }
+.reset-actions .btn-danger { background: var(--md-error); color: #fff; border: none; }
+.reset-actions .btn-danger:disabled { opacity: .6; }
