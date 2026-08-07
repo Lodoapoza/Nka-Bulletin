@@ -9,7 +9,6 @@ const Bulletins = (() => {
   let cache = [];
   let cachedSet = new Set();
   let availableYears = [];
-  let periodPicker = null;
 
   function markCached(btn) {
     btn.setAttribute('aria-label', 'En local');
@@ -18,127 +17,35 @@ const Bulletins = (() => {
     btn.innerHTML = ICON_CACHED;
   }
 
-  function getPeriodLabel() {
-    if (!currentYear && !currentMonth) return 'Toute la période';
-    if (currentYear && !currentMonth) return String(currentYear);
-    if (!currentYear && currentMonth) return MONTHS_FR[currentMonth - 1];
-    return `${MONTHS_FR[currentMonth - 1]} ${currentYear}`;
-  }
-
-  function renderPeriodTrigger() {
-    const btn = document.getElementById('period-trigger');
-    btn.textContent = getPeriodLabel();
-    btn.dataset.year = currentYear || '';
-    btn.dataset.month = currentMonth || '';
-  }
-
-  function openPeriodPicker() {
-    if (periodPicker) return;
-    const trigger = document.getElementById('period-trigger');
-    const rect = trigger.getBoundingClientRect();
-    
-    const years = availableYears.length ? availableYears : [new Date().getFullYear()];
-    const minYear = Math.min(...years);
-    const maxYear = Math.max(...years);
-    const displayYear = currentYear || new Date().getFullYear();
-    let pickerYear = displayYear;
-
-    function renderPicker() {
-      const presentMonths = currentYear 
-        ? new Set(cache.filter(b => b.year === currentYear).map(b => b.month))
-        : new Set();
-
-      const monthGrid = MONTHS_SHORT.map((m, i) => {
-        const num = i + 1;
-        const hasData = presentMonths.has(num);
-        const isCurrent = (!currentYear || currentYear === pickerYear) && currentMonth === num;
-        const isSelected = !currentYear && !currentMonth ? false : isCurrent;
-        const disabled = currentYear && !hasData;
-        return `
-          <button class="picker-month${isSelected ? ' selected' : ''}${disabled ? ' disabled' : ''}" 
-                  data-month="${num}" 
-                  ${disabled ? 'disabled' : ''}
-                  aria-label="${MONTHS_FR[i]} ${pickerYear}">
-            ${m}
-          </button>
-        `;
-      }).join('');
-
-      return `
-        <div class="period-picker" role="dialog" aria-label="Choisir la période">
-          <div class="picker-header">
-            <button class="picker-nav" data-year="${pickerYear - 1}" aria-label="Année précédente">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-            <div class="picker-year-label">${pickerYear}</div>
-            <button class="picker-nav" data-year="${pickerYear + 1}" aria-label="Année suivante">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-          </div>
-          <div class="picker-months">${monthGrid}</div>
-          <div class="picker-actions">
-            <button class="btn btn-text picker-clear">${currentYear || currentMonth ? 'Effacer' : ''}</button>
-            <button class="btn btn-primary picker-close">Fermer</button>
-          </div>
-        </div>
-      `;
-    }
-
-    periodPicker = document.createElement('div');
-    periodPicker.className = 'period-picker-overlay';
-    periodPicker.innerHTML = renderPicker();
-    document.body.appendChild(periodPicker);
-
-    // Position
-    const pickerEl = periodPicker.querySelector('.period-picker');
-    pickerEl.style.top = `${rect.bottom + 8}px`;
-    pickerEl.style.left = `${rect.left}px`;
-
-    // Events
-    periodPicker.addEventListener('click', (e) => {
-      const nav = e.target.closest('.picker-nav');
-      if (nav) {
-        pickerYear = Number(nav.dataset.year);
-        if (pickerYear >= minYear && pickerYear <= maxYear) {
-          periodPicker.querySelector('.period-picker').innerHTML = renderPicker();
-        }
-        return;
-      }
-      const monthBtn = e.target.closest('.picker-month:not(.disabled)');
-      if (monthBtn) {
-        currentYear = pickerYear;
-        currentMonth = Number(monthBtn.dataset.month);
-        closePicker();
-        renderPeriodTrigger();
-        refresh();
-        return;
-      }
-      if (e.target.closest('.picker-clear')) {
-        currentYear = null;
-        currentMonth = null;
-        closePicker();
-        renderPeriodTrigger();
-        refresh();
-        return;
-      }
-      if (e.target.closest('.picker-close') || e.target === periodPicker) {
-        closePicker();
-        return;
-      }
+  function renderYearSelect() {
+    const sel = document.getElementById('year-select');
+    const opts = [`<option value="">Toutes les années</option>`];
+    availableYears.forEach(y => {
+      opts.push(`<option value="${y}"${currentYear === y ? ' selected' : ''}>${y}</option>`);
     });
+    sel.innerHTML = opts.join('');
+  }
 
-    // Close on outside click / escape
-    const onKeyDown = (e) => { if (e.key === 'Escape') closePicker(); };
-    const onClickOut = (e) => { if (!periodPicker.contains(e.target) && e.target !== trigger) closePicker(); };
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('click', onClickOut);
-
-    function closePicker() {
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('click', onClickOut);
-      periodPicker.remove();
-      periodPicker = null;
+  function renderMonthSelect() {
+    const sel = document.getElementById('month-select');
+    let opts = [`<option value="">Tous les mois</option>`];
+    
+    if (currentYear) {
+      // Année sélectionnée : n'afficher que les mois qui ont des bulletins pour cette année
+      const present = new Set(cache.filter(b => b.year === currentYear).map(b => b.month));
+      MONTHS_FR.forEach((m, i) => {
+        const monthNum = i + 1;
+        if (present.has(monthNum)) {
+          opts.push(`<option value="${monthNum}"${currentMonth === monthNum ? ' selected' : ''}>${m}</option>`);
+        }
+      });
+    } else {
+      // Pas d'année sélectionnée : afficher les 12 mois
+      MONTHS_FR.forEach((m, i) => {
+        opts.push(`<option value="${i + 1}"${currentMonth === i + 1 ? ' selected' : ''}>${m}</option>`);
+      });
     }
+    sel.innerHTML = opts.join('');
   }
 
   function renderList() {
@@ -274,7 +181,8 @@ const Bulletins = (() => {
       availableYears = [...new Set(all.map(b => b.year))].sort((a, b) => b - a);
       const ids = await Api.getCachedBulletinIds();
       cachedSet = new Set((ids || []).map(String));
-      renderPeriodTrigger();
+      renderYearSelect();
+      renderMonthSelect();
       renderList();
     } catch (e) {
       cache = [];
@@ -284,7 +192,17 @@ const Bulletins = (() => {
   }
 
   function bindActions() {
-    document.getElementById('period-trigger').addEventListener('click', openPeriodPicker);
+    const yearSel = document.getElementById('year-select');
+    const monthSel = document.getElementById('month-select');
+    yearSel.addEventListener('change', () => {
+      currentYear = yearSel.value ? Number(yearSel.value) : null;
+      renderMonthSelect();
+      refresh();
+    });
+    monthSel.addEventListener('change', () => {
+      currentMonth = monthSel.value ? Number(monthSel.value) : null;
+      refresh();
+    });
 
     let searchTimer;
     document.getElementById('search-input').addEventListener('input', () => {
