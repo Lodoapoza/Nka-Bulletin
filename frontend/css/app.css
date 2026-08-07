@@ -224,6 +224,7 @@ a { color: inherit; }
 }
 .chip.active { background: var(--md-primary); color: var(--md-surface); }
 [data-theme="dark"] .chip.active { color: var(--md-on-primary); }
+.chip.disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
 
 /* ===== Bulletin list ===== */
 .bulletin-item {

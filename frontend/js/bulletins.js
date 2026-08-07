@@ -7,6 +7,7 @@ const Bulletins = (() => {
   let selected = new Set();
   let cache = [];
   let cachedSet = new Set();
+  let availableYears = [];
 
   function markCached(btn) {
     btn.setAttribute('aria-label', 'En local');
@@ -17,10 +18,11 @@ const Bulletins = (() => {
 
   function renderYearChips() {
     const wrap = document.getElementById('year-chips');
-    const thisYear = new Date().getFullYear();
-    const years = [thisYear, thisYear - 1, thisYear - 2];
-    wrap.innerHTML = `<button class="chip ${currentYear === null ? 'active' : ''}" data-year="">Toutes les années</button>` +
-      years.map(y => `<button class="chip ${currentYear === y ? 'active' : ''}" data-year="${y}">${y}</button>`).join('');
+    const chips = [`<button class="chip ${currentYear === null ? 'active' : ''}" data-year="">Toutes les années</button>`];
+    availableYears.forEach(y => {
+      chips.push(`<button class="chip ${currentYear === y ? 'active' : ''}" data-year="${y}">${y}</button>`);
+    });
+    wrap.innerHTML = chips.join('');
     wrap.querySelectorAll('.chip').forEach(chip => chip.addEventListener('click', () => {
       currentYear = chip.dataset.year ? Number(chip.dataset.year) : null;
       renderYearChips();
@@ -30,9 +32,25 @@ const Bulletins = (() => {
 
   function renderMonthChips() {
     const wrap = document.getElementById('month-chips');
-    wrap.innerHTML = `<button class="chip ${currentMonth === null ? 'active' : ''}" data-month="">Tous les mois</button>` +
-      MONTHS_FR.map((m, i) => `<button class="chip ${currentMonth === i + 1 ? 'active' : ''}" data-month="${i + 1}">${m}</button>`).join('');
-    wrap.querySelectorAll('.chip').forEach(chip => chip.addEventListener('click', () => {
+    let chips = [`<button class="chip ${currentMonth === null ? 'active' : ''}" data-month="">Tous les mois</button>`];
+    
+    if (currentYear) {
+      const present = new Set(cache.filter(b => b.year === currentYear).map(b => b.month));
+      MONTHS_FR.forEach((m, i) => {
+        const monthNum = i + 1;
+        if (present.has(monthNum)) {
+          chips.push(`<button class="chip ${currentMonth === monthNum ? 'active' : ''}" data-month="${monthNum}">${m}</button>`);
+        } else {
+          chips.push(`<span class="chip disabled" title="Aucun bulletin pour ce mois">${m}</span>`);
+        }
+      });
+    } else {
+      MONTHS_FR.forEach((m, i) => {
+        chips.push(`<button class="chip ${currentMonth === i + 1 ? 'active' : ''}" data-month="${i + 1}">${m}</button>`);
+      });
+    }
+    wrap.innerHTML = chips.join('');
+    wrap.querySelectorAll('.chip[data-month]').forEach(chip => chip.addEventListener('click', () => {
       currentMonth = chip.dataset.month ? Number(chip.dataset.month) : null;
       renderMonthChips();
       refresh();
@@ -156,22 +174,24 @@ const Bulletins = (() => {
   }
 
   async function refresh() {
-    renderYearChips();
-    renderMonthChips();
     const q = document.getElementById('search-input').value.trim();
     const params = {};
     if (currentYear) params.year = currentYear;
     if (currentMonth) params.month = currentMonth;
     if (q) params.q = q;
 
-    // État de chargement
     const listEl = document.getElementById('bulletins-list');
     listEl.innerHTML = '<div class="loading-state"><div class="spinner"></div><div>Chargement des bulletins...</div></div>';
 
     try {
       cache = await Api.getBulletins(params);
+      // Construire la liste des années disponibles depuis TOUS les bulletins (pas seulement filtrés)
+      const all = await Api.getBulletins({ q: params.q });
+      availableYears = [...new Set(all.map(b => b.year))].sort((a, b) => b - a);
       const ids = await Api.getCachedBulletinIds();
       cachedSet = new Set((ids || []).map(String));
+      renderYearChips();
+      renderMonthChips();
       renderList();
     } catch (e) {
       cache = [];
@@ -181,9 +201,7 @@ const Bulletins = (() => {
   }
 
   function bindActions() {
-    renderYearChips();
-    renderMonthChips();
-
+    // Les chips sont rendues dans refresh() après chargement des données
     let searchTimer;
     document.getElementById('search-input').addEventListener('input', () => {
       clearTimeout(searchTimer);
