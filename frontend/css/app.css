@@ -192,6 +192,13 @@ a { color: inherit; }
 .btn-full { width: 100%; }
 .btn-danger { background: transparent; color: var(--md-error); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-sm { padding: 9px 14px; font-size: 0.85rem; }
+
+/* ===== Export rapide (accueil) =====
+   Variante compacte de carte : padding réduit, boutons en grille 2 colonnes
+   pour rester discret sous les cartes de données (dernier bulletin, salaire). */
+.export-card { padding: 16px 18px; }
+.export-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
 
 /* ===== Inputs ===== */
 .field { margin-bottom: 14px; }
