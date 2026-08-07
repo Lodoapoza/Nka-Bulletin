@@ -114,8 +114,10 @@
       <input type="text" id="search-input" placeholder="Rechercher un bulletin...">
     </div>
     <div class="filter-row">
-      <select id="year-select" class="filter-select" aria-label="Année"></select>
-      <select id="month-select" class="filter-select" aria-label="Mois"></select>
+      <button type="button" id="period-trigger" class="period-trigger" aria-haspopup="dialog" aria-label="Filtrer par période">
+        <span class="period-label">Toute la période</span>
+        <svg class="period-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
     </div>
 
     <div id="bulletins-list"></div>
