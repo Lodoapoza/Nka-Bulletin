@@ -1,5 +1,6 @@
 const Bulletins = (() => {
-  const MONTHS_FR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
+  const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const MONTHS_SHORT = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
   const ICON_DOWNLOAD = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const ICON_CACHED = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   let currentYear = null;
@@ -16,45 +17,32 @@ const Bulletins = (() => {
     btn.innerHTML = ICON_CACHED;
   }
 
-  function renderYearChips() {
-    const wrap = document.getElementById('year-chips');
-    const chips = [`<button class="chip ${currentYear === null ? 'active' : ''}" data-year="">Toutes les années</button>`];
+  function renderYearSelect() {
+    const sel = document.getElementById('year-select');
+    const opts = [`<option value="">Toutes les années</option>`];
     availableYears.forEach(y => {
-      chips.push(`<button class="chip ${currentYear === y ? 'active' : ''}" data-year="${y}">${y}</button>`);
+      opts.push(`<option value="${y}"${currentYear === y ? ' selected' : ''}>${y}</option>`);
     });
-    wrap.innerHTML = chips.join('');
-    wrap.querySelectorAll('.chip').forEach(chip => chip.addEventListener('click', () => {
-      currentYear = chip.dataset.year ? Number(chip.dataset.year) : null;
-      renderYearChips();
-      refresh();
-    }));
+    sel.innerHTML = opts.join('');
   }
 
-  function renderMonthChips() {
-    const wrap = document.getElementById('month-chips');
-    let chips = [`<button class="chip ${currentMonth === null ? 'active' : ''}" data-month="">Tous les mois</button>`];
-    
+  function renderMonthSelect() {
+    const sel = document.getElementById('month-select');
+    let opts = [`<option value="">Tous les mois</option>`];
     if (currentYear) {
       const present = new Set(cache.filter(b => b.year === currentYear).map(b => b.month));
       MONTHS_FR.forEach((m, i) => {
         const monthNum = i + 1;
         if (present.has(monthNum)) {
-          chips.push(`<button class="chip ${currentMonth === monthNum ? 'active' : ''}" data-month="${monthNum}">${m}</button>`);
-        } else {
-          chips.push(`<span class="chip disabled" title="Aucun bulletin pour ce mois">${m}</span>`);
+          opts.push(`<option value="${monthNum}"${currentMonth === monthNum ? ' selected' : ''}>${m}</option>`);
         }
       });
     } else {
       MONTHS_FR.forEach((m, i) => {
-        chips.push(`<button class="chip ${currentMonth === i + 1 ? 'active' : ''}" data-month="${i + 1}">${m}</button>`);
+        opts.push(`<option value="${i + 1}"${currentMonth === i + 1 ? ' selected' : ''}>${m}</option>`);
       });
     }
-    wrap.innerHTML = chips.join('');
-    wrap.querySelectorAll('.chip[data-month]').forEach(chip => chip.addEventListener('click', () => {
-      currentMonth = chip.dataset.month ? Number(chip.dataset.month) : null;
-      renderMonthChips();
-      refresh();
-    }));
+    sel.innerHTML = opts.join('');
   }
 
   function renderList() {
@@ -185,13 +173,13 @@ const Bulletins = (() => {
 
     try {
       cache = await Api.getBulletins(params);
-      // Construire la liste des années disponibles depuis TOUS les bulletins (pas seulement filtrés)
+      // Construire la liste des années disponibles depuis TOUS les bulletins
       const all = await Api.getBulletins({ q: params.q });
       availableYears = [...new Set(all.map(b => b.year))].sort((a, b) => b - a);
       const ids = await Api.getCachedBulletinIds();
       cachedSet = new Set((ids || []).map(String));
-      renderYearChips();
-      renderMonthChips();
+      renderYearSelect();
+      renderMonthSelect();
       renderList();
     } catch (e) {
       cache = [];
@@ -201,7 +189,18 @@ const Bulletins = (() => {
   }
 
   function bindActions() {
-    // Les chips sont rendues dans refresh() après chargement des données
+    const yearSel = document.getElementById('year-select');
+    const monthSel = document.getElementById('month-select');
+    yearSel.addEventListener('change', () => {
+      currentYear = yearSel.value ? Number(yearSel.value) : null;
+      renderMonthSelect();
+      refresh();
+    });
+    monthSel.addEventListener('change', () => {
+      currentMonth = monthSel.value ? Number(monthSel.value) : null;
+      refresh();
+    });
+
     let searchTimer;
     document.getElementById('search-input').addEventListener('input', () => {
       clearTimeout(searchTimer);
