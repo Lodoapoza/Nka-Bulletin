@@ -114,7 +114,8 @@ const Bulletins = (() => {
             markCached(btn);
           }
           if (NativeBridge && NativeBridge.isNative) {
-            await NativeBridge.shareFile(blob, filename);
+            const opened = await NativeBridge.previewFile(blob, filename);
+            if (!opened) await NativeBridge.shareFile(blob, filename);
             URL.revokeObjectURL(objectUrl);
           } else {
             window.open(objectUrl, '_blank');
@@ -133,33 +134,22 @@ const Bulletins = (() => {
     bar.classList.toggle('hidden', selected.size < 2);
   }
 
-  async function shareOrDownloadBlob(blob, filename) {
-    if (NativeBridge && NativeBridge.isNative) {
-      try {
-        await NativeBridge.shareFile(blob, filename);
-        return;
-      } catch (_) {}
-    }
-    const file = new File([blob], filename, { type: 'application/pdf' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({ files: [file], title: 'Nka Bulletin', text: 'Mes bulletins de paie fusionnés.' });
-        return;
-      } catch (_) {}
-    }
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
-  }
-
   async function mergeAndExport(payload, label) {
     Toast.show('Fusion des bulletins en cours...');
     try {
       const { blob, filename } = await Api.mergeBulletins(payload);
-      await shareOrDownloadBlob(blob, filename);
-      Toast.show('Export prêt à partager !');
+      if (NativeBridge && NativeBridge.isNative) {
+        // App : aperçu système (FileOpener) quand disponible, sinon repli partage.
+        const opened = await NativeBridge.previewFile(blob, filename);
+        if (!opened) await NativeBridge.shareFile(blob, filename);
+        return;
+      }
+      // Web : affiche l'aperçu PDF dans un nouvel onglet (l'utilisateur peut alors
+      // l'imprimer/le télécharger/le partager depuis le visionneur du navigateur).
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      Toast.show('Aperçu ouvert — choisissez votre action depuis l\'aperçu');
     } catch (e) {
       Toast.show(ERR.msg(e));
     }

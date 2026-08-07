@@ -9,7 +9,8 @@
     get preferences () { return Capacitor.Plugins.Preferences },
     get push () { return Capacitor.Plugins.PushNotifications },
     get browser () { return Capacitor.Plugins.Browser },
-    get keyboard () { return Capacitor.Plugins.Keyboard }
+    get keyboard () { return Capacitor.Plugins.Keyboard },
+    get fileOpener () { return Capacitor.Plugins && Capacitor.Plugins.FileOpener }
   }
 
   function blobToBase64 (blob) {
@@ -63,6 +64,17 @@
         } catch (_) {}
       }
       await this.download(blob, filename)
+    },
+
+    // Aperçu d'un PDF avant partage : ouvre le fichier avec le visionneur système
+    // (plugin @capacitor-community/file-opener). Retourne false si indisponible.
+    async previewFile (blob, filename) {
+      if (!isNative || !fs || !this.fileOpener) return false
+      const base64 = await blobToBase64(blob)
+      await fs.writeFile({ path: filename, data: base64, directory: 'CACHE' })
+      const uri = await fs.getUri({ path: filename, directory: 'CACHE' })
+      await this.fileOpener.open({ filePath: uri.uri, contentType: 'application/pdf' })
+      return true
     },
 
     // Téléchargement : Documents (visible) dans l'app, sinon attribut download.
