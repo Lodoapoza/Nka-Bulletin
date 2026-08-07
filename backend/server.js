@@ -41,6 +41,7 @@ const { router: syncRouter } = require('./src/routes/sync');
 const bulletinsRouter = require('./src/routes/bulletins');
 const { router: pushRouter } = require('./src/routes/push');
 const settingsRouter = require('./src/routes/settings');
+const deviceRouter = require('./src/routes/device');
 const { initScheduler } = require('./src/scheduler');
 const { updateHeartbeat } = require('./src/heartbeat');
 
@@ -84,6 +85,7 @@ app.use('/api/sync', authMiddleware, syncRouter);
 app.use('/api/bulletins', authMiddleware, bulletinsRouter);
 app.use('/api/push', authMiddleware, pushRouter);
 app.use('/api/settings', authMiddleware, settingsRouter);
+app.use('/api', authMiddleware, deviceRouter);
 
 app.get('/api/health', (req, res) => {
   const mem = process.memoryUsage();

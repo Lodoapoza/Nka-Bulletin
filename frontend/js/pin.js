@@ -200,6 +200,11 @@ const Pin = (() => {
       titleEl.textContent = 'Définissez votre code PIN';
       subtitleEl.textContent = "Ce code protège l'accès à vos bulletins sur cet appareil.";
     }
+    const forgotBtn = document.getElementById('pin-forgot-btn');
+    if (forgotBtn) {
+      forgotBtn.style.display = hasPinConfigured() ? 'block' : 'none';
+      forgotBtn.onclick = () => ResetDevice.openConfirm();
+    }
     renderDots();
   }
 

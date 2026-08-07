@@ -30,6 +30,7 @@
     <div class="pin-dots" id="pin-dots"></div>
     <div class="pin-error" id="pin-error"></div>
     <div class="pin-keypad" id="pin-keypad"></div>
+    <button class="btn btn-text" id="pin-forgot-btn" style="margin-top:12px;opacity:.75;">PIN oublié ?</button>
   </div>
 
   <!-- ===== Barre supérieure ===== -->
@@ -250,6 +251,11 @@
       <button class="btn btn-outline btn-full" id="change-pin-btn">Changer le code PIN</button>
     </div>
 
+    <div class="card" style="border-color:var(--danger,#c0392b);">
+      <button class="btn btn-danger btn-full" id="reset-device-btn">Réinitialiser l'appareil</button>
+      <div class="hint" style="margin-top:6px;">Efface toutes les données de cet appareil (bulletins, comptes, cache) et repart de zéro.</div>
+    </div>
+
     <div class="card">
       <button class="btn btn-outline btn-full" id="about-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v5M12 8v.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -332,6 +338,7 @@
 <script src="js/accounts.js?v=v24"></script>
 <script src="js/bulletins.js?v=v24"></script>
 <script src="js/settings.js?v=v24"></script>
+<script src="js/reset.js?v=v24"></script>
 <script src="js/version.js?v=v24"></script>
 <script src="js/app.js?v=v24"></script>
 </body>
