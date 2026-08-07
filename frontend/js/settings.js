@@ -214,6 +214,7 @@ const Settings = (() => {
             }).catch(e => console.warn('[settings]', e.message || e));
           }
           Toast.show('Paramètres enregistrés.');
+          window.dispatchEvent(new CustomEvent('nka-amounts-changed', { detail: { enabled: document.getElementById('amounts-switch').checked } }));
           Dashboard.refresh();
         } catch (e) { Toast.show(ERR.msg(e)); }
       });

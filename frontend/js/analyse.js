@@ -131,36 +131,47 @@ const Analyse = (() => {
       : `Pointillés : minimum (${fmt(minNet)}) et maximum (${fmt(maxNet)}) de la période`;
   }
 
-  // ---------- Tableau des variations ----------
-  function renderTable(series, deltas) {
+  // ---------- Tableau des variations (vrai tableau, sans bordures) ----------
+  function renderTable(series, deltas, hidden = false) {
     const el = document.getElementById('analyse-table');
-    const hidden = amountsHidden();
     if (!series || !series.length) { el.innerHTML = '<div class="hint">Aucune donnée.</div>'; return; }
 
     const byKey = {};
     (deltas || []).forEach(d => { byKey[`${d.year}-${d.month}`] = d; });
 
-    const rows = series.map((p, i) => {
+    const rowsHtml = series.map((p, i) => {
       const d = byKey[`${p.year}-${p.month}`];
       const isFirst = i === 0;
-      let badge = '<span class="badge-delta delta-flat" style="visibility:hidden;">—</span>';
-      if (!isFirst && d && d.pct !== null && !hidden) {
+      let variation;
+      if (isFirst) {
+        variation = '<span class="badge-delta delta-flat">Base</span>';
+      } else if (d && d.pct !== null && !hidden) {
         const abs = Math.abs(d.pct);
         const cls = abs > 10 ? (d.pct > 0 ? 'delta-up' : 'delta-down') : 'delta-flat';
         const icon = d.pct > 0 ? '↑' : (d.pct < 0 ? '↓' : '=');
-        badge = `<span class="badge-delta ${cls}">${icon} ${abs.toLocaleString('fr-FR')}%</span>`;
+        variation = `<span class="badge-delta ${cls}">${icon} ${abs.toLocaleString('fr-FR')}%</span>`;
+      } else {
+        variation = '<span class="badge-delta delta-flat">—</span>';
       }
       return `
-        <div class="analyse-row">
-          <div class="analyse-left">
-            <div class="analyse-month">${MONTHS_FR[p.month - 1]} ${p.year}</div>
-            ${isFirst ? '<div class="hint">base</div>' : ''}
-          </div>
-          <span class="mono analyse-net">${hide(fmt(p.net))}</span>
-          ${badge}
-        </div>`;
-    });
-    el.innerHTML = rows.join('');
+        <tr>
+          <td class="analyse-month">${MONTHS_FR[p.month - 1]} ${p.year}</td>
+          <td class="r mono analyse-net">${hide(fmt(p.net))}</td>
+          <td class="r">${variation}</td>
+        </tr>`;
+    }).join('');
+
+    el.innerHTML = `
+      <table class="analyse-table">
+        <thead>
+          <tr>
+            <th>Mois</th>
+            <th class="r">Salaire net</th>
+            <th class="r">Variation</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>`;
   }
 
   // ---------- Alertes ----------
@@ -202,7 +213,7 @@ const Analyse = (() => {
     if (hasData) {
       renderStats(data);
       renderChart(data.series);
-      renderTable(data.series, data.deltas);
+      renderTable(data.series, data.deltas, amountsHidden());
       renderAlerts(data);
       empty.classList.add('hidden');
     } else {

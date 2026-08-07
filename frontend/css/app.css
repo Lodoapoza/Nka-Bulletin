@@ -433,13 +433,20 @@ a { color: inherit; }
 .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
 .stat-tile .stat-value { font-size: 1.05rem; margin: 2px 0; }
 .stat-tile .hint { font-size: 0.74rem; line-height: 1.35; }
-.analyse-row {
-  display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center;
-  padding: 11px 0; border-bottom: 1px solid var(--md-outline-variant);
+
+/* Tableau des variations : vrai tableau, sans bordures extérieures */
+.analyse-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+.analyse-table th {
+  text-align: left; padding: 0 8px 8px; font-size: 0.72rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em; color: var(--md-on-surface-variant);
 }
-.analyse-row:last-child { border-bottom: none; }
-.analyse-month { font-weight: 600; font-size: 0.9rem; }
-.analyse-net { font-size: 0.9rem; text-align: right; font-variant-numeric: tabular-nums; }
+.analyse-table th.r, .analyse-table td.r { text-align: right; }
+.analyse-table td {
+  padding: 11px 8px; border-top: 1px solid var(--md-outline-variant); white-space: nowrap;
+}
+.analyse-table tbody tr:first-child td { border-top: none; }
+.analyse-table .analyse-month { font-weight: 600; }
+.analyse-table .analyse-net { font-variant-numeric: tabular-nums; }
 .badge-delta {
   padding: 3px 8px; border-radius: 100px; font-size: 0.72rem; font-weight: 700;
   font-variant-numeric: tabular-nums; white-space: nowrap;

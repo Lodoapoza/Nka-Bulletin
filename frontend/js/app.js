@@ -103,6 +103,7 @@ async function bootApp() {
   safe('Dashboard.refresh', () => Dashboard.refresh());
   safe('Bulletins.refresh', () => Bulletins.refresh());
   safe('Accounts.refresh',  () => Accounts.refresh());
+  Api.getSettings().then((s) => applyAnalyseNav(!!(s && s.extract_amounts))).catch(() => {});
   Router.goTo('dashboard');
   showVersion();
   initConnectionBadge();
@@ -208,6 +209,20 @@ window.addEventListener('nka-connection', (e) => {
   } else if (state === 'offline') {
     updateConnectionBadge(false);
   }
+});
+
+function applyAnalyseNav(enabled) {
+  const btn = document.querySelector('.nav-item[data-view="analyse"]');
+  if (btn) btn.style.display = enabled ? '' : 'none';
+  // Si on est sur la vue Analyse pendant que l'option est coupée, repartir sur l'Accueil.
+  if (!enabled) {
+    const view = document.getElementById('view-analyse');
+    if (view && !view.classList.contains('hidden')) Router.goTo('dashboard');
+  }
+}
+
+window.addEventListener('nka-amounts-changed', (e) => {
+  applyAnalyseNav(!!(e.detail && e.detail.enabled));
 });
 
 /* ===== Bandeau « données en cache » =====
