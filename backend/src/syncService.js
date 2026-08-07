@@ -68,7 +68,7 @@ async function importFound(device, account, items) {
     const netAmount = device && device.extract_amounts ? analysis.netAmount : null;
 
     db.prepare(`
-      INSERT INTO bulletins (device_id, account_id, year, month, filename, filepath, message_hash, received_at, net_amount, nom, matricule)
+      INSERT OR IGNORE INTO bulletins (device_id, account_id, year, month, filename, filepath, message_hash, received_at, net_amount, nom, matricule)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       account.device_id, account.id,

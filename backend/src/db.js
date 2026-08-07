@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS bulletins (
   month INTEGER NOT NULL,             -- 1-12 : mois concerné par le bulletin
   filename TEXT NOT NULL,
   filepath TEXT NOT NULL,
-  message_hash TEXT UNIQUE NOT NULL,  -- hash (message-id + nom pièce jointe) pour anti-doublon
+  message_hash TEXT NOT NULL,          -- hash (message-id + nom pièce jointe) ; unique PAR APPAREIL (v4)
   received_at TEXT NOT NULL,
   net_amount REAL,                    -- rempli seulement si "extract_amounts" est actif
   currency TEXT DEFAULT 'XOF',
@@ -81,6 +81,47 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 );
 `);
+
+// Migration v4 : message_hash unique PAR APPAREIL (device_id, message_hash) au lieu
+// de global. Sans cela, deux appareils scannant le même compte Gmail entrent en
+// collision sur la contrainte UNIQUE et le second échoue (0 bulletin visible).
+// Détection : la table bulletins possède un index auto (sqlite_autoindex_*) créé
+// par l'ancien "message_hash TEXT UNIQUE".
+const hasAutoIndex = db.prepare(
+  "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='bulletins' AND name LIKE 'sqlite_autoindex%'"
+).get();
+if (hasAutoIndex) {
+  console.log('[db] Migration v4 : déduplication des bulletins par appareil…');
+  db.exec(`
+    BEGIN;
+    CREATE TABLE bulletins_v4 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      device_id TEXT NOT NULL,
+      account_id INTEGER NOT NULL,
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      filename TEXT NOT NULL,
+      filepath TEXT NOT NULL,
+      message_hash TEXT NOT NULL,
+      received_at TEXT NOT NULL,
+      net_amount REAL,
+      currency TEXT DEFAULT 'XOF',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      nom TEXT,
+      matricule TEXT,
+      FOREIGN KEY(account_id) REFERENCES accounts(id)
+    );
+    INSERT INTO bulletins_v4 (id, device_id, account_id, year, month, filename, filepath, message_hash, received_at, net_amount, currency, created_at, nom, matricule)
+      SELECT id, device_id, account_id, year, month, filename, filepath, message_hash, received_at, net_amount, currency, created_at, nom, matricule FROM bulletins;
+    DROP TABLE bulletins;
+    ALTER TABLE bulletins_v4 RENAME TO bulletins;
+    COMMIT;
+  `);
+  console.log('[db] Migration v4 terminée');
+}
+
+// Index de déduplication par appareil (créé après la migration v4 qui recrée la table)
+db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_bulletins_device_hash ON bulletins(device_id, message_hash);`);
 
 // Version des migrations
 const MIGRATION_VERSION = 3;

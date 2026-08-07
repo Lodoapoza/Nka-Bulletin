@@ -84,65 +84,90 @@ async function fetchPayslipsSince({ provider, host, port, secure, email, passwor
       checkAborted();
       try {
         const results = [];
-        let lock = await client.getMailboxLock('INBOX');
+
+        // Boîtes à scanner : INBOX toujours, plus les archives (All Mail / Archive)
+        // pour ne jamais perdre les bulletins archivés hors INBOX.
+        const boxes = ['INBOX'];
         try {
+          const list = await client.list();
+          const archivePaths = list
+            .map(b => b.path)
+            .filter(p => /all mail|archive/i.test(p));
+          boxes.push(...archivePaths);
+        } catch (_) { /* liste indisponible : INBOX seule */ }
+
+        for (const box of boxes) {
           checkAborted();
-          const searchCriteria = { since: sinceDate };
-          if (beforeDate) searchCriteria.before = beforeDate;
-
-          // Passe 1 : récupérer envelope + uid pour filtrage léger côté client
-          const candidateUids = [];
-          for await (const msg of client.fetch(searchCriteria, { envelope: true, uid: true, internalDate: true })) {
-            checkAborted();
-            const subject = msg.envelope?.subject || '';
-            const subjectMatches = matchesPayslipKeywords(subject);
-            if (subjectMatches && msg.uid) {
-              candidateUids.push({ uid: msg.uid, subject, receivedAt: msg.internalDate || new Date(), messageId: msg.envelope?.messageId });
-            }
+          let lock;
+          try {
+            lock = await client.getMailboxLock(box);
+          } catch (e) {
+            console.warn(`[imap] boîte ${box} inaccessible, ignorée:`, e.message);
+            continue;
           }
-
-          // Passe 2 : fetch le source complet uniquement pour les candidats
-          for (const cand of candidateUids) {
+          try {
             checkAborted();
-            let fullMsg;
-            try {
-              fullMsg = await client.fetch(cand.uid, { source: true, uid: true });
-            } catch (_) { continue; }
-            // client.fetch avec UID unique retourne un async iter d'1 seul élément
-            try {
-              for await (const m of fullMsg) {
-                if (!m.source) continue;
-                const parsed = await simpleParser(m.source);
-                for (const att of parsed.attachments || []) {
-                  const isPdf = (att.contentType || '').includes('pdf') || /\.pdf$/i.test(att.filename || '');
-                  if (!isPdf) continue;
-                  const filenameMatches = matchesPayslipKeywords(att.filename || '');
-                  if (!filenameMatches) continue; // passe 1 a déjà filtré par sujet
-                  if (isDeniedFilename(att.filename)) continue;
+            const searchCriteria = { since: sinceDate };
+            if (beforeDate) searchCriteria.before = beforeDate;
 
-                  if (!att.content || att.content.length === 0) continue;
-                  const head = att.content.subarray(0, 1024).toString('latin1');
-                  if (!head.includes('%PDF')) continue;
-
-                  const messageHash = hashMessage(`${cand.messageId || cand.uid}-${att.filename}-${att.size}`);
-                  results.push({
-                    filename: att.filename || `bulletin-${cand.receivedAt.getFullYear()}-${cand.receivedAt.getMonth() + 1}.pdf`,
-                    buffer: att.content,
-                    receivedAt: cand.receivedAt,
-                    messageHash,
-                    subject: cand.subject,
-                  });
-                }
+            // Passe 1 : récupérer envelope + uid pour un filtrage léger côté client
+            const candidateUids = [];
+            for await (const msg of client.fetch(searchCriteria, { envelope: true, uid: true, internalDate: true })) {
+              checkAborted();
+              const subject = msg.envelope?.subject || '';
+              const subjectMatches = matchesPayslipKeywords(subject);
+              if (subjectMatches && msg.uid) {
+                candidateUids.push({ uid: msg.uid, subject, receivedAt: msg.internalDate || new Date(), messageId: msg.envelope?.messageId });
               }
-            } catch (err) {
-              // échec de stream sur un candidat : on passe au suivant, la sync continue
-              console.warn('[imap] stream candidat échoué:', err.code || err.message);
             }
+
+            // Passe 2 : fetch le source complet uniquement pour les candidats.
+            // NB ImapFlow : client.fetch([uid], ...) interprète le tableau comme des
+            // numéros de séquence → itérateur vide. Il faut passer { uid: [uid] }
+            // dans l'objet de recherche pour déclencher un vrai UID FETCH.
+            for (const cand of candidateUids) {
+              checkAborted();
+              let fullMsg;
+              try {
+                fullMsg = await client.fetch({ uid: [cand.uid] }, { source: true, uid: true });
+              } catch (_) { continue; }
+              // client.fetch avec UID unique retourne un async iter d'1 seul élément
+              try {
+                for await (const m of fullMsg) {
+                  if (!m.source) continue;
+                  const parsed = await simpleParser(m.source);
+                  for (const att of parsed.attachments || []) {
+                    const isPdf = (att.contentType || '').includes('pdf') || /\.pdf$/i.test(att.filename || '');
+                    if (!isPdf) continue;
+                    // Le sujet a déjà filtré en passe 1 : le nom de fichier n'est PAS un
+                    // critère bloquant (ex. "MARS_2025_F2558.Pdf" sans mot-clé). La validation
+                    // de contenu (analyzePdf → isPayslip) reste le filet de sécurité final.
+                    if (isDeniedFilename(att.filename)) continue;
+
+                    if (!att.content || att.content.length === 0) continue;
+                    const head = att.content.subarray(0, 1024).toString('latin1');
+                    if (!head.includes('%PDF')) continue;
+
+                    const messageHash = hashMessage(`${cand.messageId || cand.uid}-${att.filename}-${att.size}`);
+                    results.push({
+                      filename: att.filename || `bulletin-${cand.receivedAt.getFullYear()}-${cand.receivedAt.getMonth() + 1}.pdf`,
+                      buffer: att.content,
+                      receivedAt: cand.receivedAt,
+                      messageHash,
+                      subject: cand.subject,
+                    });
+                  }
+                }
+              } catch (err) {
+                // échec de stream sur un candidat : on passe au suivant, la sync continue
+                console.warn('[imap] stream candidat échoué:', err.code || err.message);
+              }
+            }
+          } finally {
+            lock.release();
           }
-          return results;
-        } finally {
-          lock.release();
         }
+        return results;
       } catch (err) {
         // abort → erreur dédiée ; sinon l'erreur primaire se propage telle quelle
         if (signal && signal.aborted) throw new Error('Timeout IMAP dépassé');
