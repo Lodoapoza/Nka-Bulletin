@@ -155,17 +155,21 @@ a { color: inherit; }
 
 /* Empêche les sauts de layout au chargement des données */
 #dash-latest { min-height: 72px; }
-#dash-amounts-card { min-height: 0; contain: layout style; border: 1px solid var(--md-primary-container); background: linear-gradient(160deg, var(--md-primary-container), var(--md-surface-container) 70%); }
+#dash-amounts-card { min-height: 0; contain: layout style; border: 1px solid var(--md-primary-container); background: linear-gradient(160deg, var(--md-primary-container), var(--md-surface-container) 70%); padding: 10px 16px; }
 #merge-bar { contain: layout style; }
 
+/* Compacité des cartes stats du tableau de bord (hauteur −30 %) */
+#dash-total { font-size: 1.7rem; }        /* nombre de bulletins de l'année (2rem → 1.7rem) */
+#amounts-eye { width: 34px; height: 34px; } /* icône œil de la carte salaire (40px → 34px) */
+
 /* Élément signature : pile de bulletins archivés (hero du tableau de bord) */
-.stack-hero { position: relative; height: 130px; margin: 6px 0 18px; }
+.stack-hero { position: relative; height: 91px; margin: 6px 0 18px; }
 .stack-card { position: absolute; inset: 0; border-radius: var(--radius-md); background: var(--md-surface); box-shadow: var(--shadow-soft); }
 .stack-card:nth-child(1) { transform: rotate(-6deg) translateY(8px); opacity: 0.55; }
 .stack-card:nth-child(2) { transform: rotate(-2deg) translateY(3px); opacity: 0.8; }
 .stack-card:nth-child(3) {
   transform: rotate(0deg);
-  display: flex; flex-direction: column; justify-content: center; padding: 18px 20px;
+  display: flex; flex-direction: column; justify-content: center; padding: 10px 16px;
   background: linear-gradient(135deg, var(--md-primary-container), var(--md-surface));
 }
 [data-theme="dark"] .stack-card:nth-child(3) { background: linear-gradient(135deg, var(--md-primary-container), var(--md-surface-container)); }
