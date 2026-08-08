@@ -179,16 +179,20 @@ a { color: inherit; }
 .stat-label { font-size: 0.8rem; color: var(--md-on-surface-variant); }
 
 /* ===== Carte Salaire net : dernier net + cumul sur une ligne ===== */
-.amounts-row { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
+.amounts-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 .amounts-col { flex: 1; min-width: 0; }
 .amounts-right { text-align: right; }
 .amounts-divider { width: 1px; align-self: stretch; background: var(--md-outline); opacity: 0.7; flex-shrink: 0; }
-.amounts-last, .amounts-cumul { font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-top: 2px; }
-.amounts-last { font-size: 1.2rem; font-weight: 800; }
-.amounts-cumul { font-size: 1.05rem; opacity: 0.85; }
+.amounts-last, .amounts-cumul { font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-top: 2px; white-space: nowrap; }
+.amounts-last { font-size: 1.1rem; font-weight: 800; }
+.amounts-cumul { font-size: 0.95rem; opacity: 0.85; }
 @media (max-width: 360px) {
-  .amounts-last { font-size: 1.05rem; }
-  .amounts-cumul { font-size: 0.92rem; }
+  .amounts-last { font-size: 0.95rem; }
+  .amounts-cumul { font-size: 0.85rem; }
+}
+@media (max-width: 320px) {
+  .amounts-last { font-size: 0.85rem; }
+  .amounts-cumul { font-size: 0.78rem; }
 }
 
 /* ===== Buttons ===== */
@@ -278,6 +282,7 @@ a { color: inherit; }
   text-align: left; white-space: nowrap;
   transition: box-shadow 0.15s, background-color 0.15s;
 }
+.dropdown-trigger--auto { flex: 0 1 auto; }
 .dropdown-trigger:hover { box-shadow: var(--shadow-elevated); }
 .dropdown-trigger:focus { outline: none; box-shadow: 0 0 0 3px var(--md-primary-container); }
 .dropdown-trigger:disabled { opacity: 0.5; cursor: not-allowed; }

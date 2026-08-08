@@ -12,6 +12,7 @@ const Analyse = (() => {
   let currentYear = new Date().getFullYear(); // par défaut : année en cours
   let userSelected = false;                    // false tant que l'utilisateur n'a pas choisi
   let lastData = null;
+  let yearDropdown = null;
 
   function amountsHidden() {
     return localStorage.getItem('nka_amounts_hidden') === '1';
@@ -35,23 +36,20 @@ const Analyse = (() => {
   }
 
   // ---------- Sélecteur d'année ----------
-  // L'année en cours est affichée en premier (décroissant), « Toutes » en dernier.
-  function renderChips(data) {
-    const el = document.getElementById('analyse-chips');
-    el.innerHTML = '';
+  // Même dropdown custom que la vue Bulletins (AppDropdown) : années décroissantes,
+  // « Toutes les années » en dernier. L'année en cours est présélectionnée.
+  function renderYearDropdown(data) {
     const yrs = (data.years || []).slice().sort((a, b) => b - a);
-    const mk = (label, value) => {
-      const b = document.createElement('button');
-      b.className = 'chip' + (currentYear === value ? ' active' : '');
-      b.textContent = label;
-      b.addEventListener('click', () => {
+    const opts = yrs.map(y => ({ value: String(y), label: String(y), selected: currentYear === y }));
+    opts.push({ value: '', label: 'Toutes les années', selected: currentYear === null });
+    if (!yearDropdown) {
+      yearDropdown = AppDropdown.create('analyse-year-trigger', opts, (v) => {
         userSelected = true;
-        if (currentYear !== value) { currentYear = value; refresh(); }
-      });
-      el.appendChild(b);
-    };
-    yrs.forEach((y) => mk(String(y), y));
-    mk('Toutes', null);
+        if (currentYear !== v) { currentYear = v; refresh(); }
+      }, (v) => v ? String(v) : 'Toutes les années');
+    } else {
+      yearDropdown.setOptions(opts);
+    }
   }
 
   // ---------- Cartes stats ----------
@@ -209,7 +207,7 @@ const Analyse = (() => {
     const emptyMsg = document.getElementById('analyse-empty-msg');
     const hasData = data.series && data.series.length > 0;
 
-    renderChips(data);
+    renderYearDropdown(data);
     if (hasData) {
       renderStats(data);
       renderChart(data.series);
@@ -227,7 +225,7 @@ const Analyse = (() => {
       let data = await Api.getAnalyseSalary(currentYear);
       if (data.hidden) {
         lastData = null;
-        document.getElementById('analyse-chips').innerHTML = '';
+        if (yearDropdown) yearDropdown.updateLabel(null);
         document.getElementById('analyse-stats').style.display = 'none';
         document.getElementById('analyse-chart-card').classList.add('hidden');
         document.getElementById('analyse-table-card').classList.add('hidden');
@@ -254,7 +252,7 @@ const Analyse = (() => {
   }
 
   function bindActions() {
-    document.getElementById('analyse-chips').addEventListener('click', () => {});
+    // Le sélecteur d'année est géré par AppDropdown (voir renderYearDropdown).
   }
 
   return { refresh, bindActions };

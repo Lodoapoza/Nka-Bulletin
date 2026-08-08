@@ -16,7 +16,7 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/plusjakartasans/v12/LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yygg_vb.woff2">
 <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/robotomono/v31/L0x5DF4xlVMF-BfR8bXMIjhLq3-cXbKD.woff2">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@500;600&display=optional">
-<link rel="stylesheet" href="css/app.css?v=v35">
+<link rel="stylesheet" href="css/app.css?v=v36">
 </head>
 <body>
 
@@ -139,7 +139,12 @@
 
   <!-- ===== Vue : Analyse ===== -->
   <section class="view hidden" id="view-analyse">
-    <div class="chip-row" id="analyse-chips"></div>
+    <div class="filter-row" style="justify-content:flex-start;">
+      <button type="button" id="analyse-year-trigger" class="dropdown-trigger dropdown-trigger--auto" aria-haspopup="listbox" aria-expanded="false">
+        <span class="dropdown-label">Toutes les années</span>
+        <svg class="dropdown-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
 
     <div class="stats-grid" id="analyse-stats">
       <div class="card stat-tile">
@@ -453,16 +458,17 @@
 
 <script src="js/capacitor.js?v=v27"></script>
 <script src="js/client.js?v=v35"></script>
+<script src="js/dropdown.js?v=v36"></script>
 <script src="js/pin.js?v=v25"></script>
 <script src="js/dashboard.js?v=v25"></script>
 <script src="js/accounts.js?v=v33"></script>
-<script src="js/bulletins.js?v=v35"></script>
+<script src="js/bulletins.js?v=v36"></script>
 <script src="js/confirm.js?v=v33"></script>
 <script src="js/settings.js?v=v33"></script>
 <script src="js/reset.js?v=v25"></script>
 <script src="js/version.js?v=v25"></script>
 <script src="js/admin.js?v=v28"></script>
-<script src="js/analyse.js?v=v32"></script>
+<script src="js/analyse.js?v=v36"></script>
 <script src="js/app.js?v=v32"></script>
 </body>
 </html>
