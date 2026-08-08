@@ -1,0 +1,15 @@
+{
+  "name": "nka-bulletin-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Frontend PWA Nka Bulletin — build de minification + hash de contenu",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "deps": "npm install"
+  },
+  "devDependencies": {
+    "clean-css": "^5.3.3",
+    "terser": "^5.49.2"
+  }
+}

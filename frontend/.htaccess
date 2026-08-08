@@ -1,0 +1,62 @@
+# =============================================================================
+# .htaccess — Nka Bulletin (o2switch, Apache/LiteSpeed)
+# Compression + cache long des assets hashés + sécurité passive.
+# =============================================================================
+
+# --- Sécurité passive ---------------------------------------------------------
+# Pas de listing de répertoire
+Options -Indexes
+
+# Bloque l'accès aux fichiers cachés (.htaccess, .env, .git, etc.)
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+# En-têtes de sécurité
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options "SAMEORIGIN"
+</IfModule>
+
+# --- Compression -------------------------------------------------------------
+
+# Compression gzip via mod_deflate (Apache / LiteSpeed)
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html
+  AddOutputFilterByType DEFLATE text/css
+  AddOutputFilterByType DEFLATE application/javascript
+  AddOutputFilterByType DEFLATE application/json
+  AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# Fallback mod_gzip (anciens serveurs)
+<IfModule mod_gzip.c>
+  mod_gzip_on Yes
+  mod_gzip_item include mime ^text/html$
+  mod_gzip_item include mime ^text/css$
+  mod_gzip_item include mime ^application/javascript$
+  mod_gzip_item include mime ^application/json$
+  mod_gzip_item include mime ^image/svg\+xml$
+</IfModule>
+
+# --- Cache -------------------------------------------------------------------
+
+<IfModule mod_expires.c>
+  ExpiresActive On
+
+  # Assets versionnés par hash de contenu (?v=) : cache long (1 an)
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType application/json "access plus 1 year"
+  ExpiresByType image/x-icon "access plus 1 year"
+
+  # index.html : jamais mis en cache — revalidation systématique
+  <FilesMatch "^(index\.html|sworker\.js|manifest\.json)$">
+    ExpiresDefault "access plus 0 seconds"
+    <IfModule mod_headers.c>
+      Header set Cache-Control "no-cache, must-revalidate"
+    </IfModule>
+  </FilesMatch>
+</IfModule>

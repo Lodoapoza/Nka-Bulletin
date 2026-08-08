@@ -6,4 +6,4 @@ backend/data/
 graphify-out/
 app/android/
 app/dist/
-.slim/deepwork/
+.slim/deepwork/frontend/dist/
