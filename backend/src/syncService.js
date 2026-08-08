@@ -8,6 +8,9 @@ const { sendNotification } = require('./routes/push');
 const STORAGE_DIR = process.env.STORAGE_DIR || './storage';
 const MONTH_NAMES_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 const SYNC_TIMEOUT_MS = Number(process.env.SYNC_TIMEOUT) || 600000;
+// Fenêtre du premier scan (last_sync_at NULL) : large et paramétrable, pour rattraper
+// les bulletins anciens (2023, début 2024) jamais importés. Défaut 3650 j = 10 ans.
+const INITIAL_SCAN_DAYS = Number(process.env.INITIAL_SCAN_DAYS) || 3650;
 
 function withTimeout(promise, ms, signal) {
   let reject;
@@ -107,11 +110,15 @@ async function runSyncForDevice(deviceId) {
   for (const account of accounts) {
     try {
       const password = decrypt(account.encrypted_credentials);
-      // Grace period 48h : ne jamais perdre un message en cas d'échec ponctuel
-      // sur un message proche de la fenêtre de scan (dédupliqué par hash ensuite).
+      // Fenêtre de scan :
+      // - Premier scan (last_sync_at NULL) : fenêtre large paramétrable via
+      //   INITIAL_SCAN_DAYS (défaut 3650 j = 10 ans) pour rattraper les bulletins
+      //   anciens (2023, début 2024) jamais importés.
+      // - Scans suivants : grace period 48h autour de last_sync_at pour ne jamais
+      //   perdre un message en cas d'échec ponctuel (dédupliqué par hash ensuite).
       const sinceDate = account.last_sync_at
         ? new Date(new Date(account.last_sync_at).getTime() - 48 * 60 * 60 * 1000)
-        : new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000);
+        : new Date(Date.now() - INITIAL_SCAN_DAYS * 24 * 60 * 60 * 1000);
 
       const controller = new AbortController();
       const found = await withTimeout(fetchPayslipsSince({

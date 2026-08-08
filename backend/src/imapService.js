@@ -44,6 +44,44 @@ function matchesPayslipKeywords(text) {
 }
 
 /**
+ * Détecte une pièce jointe PDF dans la bodyStructure IMAP (format ImapFlow).
+ * Parcourt récursivement `childNodes` (multipart) : un nœud est considéré comme
+ * PDF si son contentType inclut 'pdf', ou si sa disposition est 'attachment'
+ * (ou 'inline') avec un filename finissant par .pdf.
+ * Retourne false si bodyStructure est absent/null (certains serveurs ne l'envoient pas).
+ */
+function hasPdfAttachment(bodyStructure) {
+  if (!bodyStructure) return false;
+
+  const isPdfNode = (node) => {
+    if (!node) return false;
+    const disposition = String(node.disposition || '').toLowerCase();
+    const isAttachment = disposition === 'attachment' || disposition === 'inline';
+    const filename =
+      (node.dispositionParameters && (node.dispositionParameters.filename || node.dispositionParameters.name)) ||
+      (node.parameters && (node.parameters.filename || node.parameters.name)) ||
+      '';
+    const contentType = String(
+      node.contentType || (node.type && node.subtype ? `${node.type}/${node.subtype}` : '')
+    ).toLowerCase();
+    return contentType.includes('pdf') || (isAttachment && /\.pdf$/i.test(filename));
+  };
+
+  const walk = (node) => {
+    if (!node) return false;
+    if (isPdfNode(node)) return true;
+    if (Array.isArray(node.childNodes)) {
+      for (const child of node.childNodes) {
+        if (walk(child)) return true;
+      }
+    }
+    return false;
+  };
+
+  return walk(bodyStructure);
+}
+
+/**
  * Se connecte à la boîte mail et récupère les nouveaux bulletins depuis `sinceDate`.
  * Stratégie 2 passes :
  *   1) envelope + uid (léger) → filtrage par mots-clés sujet → liste de UIDs candidats
@@ -110,13 +148,17 @@ async function fetchPayslipsSince({ provider, host, port, secure, email, passwor
             const searchCriteria = { since: sinceDate };
             if (beforeDate) searchCriteria.before = beforeDate;
 
-            // Passe 1 : récupérer envelope + uid pour un filtrage léger côté client
+            // Passe 1 : récupérer envelope + uid + bodyStructure pour un filtrage léger côté client.
+            // Un mail est candidat si son sujet matche les mots-clés OU si une pièce jointe PDF
+            // est détectée dans la bodyStructure (ex. sujet "F2558 - mars 2023" avec PJ
+            // "MARS_2023_F2558.PDF" : aucun mot-clé dans le sujet, mais le PDF est présent).
             const candidateUids = [];
-            for await (const msg of client.fetch(searchCriteria, { envelope: true, uid: true, internalDate: true })) {
+            for await (const msg of client.fetch(searchCriteria, { envelope: true, uid: true, internalDate: true, bodyStructure: true })) {
               checkAborted();
               const subject = msg.envelope?.subject || '';
               const subjectMatches = matchesPayslipKeywords(subject);
-              if (subjectMatches && msg.uid) {
+              const pdfAttached = hasPdfAttachment(msg.bodyStructure);
+              if ((subjectMatches || pdfAttached) && msg.uid) {
                 candidateUids.push({ uid: msg.uid, subject, receivedAt: msg.internalDate || new Date(), messageId: msg.envelope?.messageId });
               }
             }
@@ -139,9 +181,10 @@ async function fetchPayslipsSince({ provider, host, port, secure, email, passwor
                   for (const att of parsed.attachments || []) {
                     const isPdf = (att.contentType || '').includes('pdf') || /\.pdf$/i.test(att.filename || '');
                     if (!isPdf) continue;
-                    // Le sujet a déjà filtré en passe 1 : le nom de fichier n'est PAS un
-                    // critère bloquant (ex. "MARS_2025_F2558.Pdf" sans mot-clé). La validation
-                    // de contenu (analyzePdf → isPayslip) reste le filet de sécurité final.
+                    // En passe 1, le sujet OU la présence d'un PDF en pièce jointe (bodyStructure)
+                    // ont déjà filtré : le nom de fichier n'est PAS un critère bloquant ici
+                    // (ex. "MARS_2025_F2558.Pdf" sans mot-clé). La validation de contenu
+                    // (analyzePdf → isPayslip) reste le filet de sécurité final.
                     if (isDeniedFilename(att.filename)) continue;
 
                     if (!att.content || att.content.length === 0) continue;
