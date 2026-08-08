@@ -178,6 +178,19 @@ a { color: inherit; }
 .stat-value { font-family: var(--font-display); font-size: 2rem; font-weight: 800; color: var(--md-on-primary-container); }
 .stat-label { font-size: 0.8rem; color: var(--md-on-surface-variant); }
 
+/* ===== Carte Salaire net : dernier net + cumul sur une ligne ===== */
+.amounts-row { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
+.amounts-col { flex: 1; min-width: 0; }
+.amounts-right { text-align: right; }
+.amounts-divider { width: 1px; align-self: stretch; background: var(--md-outline); opacity: 0.7; flex-shrink: 0; }
+.amounts-last, .amounts-cumul { font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.amounts-last { font-size: 1.2rem; font-weight: 800; }
+.amounts-cumul { font-size: 1.05rem; opacity: 0.85; }
+@media (max-width: 360px) {
+  .amounts-last { font-size: 1.05rem; }
+  .amounts-cumul { font-size: 0.92rem; }
+}
+
 /* ===== Buttons ===== */
 .btn {
   font-family: var(--font-body); font-weight: 600; font-size: 0.92rem;
@@ -218,17 +231,83 @@ a { color: inherit; }
 /* ===== Filtre Bulletins (selects) ===== */
 .filter-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
 .filter-select {
-  flex: 1; min-width: 140px;
-  padding: 13px 40px 13px 14px; /* same as .field select + room for arrow */
-  border-radius: var(--radius-sm);
-  border: 1.5px solid var(--md-outline); background: var(--md-surface);
-  color: var(--md-on-surface); font-family: var(--font-body); font-size: 0.95rem;
-  appearance: none; cursor: pointer;
+  flex: 1; min-width: 140px; max-width: 180px;
+  padding: 12px 40px 12px 16px;
+  border-radius: 100px;
+  border: none;
+  background: var(--md-surface-container);
+  color: var(--md-on-surface);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 500;
+  appearance: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23757575' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 12px center;
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-color: var(--md-surface-container);
+  transition: box-shadow 0.15s, background-color 0.15s;
 }
-.filter-select:focus { outline: none; border-color: var(--md-primary); }
-.filter-select:disabled { opacity: 0.5; cursor: not-allowed; }
+.filter-select:hover {
+  box-shadow: var(--shadow-elevated);
+}
+.filter-select:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--md-primary-container);
+}
+.filter-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== Dropdown Trigger (custom dropdowns) ===== */
+.dropdown-trigger {
+  flex: 1; min-width: 140px; max-width: 180px;
+  padding: 12px 40px 12px 16px;
+  border-radius: 100px;
+  border: none;
+  background: var(--md-surface-container);
+  color: var(--md-on-surface);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+  display: inline-flex; align-items: center; justify-content: space-between; gap: 8px;
+  text-align: left; white-space: nowrap;
+  transition: box-shadow 0.15s, background-color 0.15s;
+}
+.dropdown-trigger:hover { box-shadow: var(--shadow-elevated); }
+.dropdown-trigger:focus { outline: none; box-shadow: 0 0 0 3px var(--md-primary-container); }
+.dropdown-trigger:disabled { opacity: 0.5; cursor: not-allowed; }
+.dropdown-label { overflow: hidden; text-overflow: ellipsis; }
+.dropdown-chevron { flex-shrink: 0; color: var(--md-on-surface-variant); transition: transform 0.15s; }
+.dropdown-trigger[aria-expanded="true"] .dropdown-chevron { transform: rotate(180deg); }
+
+/* ===== Custom Dropdown Panel (scrollable, styled) ===== */
+.custom-dropdown-panel {
+  position: fixed; z-index: 1100;
+  background: var(--md-surface); color: var(--md-on-surface);
+  border-radius: 16px; padding: 4px;
+  min-width: 160px; max-width: 280px;
+  max-height: 280px; overflow-y: auto;
+  box-shadow: var(--shadow-elevated);
+  scrollbar-width: thin; scrollbar-color: var(--md-outline) transparent;
+}
+.custom-dropdown-panel::-webkit-scrollbar { width: 6px; }
+.custom-dropdown-panel::-webkit-scrollbar-track { background: transparent; }
+.custom-dropdown-panel::-webkit-scrollbar-thumb { background: var(--md-outline); border-radius: 3px; }
+.dropdown-item {
+  width: 100%; padding: 12px 16px; border-radius: 12px;
+  border: none; background: transparent; color: var(--md-on-surface);
+  font-family: var(--font-body); font-size: 0.9rem; font-weight: 500;
+  text-align: left; cursor: pointer; white-space: nowrap;
+  transition: background 0.1s;
+}
+.dropdown-item:hover:not(.disabled) { background: var(--md-surface-container-high); }
+.dropdown-item.selected { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+.dropdown-item.disabled { color: var(--md-on-surface-variant); opacity: 0.38; cursor: not-allowed; }
 
 /* ===== Chips / filters ===== */
 .chip-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; scrollbar-width: none; }

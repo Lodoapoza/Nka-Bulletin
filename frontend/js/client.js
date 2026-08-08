@@ -259,8 +259,8 @@ const Api = (() => {
         if (!rec) return undefined;
         return { data: rec.data, cachedAt: rec.cachedAt };
       },
-      setPdf(id, blob, filename) {
-        return write('pdf', { key: String(id), blob, filename, cachedAt: Date.now() });
+      setPdf(id, blob, filename, meta) {
+        return write('pdf', { key: String(id), blob, filename, meta: meta || null, cachedAt: Date.now() });
       },
       async getPdf(id) {
         const rec = await withStore('pdf', 'readonly', (store) => store.get(String(id)));
@@ -271,6 +271,11 @@ const Api = (() => {
         const keys = await withStore('pdf', 'readonly', (store) => store.getAllKeys());
         if (!keys) return [];
         return keys.map(String);
+      },
+      async listPdfRecords() {
+        const recs = await withStore('pdf', 'readonly', (store) => store.getAll());
+        if (!recs) return [];
+        return recs.map(r => ({ key: r.key, filename: r.filename, meta: r.meta || null, cachedAt: r.cachedAt }));
       },
     };
   })();
@@ -298,6 +303,7 @@ const Api = (() => {
     getAnalyseSalary: (year) => request(`/analyse/salary${year ? '?year=' + encodeURIComponent(year) : ''}`),
     downloadBulletin: (id) => `${API_BASE}/bulletins/${id}/download`,
     getCachedBulletinIds: () => OfflineCache.listPdfIds(),
+    listCachedBulletins: () => OfflineCache.listPdfRecords(),
     deleteBulletin: (id) => request(`/bulletins/${id}`, { method: 'DELETE' }),
     mergeBulletins: async (payload, retried = false) => {
       await ensureDevice();
@@ -364,7 +370,7 @@ const Api = (() => {
     saveSettings: (payload) => request('/settings', { method: 'PUT', body: JSON.stringify(payload) }),
     reprocessAmounts: () => request('/bulletins/reprocess-amounts', { method: 'POST' }),
 
-    fetchBulletinBlob: async (id, retried = false) => {
+    fetchBulletinBlob: async (id, meta = null, retried = false) => {
       await ensureDevice();
       if (!isOnline()) {
         const cachedPdf = await OfflineCache.getPdf(id);
@@ -401,7 +407,7 @@ const Api = (() => {
         }
         if (res.status === 401 && !retried) {
           token = null; localStorage.removeItem('nka_token');
-          return Api.fetchBulletinBlob(id, true);
+          return Api.fetchBulletinBlob(id, meta, true);
         }
         if (RETRYABLE_STATUS.has(res.status) && attempt < MAX_RETRIES) {
           notifyConnection('reconnecting');
@@ -433,7 +439,7 @@ const Api = (() => {
         const match = disposition.match(/filename[^;=\n]*=["']?([^"';\n]*)["']?/);
         const filename = match ? match[1].trim() : `bulletin-${id}.pdf`;
         const blob = await res.blob();
-        OfflineCache.setPdf(id, blob, filename).catch(() => {});
+        OfflineCache.setPdf(id, blob, filename, meta).catch(() => {});
         return { blob, filename, objectUrl: URL.createObjectURL(blob) };
       }
     },

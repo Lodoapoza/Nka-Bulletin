@@ -9,6 +9,8 @@ const Bulletins = (() => {
   let cache = [];
   let cachedSet = new Set();
   let availableYears = [];
+  let yearDropdown = null;
+  let monthDropdown = null;
 
   function markCached(btn) {
     btn.setAttribute('aria-label', 'En local');
@@ -17,35 +19,122 @@ const Bulletins = (() => {
     btn.innerHTML = ICON_CACHED;
   }
 
-  function renderYearSelect() {
-    const sel = document.getElementById('year-select');
-    const opts = [`<option value="">Toutes les années</option>`];
-    availableYears.forEach(y => {
-      opts.push(`<option value="${y}"${currentYear === y ? ' selected' : ''}>${y}</option>`);
-    });
-    sel.innerHTML = opts.join('');
-  }
+  // ===== Custom Dropdown (scrollable, styled, matches app design) =====
+  function createDropdown(triggerId, options, onSelect, getLabel) {
+    const trigger = document.getElementById(triggerId);
+    let panel = null;
+    let isOpen = false;
+    let opts = options;
+    let onDocClick = null;
+    let onKeyDown = null;
 
-  function renderMonthSelect() {
-    const sel = document.getElementById('month-select');
-    let opts = [`<option value="">Tous les mois</option>`];
-    
-    if (currentYear) {
-      // Année sélectionnée : n'afficher que les mois qui ont des bulletins pour cette année
-      const present = new Set(cache.filter(b => b.year === currentYear).map(b => b.month));
-      MONTHS_FR.forEach((m, i) => {
-        const monthNum = i + 1;
-        if (present.has(monthNum)) {
-          opts.push(`<option value="${monthNum}"${currentMonth === monthNum ? ' selected' : ''}>${m}</option>`);
+    function close() {
+      if (panel) { panel.remove(); panel = null; }
+      isOpen = false;
+      trigger.setAttribute('aria-expanded', 'false');
+      if (onDocClick) document.removeEventListener('click', onDocClick);
+      if (onKeyDown) document.removeEventListener('keydown', onKeyDown);
+      onDocClick = null;
+      onKeyDown = null;
+    }
+
+    function renderPanel() {
+      panel.innerHTML = opts.map(opt => `
+        <button class="dropdown-item${opt.selected ? ' selected' : ''}${opt.disabled ? ' disabled' : ''}"
+                data-value="${opt.value}" ${opt.disabled ? 'disabled' : ''}>
+          ${opt.label}
+        </button>
+      `).join('');
+    }
+
+    function open() {
+      if (isOpen) return;
+      isOpen = true;
+      trigger.setAttribute('aria-expanded', 'true');
+
+      panel = document.createElement('div');
+      panel.className = 'custom-dropdown-panel';
+      renderPanel();
+
+      // Position under trigger
+      const rect = trigger.getBoundingClientRect();
+      panel.style.top = `${rect.bottom + 4}px`;
+      panel.style.left = `${rect.left}px`;
+      panel.style.minWidth = `${rect.width}px`;
+
+      document.body.appendChild(panel);
+
+      // Click items
+      panel.addEventListener('click', (e) => {
+        const item = e.target.closest('.dropdown-item:not(.disabled)');
+        if (item) {
+          const val = item.dataset.value === '' ? null : Number(item.dataset.value);
+          onSelect(val);
+          updateLabel(val);
+          close();
         }
       });
-    } else {
-      // Pas d'année sélectionnée : afficher les 12 mois
-      MONTHS_FR.forEach((m, i) => {
-        opts.push(`<option value="${i + 1}"${currentMonth === i + 1 ? ' selected' : ''}>${m}</option>`);
-      });
+
+      // Close on outside click / Escape
+      onDocClick = (e) => { if (!trigger.contains(e.target) && !panel.contains(e.target)) close(); };
+      onKeyDown = (e) => { if (e.key === 'Escape') close(); };
+      document.addEventListener('click', onDocClick);
+      document.addEventListener('keydown', onKeyDown);
     }
-    sel.innerHTML = opts.join('');
+
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      isOpen ? close() : open();
+    });
+
+    // Update trigger label after selection
+    function updateLabel(value) {
+      const labelEl = trigger.querySelector('.dropdown-label');
+      if (labelEl) labelEl.textContent = getLabel(value);
+    }
+
+    // Replace options (keeps listeners, rebuilds panel if open)
+    function setOptions(newOpts) {
+      opts = newOpts;
+      if (isOpen && panel) renderPanel();
+    }
+
+    return { open, close, updateLabel, setOptions };
+  }
+
+  function renderYearDropdown() {
+    const opts = [{ value: '', label: 'Toutes les années', selected: currentYear === null }];
+    availableYears.forEach(y => opts.push({ value: String(y), label: String(y), selected: currentYear === y }));
+    if (!yearDropdown) {
+      yearDropdown = createDropdown('year-trigger', opts, (v) => {
+        currentYear = v;
+        renderMonthDropdown();
+        refresh();
+      }, (v) => v ? String(v) : 'Toutes les années');
+    } else {
+      yearDropdown.setOptions(opts);
+    }
+  }
+
+  function renderMonthDropdown() {
+    let opts = [{ value: '', label: 'Tous les mois', selected: currentMonth === null }];
+    if (currentYear) {
+      const present = new Set(cache.filter(b => b.year === currentYear).map(b => b.month));
+      MONTHS_FR.forEach((m, i) => {
+        const num = i + 1;
+        if (present.has(num)) opts.push({ value: String(num), label: m, selected: currentMonth === num });
+      });
+    } else {
+      MONTHS_FR.forEach((m, i) => opts.push({ value: String(i + 1), label: m, selected: currentMonth === i + 1 }));
+    }
+    if (!monthDropdown) {
+      monthDropdown = createDropdown('month-trigger', opts, (v) => {
+        currentMonth = v;
+        refresh();
+      }, (v) => v ? MONTHS_FR[v - 1] : 'Tous les mois');
+    } else {
+      monthDropdown.setOptions(opts);
+    }
   }
 
   function renderList() {
@@ -63,6 +152,10 @@ const Bulletins = (() => {
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.dataset.id = b.id;
+      if (b.cachedOnly) {
+        checkbox.disabled = true;
+        checkbox.title = 'Bulletin local — fusion indisponible';
+      }
       if (selected.has(b.id)) checkbox.checked = true;
       row.appendChild(checkbox);
 
@@ -76,13 +169,19 @@ const Bulletins = (() => {
 
       const titleDiv = document.createElement('div');
       titleDiv.className = 'title';
-      titleDiv.textContent = `${MONTHS_FR[b.month - 1]} ${b.year}`;
+      titleDiv.textContent = b.noMeta
+        ? (b.filename || `Bulletin #${b.id}`)
+        : `${MONTHS_FR[b.month - 1]} ${b.year}`;
       metaDiv.appendChild(titleDiv);
 
       const subDiv = document.createElement('div');
       subDiv.className = 'sub';
-      const identity = b.nom ? b.nom + (b.matricule ? ' · ' + b.matricule : '') : (b.matricule || '');
-      subDiv.textContent = (identity ? identity + ' · ' : '') + b.account_email + (b.net_amount ? ' · ' + new Intl.NumberFormat('fr-FR').format(b.net_amount) + ' XOF' : '');
+      if (b.noMeta) {
+        subDiv.textContent = 'En local uniquement';
+      } else {
+        const identity = b.nom ? b.nom + (b.matricule ? ' · ' + b.matricule : '') : (b.matricule || '');
+        subDiv.textContent = (identity ? identity + ' · ' : '') + b.account_email + (b.net_amount ? ' · ' + new Intl.NumberFormat('fr-FR').format(b.net_amount) + ' XOF' : '');
+      }
       metaDiv.appendChild(subDiv);
 
       row.appendChild(metaDiv);
@@ -93,6 +192,12 @@ const Bulletins = (() => {
       const dlBtn = document.createElement('button');
       dlBtn.className = 'icon-btn';
       dlBtn.dataset.download = b.id;
+      if (!b.noMeta) {
+        dlBtn.dataset.meta = JSON.stringify({
+          id: b.id, year: b.year, month: b.month, net_amount: b.net_amount,
+          account_email: b.account_email, nom: b.nom, matricule: b.matricule,
+        });
+      }
       if (cachedSet.has(String(b.id))) {
         markCached(dlBtn);
       } else {
@@ -116,7 +221,9 @@ const Bulletins = (() => {
     listEl.querySelectorAll('[data-download]').forEach(btn => {
       btn.addEventListener('click', async () => {
         try {
-          const { blob, filename, objectUrl } = await Api.fetchBulletinBlob(btn.dataset.download);
+          let meta = null;
+          try { meta = JSON.parse(btn.dataset.meta || 'null'); } catch (_) {}
+          const { blob, filename, objectUrl } = await Api.fetchBulletinBlob(btn.dataset.download, meta);
           const cachedId = String(btn.dataset.download);
           if (!cachedSet.has(cachedId)) {
             cachedSet.add(cachedId);
@@ -164,6 +271,16 @@ const Bulletins = (() => {
     }
   }
 
+  function matchesFilters(b, params) {
+    if (params.year && b.year !== Number(params.year)) return false;
+    if (params.month && b.month !== Number(params.month)) return false;
+    if (params.q) {
+      const hay = [b.nom, b.matricule, b.account_email].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(params.q.toLowerCase())) return false;
+    }
+    return true;
+  }
+
   async function refresh() {
     const q = document.getElementById('search-input').value.trim();
     const params = {};
@@ -175,14 +292,41 @@ const Bulletins = (() => {
     listEl.innerHTML = '<div class="loading-state"><div class="spinner"></div><div>Chargement des bulletins...</div></div>';
 
     try {
-      cache = await Api.getBulletins(params);
-      // Construire la liste des années disponibles depuis TOUS les bulletins
-      const all = await Api.getBulletins({ q: params.q });
-      availableYears = [...new Set(all.map(b => b.year))].sort((a, b) => b - a);
+      const serverList = await Api.getBulletins(params);
+
+      // Fusion avec le cache local : un bulletin téléchargé (PDF en cache)
+      // doit rester visible même si le serveur ne le retourne pas encore
+      // (synchro incomplète, suppression serveur, etc.).
+      const cachedRecs = await Api.listCachedBulletins();
+      const serverIds = new Set(serverList.map(b => String(b.id)));
+      const cachedAll = cachedRecs.filter(r => r.meta && r.meta.id != null).map(r => r.meta);
+      const cachedBullets = cachedAll
+        .filter(b => !serverIds.has(String(b.id)))
+        .map(b => ({ ...b, cachedOnly: true }))
+        .filter(b => matchesFilters(b, params));
+      // Anciens caches sans métadonnées : affichés seulement sans filtre année/mois
+      const noMetaRecs = !params.year && !params.month
+        ? cachedRecs.filter(r => !r.meta && !serverIds.has(String(r.key)))
+            .map(r => ({ id: Number(r.key), filename: r.filename, cachedOnly: true, noMeta: true }))
+        : [];
+
+      cache = [...serverList, ...cachedBullets, ...noMetaRecs]
+        .sort((a, b) => (b.year - a.year) || (b.month - a.month));
+
+      // Années disponibles : serveur (sans filtre) + cache local
+      let all = [];
+      try {
+        all = await Api.getBulletins({ q: params.q });
+      } catch (_) {
+        all = serverList;
+      }
+      const source = [...(all.length ? all : serverList), ...cachedAll];
+      availableYears = [...new Set(source.map(b => b.year))].sort((a, b) => b - a);
+
       const ids = await Api.getCachedBulletinIds();
       cachedSet = new Set((ids || []).map(String));
-      renderYearSelect();
-      renderMonthSelect();
+      renderYearDropdown();
+      renderMonthDropdown();
       renderList();
     } catch (e) {
       cache = [];
@@ -192,18 +336,7 @@ const Bulletins = (() => {
   }
 
   function bindActions() {
-    const yearSel = document.getElementById('year-select');
-    const monthSel = document.getElementById('month-select');
-    yearSel.addEventListener('change', () => {
-      currentYear = yearSel.value ? Number(yearSel.value) : null;
-      renderMonthSelect();
-      refresh();
-    });
-    monthSel.addEventListener('change', () => {
-      currentMonth = monthSel.value ? Number(monthSel.value) : null;
-      refresh();
-    });
-
+    // Dropdowns are initialized in renderYearDropdown/renderMonthDropdown
     let searchTimer;
     document.getElementById('search-input').addEventListener('input', () => {
       clearTimeout(searchTimer);
