@@ -1,10 +1,25 @@
 # =============================================================================
-# .htaccess — Nka Bulletin (o2switch, Apache/LiteSpeed)
-# Compression + cache long des assets hashés + sécurité passive.
+# .htaccess — Nka Bulletin (o2switch, Apache + Phusion Passenger 6)
+# Bloc Passenger CloudLinux (format identique à celui de Setup Node.js App)
+# + compression + cache long + sécurité passive.
+#
+# ⚠️ CE BLOC PASSENGER EST OBLIGATOIRE ET FRAGILE :
+#   - PassengerAppType node ET PassengerStartupFile server.js sont REQUIS.
+#   - S'ils manquent, mod_passenger ignore l'app → /api/* renvoie 404 Apache.
+#   - Ne PAS écraser ce fichier sans reporter le bloc complet ci-dessous.
 # =============================================================================
 
+# --- Passenger : backend Node.js sur /api ------------------------------------
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN
+PassengerEnabled on
+PassengerAppRoot "/home2/sc3sidaou/nka-bulletin.glocal-innov.com/nka-bulletin/backend"
+PassengerBaseURI "/api"
+PassengerNodejs "/opt/alt/alt-nodejs20/root/usr/bin/node"
+PassengerAppType node
+PassengerStartupFile server.js
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
+
 # --- Sécurité passive ---------------------------------------------------------
-# Pas de listing de répertoire
 Options -Indexes
 
 # Bloque l'accès aux fichiers cachés (.htaccess, .env, .git, etc.)
