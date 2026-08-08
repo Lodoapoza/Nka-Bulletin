@@ -1,38 +1,27 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const db = require('../db');
 
 const router = express.Router();
 
-// Reset complet de l'appareil : supprime toutes les données liées au device_id.
+// Reset non destructif de l'appareil : détache les bulletins (account_id -> NULL,
+// ils restent partagés avec les autres appareils du user via user_matricule) et
+// supprime les données propres à l'appareil (accounts, logs, requests, push, device).
 // Idempotent : si le device n'existe pas, répond quand même { ok: true }.
 router.delete('/', (req, res) => {
   const deviceId = req.deviceId;
 
   const tx = db.transaction(() => {
-    // Récupère les chemins des PDF avant suppression des lignes.
-    const files = db.prepare(
-      `SELECT filepath FROM bulletins WHERE account_id IN (
-         SELECT id FROM accounts WHERE device_id = ?
-       )`
-    ).all(deviceId);
-
-    // Supprime les fichiers PDF (best-effort, ne bloque pas la réponse).
-    for (const row of files) {
-      if (row.filepath) {
-        try { fs.unlinkSync(path.resolve(row.filepath)); } catch (_) {}
-      }
-    }
-
+    // Détache les bulletins du compte de l'appareil sans les supprimer
+    // (ni leurs fichiers PDF) : ils restent accessibles aux autres devices du user.
     db.prepare(
-      `DELETE FROM bulletins WHERE account_id IN (
+      `UPDATE bulletins SET account_id = NULL WHERE account_id IN (
          SELECT id FROM accounts WHERE device_id = ?
        )`
     ).run(deviceId);
     db.prepare('DELETE FROM accounts WHERE device_id = ?').run(deviceId);
     db.prepare('DELETE FROM sync_logs WHERE device_id = ?').run(deviceId);
     db.prepare('DELETE FROM sync_requests WHERE device_id = ?').run(deviceId);
+    db.prepare('DELETE FROM push_subscriptions WHERE device_id = ?').run(deviceId);
     db.prepare('DELETE FROM devices WHERE id = ?').run(deviceId);
   });
 

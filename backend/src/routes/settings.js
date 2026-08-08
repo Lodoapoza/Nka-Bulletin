@@ -6,9 +6,15 @@ const router = express.Router();
 
 router.get('/', (req, res) => {
   const row = db.prepare(
-    'SELECT id, sync_hour, sync_frequency, extract_amounts, owner_matricule, push_subscription FROM devices WHERE id = ?'
+    'SELECT id, sync_hour, sync_frequency, extract_amounts, owner_matricule, user_matricule, push_subscription FROM devices WHERE id = ?'
   ).get(req.deviceId);
-  if (row) row.push_enabled = !!row.push_subscription;
+  if (row) {
+    row.push_enabled = !!row.push_subscription;
+    const user = row.user_matricule
+      ? db.prepare('SELECT link_code_hash FROM users WHERE matricule = ?').get(row.user_matricule)
+      : null;
+    row.link_code_set = !!(user && user.link_code_hash);
+  }
   res.json(row);
 });
 

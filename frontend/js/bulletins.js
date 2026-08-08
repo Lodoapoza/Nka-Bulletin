@@ -98,7 +98,7 @@ const Bulletins = (() => {
         subDiv.textContent = 'En local uniquement';
       } else {
         const identity = b.nom ? b.nom + (b.matricule ? ' · ' + b.matricule : '') : (b.matricule || '');
-        subDiv.textContent = (identity ? identity + ' · ' : '') + b.account_email + (b.net_amount ? ' · ' + new Intl.NumberFormat('fr-FR').format(b.net_amount) + ' XOF' : '');
+        subDiv.textContent = (identity ? identity + ' · ' : '') + (b.account_email || '') + (b.net_amount ? ' · ' + new Intl.NumberFormat('fr-FR').format(b.net_amount) + ' XOF' : '');
       }
       metaDiv.appendChild(subDiv);
 

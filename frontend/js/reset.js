@@ -11,7 +11,7 @@ const ResetDevice = (() => {
       <div class="reset-modal" role="alertdialog" aria-modal="true" aria-labelledby="reset-title">
         <div class="reset-icon">⚠️</div>
         <h3 id="reset-title">Réinitialiser cet appareil ?</h3>
-        <p>Toutes les données locales de cet appareil seront perdues (bulletins, comptes, cache). Cette action est irréversible.</p>
+        <p>Les données locales de cet appareil seront effacées (PIN, comptes, cache). Les bulletins restent disponibles sur vos autres appareils. Cette action est irréversible.</p>
         <div class="reset-actions">
           <button class="btn btn-outline" id="reset-cancel-btn">Annuler</button>
           <button class="btn btn-danger" id="reset-confirm-btn">Réinitialiser</button>

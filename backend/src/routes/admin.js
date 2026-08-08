@@ -37,8 +37,8 @@ function hasActiveLicence(matricule) {
 
 // Gate d'accès par licence : bloque un appareil qui déclare un matricule sans licence active.
 function licenceGate(req, res, next) {
-  const device = db.prepare('SELECT owner_matricule FROM devices WHERE id = ?').get(req.deviceId);
-  const mat = device && device.owner_matricule;
+  const device = db.prepare('SELECT user_matricule, owner_matricule FROM devices WHERE id = ?').get(req.deviceId);
+  const mat = (device && device.user_matricule) || (device && device.owner_matricule);
   if (mat && !hasActiveLicence(mat)) {
     return res.status(403).json({
       error: 'Votre abonnement est expiré ou révoqué. Contactez votre administrateur.',

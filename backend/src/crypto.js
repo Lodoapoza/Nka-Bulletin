@@ -36,4 +36,21 @@ function hashMessage(str) {
   return crypto.createHash('sha256').update(str).digest('hex');
 }
 
-module.exports = { encrypt, decrypt, hashMessage };
+// Code de liaison multi-appareils : scrypt avec sel aléatoire de 16 octets, clé de 64 octets.
+// Le code n'est JAMAIS stocké en clair — seulement { salt, hash } en base64.
+function hashLinkCode(code) {
+  const salt = crypto.randomBytes(16);
+  const hash = crypto.scryptSync(String(code), salt, 64);
+  return { salt: salt.toString('base64'), hash: hash.toString('base64') };
+}
+
+function verifyLinkCode(code, salt, hash) {
+  if (!salt || !hash) return false; // user grandfathered sans code défini
+  const saltBuf = Buffer.from(String(salt), 'base64');
+  const hashBuf = Buffer.from(String(hash), 'base64');
+  if (hashBuf.length === 0) return false;
+  const candidate = crypto.scryptSync(String(code), saltBuf, hashBuf.length);
+  return crypto.timingSafeEqual(candidate, hashBuf);
+}
+
+module.exports = { encrypt, decrypt, hashMessage, hashLinkCode, verifyLinkCode };

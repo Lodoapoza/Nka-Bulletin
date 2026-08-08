@@ -9,10 +9,12 @@ const router = express.Router();
 // GET /api/bulletins?year=2026&month=7&q=texte
 router.get('/', (req, res) => {
   const { year, month, q } = req.query;
+  const mat = req.userMatricule;
+  const where = mat ? 'b.user_matricule = ?' : 'b.device_id = ?';
   let sql = `SELECT b.*, a.email as account_email, a.provider FROM bulletins b
              LEFT JOIN accounts a ON a.id = b.account_id
-             WHERE b.device_id = ?`;
-  const params = [req.deviceId];
+             WHERE ${where}`;
+  const params = [mat || req.deviceId];
 
   if (year) { sql += ' AND b.year = ?'; params.push(Number(year)); }
   if (month) { sql += ' AND b.month = ?'; params.push(Number(month)); }
@@ -26,20 +28,22 @@ router.get('/', (req, res) => {
 // Statistiques du tableau de bord
 router.get('/stats', (req, res) => {
   const currentYear = new Date().getFullYear();
+  const mat = req.userMatricule;
+  const where = mat ? 'user_matricule = ?' : 'device_id = ?';
   const totalThisYear = db.prepare(
-    'SELECT COUNT(*) as n FROM bulletins WHERE device_id = ? AND year = ?'
-  ).get(req.deviceId, currentYear).n;
+    `SELECT COUNT(*) as n FROM bulletins WHERE ${where} AND year = ?`
+  ).get(mat || req.deviceId, currentYear).n;
 
   const latest = db.prepare(
-    'SELECT * FROM bulletins WHERE device_id = ? ORDER BY year DESC, month DESC, received_at DESC LIMIT 1'
-  ).get(req.deviceId);
+    `SELECT * FROM bulletins WHERE ${where} ORDER BY year DESC, month DESC, received_at DESC LIMIT 1`
+  ).get(mat || req.deviceId);
 
   const device = db.prepare('SELECT extract_amounts FROM devices WHERE id = ?').get(req.deviceId);
   let cumulativeNet = null;
   if (device && device.extract_amounts) {
     const row = db.prepare(
-      'SELECT SUM(net_amount) as total FROM bulletins WHERE device_id = ? AND year = ? AND net_amount IS NOT NULL'
-    ).get(req.deviceId, currentYear);
+      `SELECT SUM(net_amount) as total FROM bulletins WHERE ${where} AND year = ? AND net_amount IS NOT NULL`
+    ).get(mat || req.deviceId, currentYear);
     cumulativeNet = row.total;
   }
 
@@ -54,7 +58,9 @@ router.get('/stats', (req, res) => {
 
 // Téléchargement d'un bulletin individuel
 router.get('/:id/download', (req, res) => {
-  const row = db.prepare('SELECT * FROM bulletins WHERE id = ? AND device_id = ?').get(req.params.id, req.deviceId);
+  const mat = req.userMatricule;
+  const where = mat ? 'user_matricule = ?' : 'device_id = ?';
+  const row = db.prepare(`SELECT * FROM bulletins WHERE id = ? AND ${where}`).get(req.params.id, mat || req.deviceId);
   if (!row) return res.status(404).json({ error: 'Bulletin introuvable' });
   if (!fs.existsSync(row.filepath)) return res.status(410).json({ error: 'Fichier manquant sur le disque' });
   const mm = String(row.month).padStart(2, '0');
@@ -63,7 +69,9 @@ router.get('/:id/download', (req, res) => {
 });
 
 router.delete('/:id', (req, res) => {
-  const row = db.prepare('SELECT * FROM bulletins WHERE id = ? AND device_id = ?').get(req.params.id, req.deviceId);
+  const mat = req.userMatricule;
+  const where = mat ? 'user_matricule = ?' : 'device_id = ?';
+  const row = db.prepare(`SELECT * FROM bulletins WHERE id = ? AND ${where}`).get(req.params.id, mat || req.deviceId);
   if (!row) return res.status(404).json({ error: 'Bulletin introuvable' });
   db.prepare('DELETE FROM bulletins WHERE id = ?').run(row.id);
   try { fs.unlinkSync(row.filepath); } catch (_) {}
@@ -77,17 +85,19 @@ router.delete('/:id', (req, res) => {
  */
 router.post('/export/merge', async (req, res) => {
   const { ids, year, lastNMonths } = req.body;
+  const mat = req.userMatricule;
+  const where = mat ? 'user_matricule = ?' : 'device_id = ?';
   let rows;
 
   if (Array.isArray(ids) && ids.length) {
     const placeholders = ids.map(() => '?').join(',');
     rows = db.prepare(
-      `SELECT * FROM bulletins WHERE device_id = ? AND id IN (${placeholders}) ORDER BY year, month`
-    ).all(req.deviceId, ...ids);
+      `SELECT * FROM bulletins WHERE ${where} AND id IN (${placeholders}) ORDER BY year, month`
+    ).all(mat || req.deviceId, ...ids);
   } else if (year) {
     rows = db.prepare(
-      'SELECT * FROM bulletins WHERE device_id = ? AND year = ? ORDER BY month'
-    ).all(req.deviceId, Number(year));
+      `SELECT * FROM bulletins WHERE ${where} AND year = ? ORDER BY month`
+    ).all(mat || req.deviceId, Number(year));
   } else if (lastNMonths) {
     const n = Number(lastNMonths);
     const now = new Date();
@@ -95,8 +105,8 @@ router.post('/export/merge', async (req, res) => {
     // Attention : ne PAS ajouter +1 ici — le seuil doit être le premier mois inclus.
     const threshold = now.getFullYear() * 12 + now.getMonth() + 1 - n;
     rows = db.prepare(
-      'SELECT * FROM bulletins WHERE device_id = ? AND (year * 12 + month) >= ? ORDER BY year, month'
-    ).all(req.deviceId, threshold);
+      `SELECT * FROM bulletins WHERE ${where} AND (year * 12 + month) >= ? ORDER BY year, month`
+    ).all(mat || req.deviceId, threshold);
   } else {
     return res.status(400).json({ error: 'Fournir ids, year ou lastNMonths' });
   }
@@ -131,9 +141,11 @@ router.post('/export/merge', async (req, res) => {
 
 // Reprocess les bulletins existants : extrait net + nom + matricule (avec OCR si scanné)
 router.post('/reprocess-amounts', async (req, res) => {
+  const mat = req.userMatricule;
+  const where = mat ? 'user_matricule = ?' : 'device_id = ?';
   const rows = db.prepare(
-    'SELECT id, filepath FROM bulletins WHERE device_id = ?'
-  ).all(req.deviceId);
+    `SELECT id, filepath FROM bulletins WHERE ${where}`
+  ).all(mat || req.deviceId);
 
   let processed = 0;
   let errors = 0;

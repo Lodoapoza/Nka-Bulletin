@@ -286,6 +286,8 @@ const Api = (() => {
 
   return {
     ensureDevice,
+    linkDevice: (matricule, code) => request('/auth/link-device', { method: 'POST', body: JSON.stringify({ matricule, code }) }),
+    setLinkCode: (code) => request('/auth/set-link-code', { method: 'POST', body: JSON.stringify({ code }) }),
     getAccounts: () => request('/accounts'),
     addAccount: (payload) => request('/accounts', { method: 'POST', body: JSON.stringify(payload) }),
     deleteAccount: (id) => request(`/accounts/${id}`, { method: 'DELETE' }),

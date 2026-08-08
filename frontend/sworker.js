@@ -1,10 +1,10 @@
-const CACHE_NAME = 'nka-bulletin-v16';
+const CACHE_NAME = 'nka-bulletin-v17';
 const APP_SHELL = [
-  '/index.html?v=v25',
+  '/index.html?v=v26',
   '/manifest.json?v=v25',
   '/css/app.css?v=v36',
   '/js/analyse.js?v=v36',
-  '/js/app.js?v=v32',
+  '/js/app.js?v=v33',
   '/js/client.js?v=v35',
   '/js/dropdown.js?v=v36',
   '/js/pin.js?v=v25',
@@ -12,10 +12,10 @@ const APP_SHELL = [
   '/js/admin.js?v=v28',
   '/js/dashboard.js?v=v25',
   '/js/accounts.js?v=v33',
-  '/js/bulletins.js?v=v36',
+  '/js/bulletins.js?v=v37',
   '/js/confirm.js?v=v33',
-  '/js/settings.js?v=v33',
-  '/js/reset.js?v=v25',
+  '/js/settings.js?v=v34',
+  '/js/reset.js?v=v26',
   '/js/theme.js?v=v25',
   '/js/version.js?v=v25',
   '/icons/logo.png',
