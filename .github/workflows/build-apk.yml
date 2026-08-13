@@ -57,6 +57,7 @@ jobs:
         if: github.event.inputs.build_type == 'release'
         run: |
           echo "debug_len: store=${#ANDROID_KEYSTORE_PASSWORD} alias=${#ANDROID_KEY_ALIAS} key=${#ANDROID_KEY_PASSWORD} test=${#TEST_INJECTION}"
+          if [ -z "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" ]; then echo "EXPRESSION: VIDE"; else echo "EXPRESSION: OK"; fi
           python3 ../.github/scripts/configure-signing.py
 
       - name: Build APK
