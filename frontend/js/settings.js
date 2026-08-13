@@ -264,17 +264,29 @@ const Settings = (() => {
           confirmText: 'Re-scanner',
         })) return;
         const originalHtml = btn.innerHTML;
+        // Pas d'élément de statut dans la carte re-scan : on en crée un à la volée
+        // sous le bouton, pour garder le bouton compact (spinner seul) et afficher
+        // la progression à côté — même principe que le bouton « Mettre à jour ».
+        let statusEl = document.getElementById('rescan-status');
+        if (!statusEl) {
+          statusEl = document.createElement('div');
+          statusEl.className = 'hint';
+          statusEl.id = 'rescan-status';
+          statusEl.style.marginTop = '10px';
+          btn.parentNode.appendChild(statusEl);
+        }
         btn.disabled = true;
         btn.classList.add('is-busy');
-        btn.innerHTML = '<span class="btn-spinner"></span>Re-scan en cours...';
+        btn.innerHTML = '<span class="btn-spinner"></span>';
+        statusEl.textContent = 'Re-scan en cours...';
         try {
           // resetSync annule last_sync_at (rapide), puis runSync force un scan complet.
           await Api.resetSync();
           await Api.runSync({ full_scan: 1 });
           const status = await Api.pollSyncStatus((s) => {
-            if (s.new_bulletins > 0) {
-              btn.innerHTML = `<span class="btn-spinner"></span>Re-scan en cours... (${s.new_bulletins} nouveaux)`;
-            }
+            statusEl.textContent = s.new_bulletins > 0
+              ? `Re-scan en cours... (${s.new_bulletins} nouveaux)`
+              : 'Re-scan en cours...';
           });
           if (status.status === 'done') {
             Toast.show(status.new_bulletins > 0
@@ -292,6 +304,7 @@ const Settings = (() => {
           btn.disabled = false;
           btn.classList.remove('is-busy');
           btn.innerHTML = originalHtml;
+          statusEl.remove();
         }
       });
     } catch (e) { console.warn('rescan-btn:', e); }

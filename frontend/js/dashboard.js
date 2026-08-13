@@ -119,15 +119,22 @@ const Dashboard = (() => {
     }
     document.getElementById('dash-sync-now').addEventListener('click', async (e) => {
       const btn = e.currentTarget;
+      const statusEl = document.getElementById('dash-sync-status');
       const originalHtml = btn.innerHTML;
+      const originalStatus = statusEl ? statusEl.textContent : '';
+      let refreshed = false;
       btn.disabled = true;
       btn.classList.add('is-busy');
-      btn.innerHTML = '<span class="btn-spinner"></span>Mise à jour en cours...';
+      // Bouton compact : spinner seul ; la progression s'affiche dans le statut de la carte.
+      btn.innerHTML = '<span class="btn-spinner"></span>';
+      if (statusEl) statusEl.textContent = 'Mise à jour en cours...';
       try {
         await Api.runSync();
         const status = await Api.pollSyncStatus((s) => {
-          if (s.new_bulletins > 0) {
-            btn.innerHTML = `<span class="btn-spinner"></span>Mise à jour en cours... (${s.new_bulletins} nouveaux)`;
+          if (statusEl) {
+            statusEl.textContent = s.new_bulletins > 0
+              ? `Mise à jour en cours... (${s.new_bulletins} nouveaux)`
+              : 'Mise à jour en cours...';
           }
         });
         if (status.status === 'done') {
@@ -143,12 +150,15 @@ const Dashboard = (() => {
         // On rafraîchit le tableau de bord ET la liste des bulletins :
         // les bulletins récents apparaissent dès que la synchro les a trouvés.
         await Promise.all([Dashboard.refresh(), Bulletins.refresh()]);
+        refreshed = true;
       } catch (e) {
         Toast.show(ERR.msg(e));
       } finally {
         btn.disabled = false;
         btn.classList.remove('is-busy');
         btn.innerHTML = originalHtml;
+        // En cas d'erreur, le refresh n'a pas re-rempli le statut : on le restaure.
+        if (!refreshed && statusEl) statusEl.textContent = originalStatus;
       }
     });
   }
