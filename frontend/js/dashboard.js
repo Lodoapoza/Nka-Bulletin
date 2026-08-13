@@ -42,7 +42,9 @@ const Dashboard = (() => {
       const latestTitleEl = document.getElementById('dash-latest-title');
       const openBtn = document.getElementById('dash-latest-open');
       if (stats.latest) {
-        latestTitleEl.textContent = `Bulletin de ${MONTHS_FR[stats.latest.month - 1]} ${stats.latest.year}`;
+        latestTitleEl.textContent = stats.latest.type === 'gratification'
+          ? (stats.latest.period_label || `Gratification ${stats.latest.year}`)
+          : `Bulletin de ${MONTHS_FR[stats.latest.month - 1]} ${stats.latest.year}`;
         openBtn.style.display = 'inline-flex';
           openBtn.onclick = async () => {
             try {
@@ -84,12 +86,12 @@ const Dashboard = (() => {
       const accounts = await Api.getAccounts();
       const statusEl = document.getElementById('dash-sync-status');
       if (!accounts.length) {
-        statusEl.textContent = 'Connectez une messagerie pour démarrer';
+        statusEl.textContent = 'Connectez une boîte mail pour démarrer';
       } else {
         const lastSync = accounts.map(a => a.last_sync_at).filter(Boolean).sort().pop();
         statusEl.textContent = lastSync
-          ? `Dernière synchro : ${new Date(lastSync).toLocaleString('fr-FR')}`
-          : 'Jamais synchronisé';
+          ? `À jour au ${new Date(lastSync).toLocaleString('fr-FR')}`
+          : 'Jamais mis à jour';
       }
     } catch (_) {
       if (syncStatus) syncStatus.textContent = 'Erreur de chargement';
@@ -117,30 +119,36 @@ const Dashboard = (() => {
     }
     document.getElementById('dash-sync-now').addEventListener('click', async (e) => {
       const btn = e.currentTarget;
+      const originalHtml = btn.innerHTML;
       btn.disabled = true;
-      btn.textContent = 'Synchro en cours...';
+      btn.classList.add('is-busy');
+      btn.innerHTML = '<span class="btn-spinner"></span>Mise à jour en cours...';
       try {
         await Api.runSync();
-        // Poll jusqu'à ce que la synchro soit terminée
-        let status;
-        for (let i = 0; i < 120; i++) {
-          await new Promise(r => setTimeout(r, 1500));
-          status = await Api.getSyncStatus();
-          if (status.status === 'done' || status.status === 'failed') break;
-        }
+        const status = await Api.pollSyncStatus((s) => {
+          if (s.new_bulletins > 0) {
+            btn.innerHTML = `<span class="btn-spinner"></span>Mise à jour en cours... (${s.new_bulletins} nouveaux)`;
+          }
+        });
         if (status.status === 'done') {
           Toast.show(status.new_bulletins > 0
             ? `${status.new_bulletins} nouveau(x) bulletin(s) trouvé(s) !`
             : 'Aucun nouveau bulletin pour le moment.');
         } else if (status.status === 'failed') {
-          Toast.show(status.error_message || 'Échec de la synchronisation');
+          Toast.show(status.error_message || 'Échec de la mise à jour');
+        } else {
+          // Garde de 2 h atteinte — la synchro continue en arrière-plan.
+          Toast.show('La mise à jour prend plus de temps que prévu. Elle continue en arrière-plan.');
         }
-        await refresh();
+        // On rafraîchit le tableau de bord ET la liste des bulletins :
+        // les bulletins récents apparaissent dès que la synchro les a trouvés.
+        await Promise.all([Dashboard.refresh(), Bulletins.refresh()]);
       } catch (e) {
         Toast.show(ERR.msg(e));
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Synchroniser';
+        btn.classList.remove('is-busy');
+        btn.innerHTML = originalHtml;
       }
     });
   }

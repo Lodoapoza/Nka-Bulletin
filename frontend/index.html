@@ -100,12 +100,12 @@
     <div class="card">
       <div class="card-row">
         <div>
-          <div class="eyebrow">Messagerie</div>
-          <div class="hint" id="dash-sync-status">Jamais synchronisé</div>
+          <div class="eyebrow">Mes bulletins</div>
+          <div class="hint" id="dash-sync-status">Jamais mis à jour</div>
         </div>
         <button class="btn btn-primary" id="dash-sync-now">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 12a9 9 0 11-3-6.7M21 4v4h-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Actualiser
+          Mettre à jour
         </button>
       </div>
     </div>
@@ -196,7 +196,7 @@
   <!-- ===== Vue : Paramètres ===== -->
   <section class="view hidden" id="view-settings">
     <div class="card" id="settings-accounts-card">
-      <div class="eyebrow" style="margin-bottom:12px;">Comptes de messagerie</div>
+      <div class="eyebrow" style="margin-bottom:12px;">Comptes email</div>
       <div id="accounts-list"></div>
       <div class="card elevated hidden" id="add-account-form" style="margin-top:12px;">
         <div class="eyebrow" style="margin-bottom:10px;">Nouveau compte</div>
@@ -243,7 +243,7 @@
         <button class="btn btn-primary btn-full" id="submit-account-btn">Connecter</button>
         <button class="btn btn-text btn-full" id="cancel-account-btn">Annuler</button>
       </div>
-      <button class="btn btn-primary btn-full" id="add-account-btn" style="margin-top:8px;">+ Connecter une messagerie</button>
+      <button class="btn btn-primary btn-full" id="add-account-btn" style="margin-top:8px;">+ Connecter un compte email</button>
     </div>
 
     <div class="card">
@@ -282,7 +282,7 @@
     </div>
 
     <div class="card">
-      <div class="eyebrow" style="margin-bottom:10px;">Synchronisation automatique</div>
+      <div class="eyebrow" style="margin-bottom:10px;">Mise à jour automatique</div>
       <div class="field">
         <label>Fréquence</label>
         <select id="sync-frequency">
@@ -292,7 +292,7 @@
         </select>
       </div>
       <div class="field">
-        <label>Heure de synchronisation</label>
+        <label>Heure de mise à jour</label>
         <input type="number" id="sync-hour" min="0" max="23" value="8">
       </div>
       <div class="hint">Les bulletins reçus entre le 16 et le 31 du mois sont surveillés automatiquement.</div>
@@ -350,9 +350,9 @@
       <div class="eyebrow" style="margin-bottom:10px;">Se connecter</div>
       <ol class="about-list">
         <li>Créez un <strong>mot de passe d'application</strong> auprès de votre fournisseur (Gmail, Yahoo, Outlook…).</li>
-        <li>Dans <strong>Réglages</strong>, touchez « + Connecter une messagerie » et renseignez votre adresse et ce mot de passe.</li>
+        <li>Dans <strong>Réglages</strong>, touchez « + Connecter un compte email » et renseignez votre adresse et ce mot de passe.</li>
         <li>Indiquez votre <strong>matricule</strong> (ex. AB123) dans Réglages pour ne garder que vos bulletins. Plusieurs matricules peuvent être séparés par « ; ».</li>
-        <li>L'application synchronise ensuite automatiquement vos nouveaux bulletins.</li>
+        <li>L'application met ensuite automatiquement vos bulletins à jour.</li>
       </ol>
     </div>
 
@@ -361,7 +361,7 @@
       <ul class="about-list">
         <li><strong>Accueil</strong> : dernier bulletin reçu, total de l'année et salaire net (masquable via l'œil).</li>
         <li><strong>Mes bulletins</strong> : recherche, filtre par mois et partage du PDF.</li>
-        <li><strong>Réglages</strong> : apparence, matricule, synchronisation et notifications.</li>
+        <li><strong>Réglages</strong> : apparence, matricule, mises à jour et notifications.</li>
       </ul>
     </div>
 

@@ -197,7 +197,7 @@ const Settings = (() => {
         try {
           const syncHour = Number(document.getElementById('sync-hour').value);
           if (!Number.isInteger(syncHour) || syncHour < 0 || syncHour > 23) {
-            Toast.show('L\'heure de synchronisation doit être un nombre entier entre 0 et 23.');
+            Toast.show('L\'heure de mise à jour doit être un nombre entier entre 0 et 23.');
             return;
           }
           await Api.saveSettings({

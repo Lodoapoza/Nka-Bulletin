@@ -55,7 +55,7 @@ const Accounts = (() => {
         glyph.textContent = '📬';
         empty.appendChild(glyph);
         const msg = document.createElement('div');
-        msg.textContent = 'Aucune messagerie connectée.';
+        msg.textContent = 'Aucun compte email connecté.';
         empty.appendChild(msg);
         listEl.appendChild(empty);
         return;
@@ -84,7 +84,7 @@ const Accounts = (() => {
 
         const syncHint = document.createElement('div');
         syncHint.className = 'hint';
-        syncHint.textContent = a.last_sync_at ? 'Dernière synchro : ' + new Date(a.last_sync_at).toLocaleString('fr-FR') : 'Pas encore synchronisé';
+        syncHint.textContent = a.last_sync_at ? 'Dernière mise à jour : ' + new Date(a.last_sync_at).toLocaleString('fr-FR') : 'Pas encore de mise à jour';
         infoDiv.appendChild(syncHint);
 
         row.appendChild(infoDiv);
