@@ -284,18 +284,55 @@ const Api = (() => {
     window.dispatchEvent(new CustomEvent('nka-cache-hit', { detail: { path, cachedAt } }));
   }
 
+  // ===== Sondage du statut de synchro =====
+  // Un scan complet (35 ans) peut prendre jusqu'à ~1h30 côté backend.
+  // On sonde rapidement au début (1,5 s) puis on espace à 5 s après 2 min,
+  // avec une garde de sécurité de 2 h. La synchro continue en arrière-plan
+  // même si on atteint la garde — on prévient juste l'utilisateur.
+  async function pollSyncStatus(onProgress) {
+    const FAST_INTERVAL = 1500;     // 1,5 s
+    const SLOW_INTERVAL = 5000;     // 5 s
+    const FAST_DURATION = 120000;  // 2 min en mode rapide
+    const SAFETY_CAP = 7200000;    // 2 h (garde de sécurité)
+    const start = Date.now();
+    let status = { status: 'running' };
+    for (;;) {
+      const elapsed = Date.now() - start;
+      if (elapsed >= SAFETY_CAP) return status;
+      const delay = elapsed < FAST_DURATION ? FAST_INTERVAL : SLOW_INTERVAL;
+      await new Promise(r => setTimeout(r, delay));
+      try {
+        status = await Api.getSyncStatus();
+      } catch (e) {
+        // Erreur réseau passagère — on continue à sonder ; la synchro backend suit son cours.
+        continue;
+      }
+      if (onProgress) { try { onProgress(status); } catch (_) {} }
+      if (status.status === 'done' || status.status === 'failed') return status;
+    }
+  }
+
   return {
     ensureDevice,
-    linkDevice: (matricule, code) => request('/auth/link-device', { method: 'POST', body: JSON.stringify({ matricule, code }) }),
-    setLinkCode: (code) => request('/auth/set-link-code', { method: 'POST', body: JSON.stringify({ code }) }),
+    // Éjection automatique : quand le compte a déjà 3 appareils, le serveur déconnecte
+    // le plus ancien et renvoie ejected:true — on prévient l'utilisateur.
+    loginEmail: async (email) => {
+      const data = await request('/auth/login-email', { method: 'POST', body: JSON.stringify({ email }) });
+      if (data && data.ejected && typeof Toast !== 'undefined') {
+        Toast.show("L'appareil le plus ancien de ce compte a été déconnecté automatiquement.");
+      }
+      return data;
+    },
+    setEmail: (email) => request('/auth/set-email', { method: 'POST', body: JSON.stringify({ email }) }),
     getAccounts: () => request('/accounts'),
     addAccount: (payload) => request('/accounts', { method: 'POST', body: JSON.stringify(payload) }),
     deleteAccount: (id) => request(`/accounts/${id}`, { method: 'DELETE' }),
 
-    runSync: () => request('/sync/run', { method: 'POST' }),
+    runSync: (opts = {}) => request('/sync/run', { method: 'POST', body: JSON.stringify(opts) }),
     getSyncStatus: () => request('/sync/status'),
     resetSync: () => request('/sync/reset', { method: 'POST' }),
     getSyncLogs: () => request('/sync/logs'),
+    pollSyncStatus,
 
     getBulletins: (params = {}) => {
       const qs = new URLSearchParams(params).toString();

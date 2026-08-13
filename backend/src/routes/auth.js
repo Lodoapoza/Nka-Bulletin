@@ -2,7 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('../db');
-const { hashLinkCode, verifyLinkCode } = require('../crypto');
+const { resetDeviceData } = require('./device');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -16,9 +16,10 @@ if (!JWT_SECRET || JWT_SECRET.length < 16) {
  * au cahier des charges). Le backend a seulement besoin de savoir quel "appareil" (device_id,
  * UUID généré une fois par le frontend et stocké dans IndexedDB) fait la requête, afin de
  * cloisonner les données. On délivre donc un token de session lié au device_id, pas à un mot de passe.
+ * L'accès au compte se fait par email (3 appareils maximum par compte).
  */
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const linkCodeRegex = /^[A-Z0-9]{6}$/;
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 router.post('/register-device', (req, res) => {
   if (req.body.deviceId && !uuidRegex.test(req.body.deviceId)) {
@@ -34,61 +35,103 @@ router.post('/register-device', (req, res) => {
 });
 
 /**
- * Liaison d'un appareil à un matricule via un code de liaison (6 caractères alphanumériques).
- * - Matricule inconnu → création du user (le premier appareil = propriétaire).
- * - Matricule connu → vérification du code (scrypt, timingSafeEqual). Échec → 401 avec le
- *   MÊME message que pour un matricule inconnu, pour ne pas leak l'existence du matricule.
- * Le code n'est jamais stocké en clair (seulement { salt, hash } scrypt en base64).
+ * Connexion par email : rattache l'appareil au compte correspondant.
+ * - Email inconnu → création du user (le premier appareil = propriétaire).
+ * - Email connu → rattachement de l'appareil au compte existant.
+ * - Limite : 3 appareils maximum par compte.
  */
-router.post('/link-device', (req, res) => {
-  const matricule = String(req.body.matricule || '').trim().toUpperCase();
-  const code = String(req.body.code || '').trim().toUpperCase();
-  if (!matricule) return res.status(400).json({ error: 'Matricule requis' });
-  if (!linkCodeRegex.test(code)) {
-    return res.status(400).json({ error: 'Code de liaison invalide (6 caractères alphanumériques)' });
+router.post('/login-email', (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Adresse email invalide' });
   }
   if (req.body.deviceId && !uuidRegex.test(req.body.deviceId)) {
     return res.status(400).json({ error: 'deviceId invalide (doit être un UUID)' });
   }
   const deviceId = req.body.deviceId || crypto.randomUUID();
 
-  const user = db.prepare('SELECT matricule, link_code_salt, link_code_hash FROM users WHERE matricule = ?').get(matricule);
+  let user = db.prepare('SELECT matricule FROM users WHERE lower(email) = ?').get(email);
   let isNewUser = false;
   if (!user) {
-    const { salt, hash } = hashLinkCode(code);
-    db.prepare('INSERT INTO users (matricule, link_code_salt, link_code_hash) VALUES (?, ?, ?)').run(matricule, salt, hash);
+    // Génération d'un matricule unique 'U' + 8 caractères alphanumériques majuscules
+    // (boucle avec vérification d'existence pour éviter les collisions).
+    let matricule = null;
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    for (let attempt = 0; attempt < 5 && !matricule; attempt++) {
+      let candidate = 'U';
+      for (let i = 0; i < 8; i++) {
+        candidate += chars[Math.floor(Math.random() * chars.length)];
+      }
+      if (!db.prepare('SELECT matricule FROM users WHERE matricule = ?').get(candidate)) {
+        matricule = candidate;
+      }
+    }
+    if (!matricule) {
+      return res.status(500).json({ error: 'Impossible de générer un matricule unique' });
+    }
+    db.prepare('INSERT INTO users (matricule, email) VALUES (?, ?)').run(matricule, email);
+    user = { matricule };
     isNewUser = true;
-  } else if (!verifyLinkCode(code, user.link_code_salt, user.link_code_hash)) {
-    return res.status(401).json({ error: 'Code de liaison invalide' });
+  }
+
+  // Limite de 3 appareils par compte (l'appareil courant, s'il est déjà rattaché,
+  // n'est pas compté : un re-login sur le même appareil reste possible).
+  // Depuis la décision produit : éjection AUTOMATIQUE de l'appareil le plus ancien
+  // au lieu d'un refus 403 — le nouveau se connecte, l'ancien est déconnecté
+  // (reset local complet via resetDeviceData).
+  let ejected = false;
+  const { n } = db.prepare(
+    'SELECT COUNT(*) AS n FROM devices WHERE user_matricule = ? AND id != ?'
+  ).get(user.matricule, deviceId);
+  if (n >= 3) {
+    const oldest = db.prepare(
+      'SELECT id FROM devices WHERE user_matricule = ? AND id != ? ORDER BY created_at ASC LIMIT 1'
+    ).get(user.matricule, deviceId);
+    if (oldest) {
+      resetDeviceData(oldest.id);
+      ejected = true;
+    } else {
+      // Cas incohérent (compte plein mais aucun appareil trouvable) : 403 en secours.
+      return res.status(403).json({
+        error: 'Limite de 3 appareils atteinte pour ce compte. Retirez un appareil depuis Réglages.',
+        code: 'DEVICE_LIMIT',
+      });
+    }
   }
 
   // Upsert device + rattachement au matricule
   db.prepare('INSERT OR IGNORE INTO devices (id) VALUES (?)').run(deviceId);
-  db.prepare('UPDATE devices SET user_matricule = ? WHERE id = ?').run(matricule, deviceId);
+  db.prepare('UPDATE devices SET user_matricule = ? WHERE id = ?').run(user.matricule, deviceId);
   // Premier appareil = propriétaire (licenceGate s'appuie sur owner_matricule)
   if (isNewUser) {
-    db.prepare('UPDATE devices SET owner_matricule = ? WHERE id = ?').run(matricule, deviceId);
+    db.prepare('UPDATE devices SET owner_matricule = ? WHERE id = ?').run(user.matricule, deviceId);
   }
 
   const token = jwt.sign({ deviceId }, JWT_SECRET, { expiresIn: '180d' });
-  res.json({ deviceId, token, matricule, isNewUser });
+  res.json({ deviceId, token, matricule: user.matricule, isNewUser, ...(ejected && { ejected: true }) });
 });
 
 /**
- * Création/rotation du code de liaison par un appareil déjà authentifié (grandfathered).
- * Le device doit être rattaché à un matricule (req.userMatricule résolu par authMiddleware).
+ * Attache un email à un compte existant (grandfathered : comptes créés avant le
+ * login par email, qui n'ont pas d'email en base). Permet à un appareil déjà lié
+ * de renseigner son email pour se connecter depuis un autre appareil.
  */
-router.post('/set-link-code', authMiddleware, (req, res) => {
-  const code = String(req.body.code || '').trim().toUpperCase();
-  if (!linkCodeRegex.test(code)) {
-    return res.status(400).json({ error: 'Code de liaison invalide (6 caractères alphanumériques)' });
+router.post('/set-email', authMiddleware, (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Adresse email invalide' });
   }
   if (!req.userMatricule) {
-    return res.status(400).json({ error: 'Matricule introuvable pour cet appareil' });
+    return res.status(400).json({ error: 'Aucun compte lié à cet appareil' });
   }
-  const { salt, hash } = hashLinkCode(code);
-  db.prepare('UPDATE users SET link_code_salt = ?, link_code_hash = ? WHERE matricule = ?').run(salt, hash, req.userMatricule);
-  res.json({ ok: true });
+  const conflict = db.prepare(
+    'SELECT matricule FROM users WHERE lower(email) = ? AND matricule != ?'
+  ).get(email, req.userMatricule);
+  if (conflict) {
+    return res.status(409).json({ error: 'Cet email est déjà utilisé par un autre compte' });
+  }
+  db.prepare('UPDATE users SET email = ? WHERE matricule = ?').run(email, req.userMatricule);
+  res.json({ ok: true, email });
 });
 
 function authMiddleware(req, res, next) {
