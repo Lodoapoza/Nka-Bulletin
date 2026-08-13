@@ -16,7 +16,7 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/plusjakartasans/v12/LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yygg_vb.woff2">
 <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/robotomono/v31/L0x5DF4xlVMF-BfR8bXMIjhLq3-cXbKD.woff2">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@500;600&display=optional">
-<link rel="stylesheet" href="css/app.css?v=v36">
+<link rel="stylesheet" href="css/app.css?v=v37">
 </head>
 <body>
 
@@ -100,10 +100,13 @@
     <div class="card">
       <div class="card-row">
         <div>
-          <div style="font-weight:700;">Synchronisation</div>
+          <div class="eyebrow">Messagerie</div>
           <div class="hint" id="dash-sync-status">Jamais synchronisé</div>
         </div>
-        <button class="btn btn-primary" id="dash-sync-now">Synchroniser</button>
+        <button class="btn btn-primary" id="dash-sync-now">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 12a9 9 0 11-3-6.7M21 4v4h-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Actualiser
+        </button>
       </div>
     </div>
   </section>
@@ -264,24 +267,6 @@
     </div>
 
     <div class="card">
-      <div class="eyebrow" style="margin-bottom:12px;">Compte & liaison</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-        <div>
-          <div style="font-weight:600;">Appareil lié</div>
-          <div class="mono" id="settings-link-matricule" style="font-weight:700;font-size:0.95rem;margin-top:2px;">—</div>
-        </div>
-        <span class="license-state state-revoked" id="settings-link-badge"><span class="dot"></span>Non lié</span>
-      </div>
-      <div class="field" style="margin-top:14px;">
-        <label for="link-code-settings-input">Code de liaison</label>
-        <input type="text" id="link-code-settings-input" placeholder="6 caractères" maxlength="6" autocapitalize="characters" autocomplete="off" spellcheck="false" style="font-family:var(--font-mono);letter-spacing:0.2em;text-transform:uppercase;font-weight:600;">
-        <div class="hint">Ce code, saisi avec votre matricule sur un autre appareil, lui donne accès à vos bulletins.</div>
-      </div>
-      <button class="btn btn-primary btn-full" id="link-code-settings-btn" type="button">Créer mon code de liaison</button>
-      <div class="hint" id="link-code-feedback" style="margin-top:10px;text-align:center;"></div>
-    </div>
-
-    <div class="card">
       <div class="switch-row">
         <div>
           <div style="font-weight:600;">Analyse des montants PDF</div>
@@ -312,7 +297,10 @@
       </div>
       <div class="hint">Les bulletins reçus entre le 16 et le 31 du mois sont surveillés automatiquement.</div>
       <button class="btn btn-primary btn-full" id="save-settings-btn" style="margin-top:12px;">Enregistrer</button>
-      <button class="btn btn-outline btn-full" id="rescan-all-btn" style="margin-top:8px;">⟳ Tout re-scanner depuis le début</button>
+      <button class="btn btn-outline btn-full" id="rescan-all-btn" style="margin-top:8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 12a9 9 0 11-3-6.7M21 4v4h-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Tout re-scanner depuis le début
+      </button>
     </div>
 
     <div class="card">
@@ -424,28 +412,6 @@
     </div>
   </div>
 
-  <!-- ===== Écran « Lier cet appareil » (device non lié à un compte) ===== -->
-  <div class="fullscreen-overlay hidden" id="link-screen">
-    <div class="overlay-card">
-      <div class="eyebrow">Liaison de l'appareil</div>
-      <h2>Lier cet appareil</h2>
-      <p style="font-size:0.92rem;line-height:1.55;opacity:.85;margin:0 0 16px;">
-        Cet appareil n'est pas encore relié à votre compte. Saisissez votre matricule et le code de liaison pour accéder à vos bulletins.
-      </p>
-      <div class="field">
-        <label for="link-matricule-input">Matricule</label>
-        <input type="text" id="link-matricule-input" placeholder="Ex : AB123" autocapitalize="characters" autocomplete="off" spellcheck="false">
-      </div>
-      <div class="field">
-        <label for="link-code-input">Code de liaison</label>
-        <input type="text" id="link-code-input" placeholder="6 caractères" maxlength="6" autocapitalize="characters" autocomplete="off" spellcheck="false" style="font-family:var(--font-mono);letter-spacing:0.2em;text-transform:uppercase;font-weight:600;">
-        <div class="hint">Le code se crée dans Réglages, sur votre appareil déjà connecté.</div>
-      </div>
-      <div class="hint" id="link-error" style="color:var(--md-error);margin:0 0 12px;min-height:1.3em;"></div>
-      <button class="btn btn-primary btn-full" id="link-submit-btn" type="button">Lier cet appareil</button>
-    </div>
-  </div>
-
   <!-- ===== Écran d'administration (5 taps sur la version) ===== -->
   <div class="fullscreen-overlay hidden" id="admin-screen">
     <div class="overlay-card overlay-card-wide">
@@ -497,14 +463,14 @@
 </div>
 
 <script src="js/capacitor.js?v=v27"></script>
-<script src="js/client.js?v=v35"></script>
+<script src="js/client.js?v=v36"></script>
 <script src="js/dropdown.js?v=v36"></script>
 <script src="js/pin.js?v=v25"></script>
-<script src="js/dashboard.js?v=v25"></script>
+<script src="js/dashboard.js?v=v26"></script>
 <script src="js/accounts.js?v=v33"></script>
-<script src="js/bulletins.js?v=v37"></script>
+<script src="js/bulletins.js?v=v38"></script>
 <script src="js/confirm.js?v=v33"></script>
-<script src="js/settings.js?v=v34"></script>
+<script src="js/settings.js?v=v35"></script>
 <script src="js/reset.js?v=v26"></script>
 <script src="js/version.js?v=v25"></script>
 <script src="js/admin.js?v=v28"></script>

@@ -89,7 +89,9 @@ const Bulletins = (() => {
       titleDiv.className = 'title';
       titleDiv.textContent = b.noMeta
         ? (b.filename || `Bulletin #${b.id}`)
-        : `${MONTHS_FR[b.month - 1]} ${b.year}`;
+        : (b.type === 'gratification'
+            ? (b.period_label || `Gratification ${b.year}`)
+            : `${MONTHS_FR[b.month - 1]} ${b.year}`);
       metaDiv.appendChild(titleDiv);
 
       const subDiv = document.createElement('div');
@@ -97,8 +99,16 @@ const Bulletins = (() => {
       if (b.noMeta) {
         subDiv.textContent = 'En local uniquement';
       } else {
-        const identity = b.nom ? b.nom + (b.matricule ? ' · ' + b.matricule : '') : (b.matricule || '');
-        subDiv.textContent = (identity ? identity + ' · ' : '') + (b.account_email || '') + (b.net_amount ? ' · ' + new Intl.NumberFormat('fr-FR').format(b.net_amount) + ' XOF' : '');
+        // Sous-titre : nom (si présent) + montant net (masqué si l'utilisateur a
+        // activé « masquer les montants » sur le tableau de bord). Le matricule et
+        // l'email ne sont plus affichés ici — info redondante sur la liste.
+        const parts = [];
+        if (b.nom) parts.push(b.nom);
+        if (b.net_amount) {
+          const hidden = localStorage.getItem('nka_amounts_hidden') === '1';
+          parts.push((hidden ? '•••••' : new Intl.NumberFormat('fr-FR').format(b.net_amount)) + ' XOF');
+        }
+        subDiv.textContent = parts.join(' · ');
       }
       metaDiv.appendChild(subDiv);
 
@@ -114,6 +124,7 @@ const Bulletins = (() => {
         dlBtn.dataset.meta = JSON.stringify({
           id: b.id, year: b.year, month: b.month, net_amount: b.net_amount,
           account_email: b.account_email, nom: b.nom, matricule: b.matricule,
+          type: b.type, period_label: b.period_label,
         });
       }
       if (cachedSet.has(String(b.id))) {
@@ -234,7 +245,9 @@ const Bulletins = (() => {
       // Années disponibles : serveur (sans filtre) + cache local
       let all = [];
       try {
-        all = await Api.getBulletins({ q: params.q });
+        // N'envoyer q que s'il est défini : sinon URLSearchParams produit
+        // « q=undefined » et le serveur filtre filename LIKE '%undefined%' → liste vide.
+        all = await Api.getBulletins(params.q ? { q: params.q } : {});
       } catch (_) {
         all = serverList;
       }
@@ -271,6 +284,19 @@ const Bulletins = (() => {
         if (val === 'year') mergeAndExport({ year: currentYear || new Date().getFullYear() }, 'annee');
         else mergeAndExport({ lastNMonths: Number(val) }, `${val}-mois`);
       });
+    });
+
+    // Rafraîchissement progressif pendant un scan : le client émet nka-sync-tick
+    // toutes les ~10 s tant que la synchro tourne. On ne rafraîchit que si la vue
+    // bulletins est visible (Router : classe « hidden » sur #view-bulletins), avec
+    // un throttle identique pour éviter les surcharges.
+    let lastSyncTick = 0;
+    window.addEventListener('nka-sync-tick', () => {
+      const viewEl = document.getElementById('view-bulletins');
+      if (!viewEl || viewEl.classList.contains('hidden')) return;
+      if (Date.now() - lastSyncTick < 10000) return;
+      lastSyncTick = Date.now();
+      refresh();
     });
   }
 

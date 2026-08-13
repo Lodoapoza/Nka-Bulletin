@@ -68,24 +68,6 @@ const Settings = (() => {
     });
   }
 
-  function updateLinkSection(s) {
-    // Carte « Compte & liaison » : matricule lié + code de liaison.
-    const matEl = document.getElementById('settings-link-matricule');
-    if (matEl) matEl.textContent = s.user_matricule || '—';
-    const badge = document.getElementById('settings-link-badge');
-    if (badge) {
-      if (s.user_matricule) {
-        badge.className = 'license-state state-active';
-        badge.innerHTML = '<span class="dot"></span>Lié';
-      } else {
-        badge.className = 'license-state state-revoked';
-        badge.innerHTML = '<span class="dot"></span>Non lié';
-      }
-    }
-    const btn = document.getElementById('link-code-settings-btn');
-    if (btn) btn.textContent = s.link_code_set ? 'Changer le code' : 'Créer mon code de liaison';
-  }
-
   async function loadServerSettings() {
     try {
       const s = await Api.getSettings();
@@ -95,7 +77,6 @@ const Settings = (() => {
       document.getElementById('owner-matricule').value = s.owner_matricule || '';
       const push = document.getElementById('push-switch');
       if (push) push.checked = !!s.push_enabled;
-      updateLinkSection(s);
     } catch (e) { /* backend peut-être hors ligne au premier chargement */ }
   }
 
@@ -269,41 +250,6 @@ const Settings = (() => {
     } catch (e) { console.warn('change-pin:', e); }
 
     try {
-      // Carte « Compte & liaison » : création / changement du code de liaison.
-      const linkBtn = document.getElementById('link-code-settings-btn');
-      const linkInput = document.getElementById('link-code-settings-input');
-      const linkFeedback = document.getElementById('link-code-feedback');
-      if (linkBtn && linkInput && linkFeedback) {
-        linkInput.addEventListener('input', () => {
-          linkInput.value = linkInput.value.toUpperCase().slice(0, 6);
-        });
-        linkInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') linkBtn.click(); });
-        linkBtn.addEventListener('click', async () => {
-          const code = linkInput.value.trim().toUpperCase();
-          if (code.length !== 6) {
-            linkFeedback.textContent = 'Le code comporte 6 caractères.';
-            linkFeedback.style.color = 'var(--md-error)';
-            return;
-          }
-          linkBtn.disabled = true;
-          linkBtn.textContent = 'Enregistrement…';
-          try {
-            await Api.setLinkCode(code);
-            linkInput.value = '';
-            linkFeedback.textContent = 'Code de liaison enregistré.';
-            linkFeedback.style.color = 'var(--md-primary)';
-            linkBtn.textContent = 'Changer le code';
-          } catch (e) {
-            linkFeedback.textContent = ERR.msg(e) || 'Enregistrement impossible.';
-            linkFeedback.style.color = 'var(--md-error)';
-          } finally {
-            linkBtn.disabled = false;
-          }
-        });
-      }
-    } catch (e) { console.warn('link-code:', e); }
-
-    try {
       document.getElementById('reset-device-btn').addEventListener('click', () => {
         ResetDevice.openConfirm();
       });
@@ -314,20 +260,38 @@ const Settings = (() => {
         const btn = e.currentTarget;
         if (!await Confirm.open({
           title: 'Tout re-scanner depuis le début ?',
-          message: 'Tous vos emails vont être re-scannés. Les bulletins déjà importés ne seront pas dupliqués.',
+          message: 'Tous vos emails vont être re-scannés depuis le début. Les bulletins déjà importés ne seront pas dupliqués.',
           confirmText: 'Re-scanner',
         })) return;
+        const originalHtml = btn.innerHTML;
         btn.disabled = true;
-        btn.textContent = 'Re-scan en cours...';
+        btn.classList.add('is-busy');
+        btn.innerHTML = '<span class="btn-spinner"></span>Re-scan en cours...';
         try {
+          // resetSync annule last_sync_at (rapide), puis runSync force un scan complet.
           await Api.resetSync();
-          Toast.show('Synchronisation réinitialisée. Lancez une synchro pour tout re-scanner.');
-          Dashboard.refresh();
+          await Api.runSync({ full_scan: 1 });
+          const status = await Api.pollSyncStatus((s) => {
+            if (s.new_bulletins > 0) {
+              btn.innerHTML = `<span class="btn-spinner"></span>Re-scan en cours... (${s.new_bulletins} nouveaux)`;
+            }
+          });
+          if (status.status === 'done') {
+            Toast.show(status.new_bulletins > 0
+              ? `Re-scan terminé : ${status.new_bulletins} nouveau(x) bulletin(s) trouvé(s) !`
+              : 'Re-scan terminé : aucun nouveau bulletin.');
+          } else if (status.status === 'failed') {
+            Toast.show(status.error_message || 'Échec du re-scan');
+          } else {
+            Toast.show('Le re-scan prend plus de temps que prévu. Il continue en arrière-plan.');
+          }
+          await Promise.all([Dashboard.refresh(), Bulletins.refresh()]);
         } catch (e) {
           Toast.show(ERR.msg(e));
         } finally {
           btn.disabled = false;
-          btn.textContent = '⟳ Tout re-scanner depuis le début';
+          btn.classList.remove('is-busy');
+          btn.innerHTML = originalHtml;
         }
       });
     } catch (e) { console.warn('rescan-btn:', e); }

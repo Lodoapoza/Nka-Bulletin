@@ -295,6 +295,7 @@ const Api = (() => {
     const FAST_DURATION = 120000;  // 2 min en mode rapide
     const SAFETY_CAP = 7200000;    // 2 h (garde de sécurité)
     const start = Date.now();
+    let lastTick = 0; // Throttle de l'événement nka-sync-tick (~10 s)
     let status = { status: 'running' };
     for (;;) {
       const elapsed = Date.now() - start;
@@ -308,6 +309,12 @@ const Api = (() => {
         continue;
       }
       if (onProgress) { try { onProgress(status); } catch (_) {} }
+      // Rafraîchissement progressif : tant que le scan tourne, on prévient les vues
+      // (ex. liste des bulletins) toutes les ~10 s pour montrer l'arrivée des bulletins.
+      if (Date.now() - lastTick >= 10000) {
+        lastTick = Date.now();
+        window.dispatchEvent(new CustomEvent('nka-sync-tick'));
+      }
       if (status.status === 'done' || status.status === 'failed') return status;
     }
   }
