@@ -55,10 +55,11 @@ jobs:
 
       - name: Configure release signing
         if: github.event.inputs.build_type == 'release'
-        run: |
-          echo "debug_len: store=${#ANDROID_KEYSTORE_PASSWORD} alias=${#ANDROID_KEY_ALIAS} key=${#ANDROID_KEY_PASSWORD} test=${#TEST_INJECTION}"
-          if [ -z "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" ]; then echo "EXPRESSION: VIDE"; else echo "EXPRESSION: OK"; fi
-          python3 ../.github/scripts/configure-signing.py
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: python3 ../.github/scripts/configure-signing.py
 
       - name: Build APK
         run: |
