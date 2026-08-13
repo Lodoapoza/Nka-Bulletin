@@ -115,7 +115,7 @@ Réutiliser le formulaire existant, mais :
 - fournir afficher/masquer le mot de passe et les attributs d’autocomplétion adaptés ;
 - après succès, afficher la proposition « Rechercher mes bulletins ».
 
-La spec ne modifie pas le modèle d’authentification. La divergence entre la route `login-email` dormante et les traces historiques de liaison par code devra être vérifiée avant toute suppression ou exposition supplémentaire.
+La spec ne modifie pas le modèle d’authentification. En prérequis de la phase 1, le flux réellement utilisé en production sera vérifié ; l’onboarding ouvrira le formulaire de compte déjà utilisé et n’exposera ni ne supprimera `login-email` tant que cette vérification n’est pas terminée.
 
 ## 6. Architecture performance
 
@@ -135,7 +135,7 @@ Le serveur doit garantir, par appareil, une seule requête logique `pending/runn
 - un re-scan complet ne peut pas être écrasé par une synchronisation incrémentale ;
 - les transitions de statut sont transactionnelles et idempotentes.
 
-Le comportement précis d’escalade d’une recherche incrémentale déjà en cours vers un re-scan complet devra être explicite : soit le job est marqué pour effectuer le re-scan ensuite, soit une nouvelle intention est mise en file, mais deux scans concurrents ne sont jamais autorisés.
+Politique d’escalade : si une recherche incrémentale est déjà en cours et qu’un re-scan complet est demandé, le job actif reçoit un indicateur `full_scan_after_current`. Il termine sa tranche courante, puis enchaîne la phase récente du re-scan dans le même job logique. Si le job est encore en attente, il est directement converti en re-scan complet. Si un re-scan complet est déjà actif, la nouvelle demande renvoie simplement ce job. Aucune deuxième recherche concurrente n’est créée.
 
 ### 6.3 Scan récent puis historique
 
