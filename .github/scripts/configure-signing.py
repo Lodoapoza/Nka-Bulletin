@@ -55,16 +55,17 @@ if "signingConfigs" not in src:
         sys.exit("ERREUR: bloc buildTypes introuvable dans build.gradle")
 
 if "signingConfig signingConfigs.release" not in src:
+    # Anchored sur buildTypes { pour ne pas injecter dans signingConfigs.release
     src, n = re.subn(
-        r"(?m)^(\s*)release \{\n(\s*)",
-        lambda m: m.group(1) + "release {\n"
-        + m.group(2) + "signingConfig signingConfigs.release\n"
-        + m.group(2),
+        r"(?m)^(\s*)buildTypes \{\n(\s*release \{\n)(\s*)",
+        lambda m: m.group(1) + "buildTypes {\n"
+        + m.group(2) + m.group(3) + "signingConfig signingConfigs.release\n"
+        + m.group(3),
         src,
         count=1,
     )
     if n != 1:
-        sys.exit("ERREUR: bloc release introuvable dans build.gradle")
+        sys.exit("ERREUR: bloc buildTypes.release introuvable dans build.gradle")
 
 GRADLE.write_text(src)
 print("OK: signingConfig release injecté dans", GRADLE.relative_to(ROOT))
