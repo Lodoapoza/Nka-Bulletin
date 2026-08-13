@@ -56,7 +56,7 @@ jobs:
       - name: Configure release signing
         if: github.event.inputs.build_type == 'release'
         run: |
-          echo "debug_len: store=${#ANDROID_KEYSTORE_PASSWORD} alias=${#ANDROID_KEY_ALIAS} key=${#ANDROID_KEY_PASSWORD}"
+          echo "debug_len: store=${#ANDROID_KEYSTORE_PASSWORD} alias=${#ANDROID_KEY_ALIAS} key=${#ANDROID_KEY_PASSWORD} test=${#TEST_INJECTION}"
           python3 ../.github/scripts/configure-signing.py
 
       - name: Build APK
