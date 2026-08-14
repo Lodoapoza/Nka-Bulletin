@@ -147,6 +147,10 @@ if (!hasColumn('devices', 'owner_matricule')) {
   db.exec("ALTER TABLE devices ADD COLUMN owner_matricule TEXT");
   console.log('[db] colonne devices.owner_matricule ajoutée');
 }
+if (!hasColumn('sync_requests', 'full_scan')) {
+  db.exec("ALTER TABLE sync_requests ADD COLUMN full_scan INTEGER DEFAULT 0");
+  console.log('[db] colonne sync_requests.full_scan ajoutée');
+}
 
 // ----- Licences (v5) -----
 // L'accès au service est accordé par matricule. Une licence active (status='active',
@@ -303,7 +307,93 @@ CREATE INDEX IF NOT EXISTS idx_bulletins_device ON bulletins(device_id);
 CREATE INDEX IF NOT EXISTS idx_bulletins_year_month ON bulletins(year, month);
 `);
 
-db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_version', ?)").run('6');
-console.log('[db] Migration v6 terminée (db_version=6)');
+// ----- Gratifications (v7) -----
+// En décembre, deux PDF arrivent : le bulletin de paie ET un bulletin de
+// GRATIFICATION, avec le même nom de fichier. Le type et la vraie période sont
+// déterminés depuis le CONTENU du PDF ("Taux H.Suppl.: Gratification 2024" vs
+// "Taux H.Suppl.: Decembre 2024"). type='gratification' → month=0,
+// period_label = libellé extrait du PDF.
+if (!hasColumn('bulletins', 'type')) {
+  db.exec("ALTER TABLE bulletins ADD COLUMN type TEXT DEFAULT 'paie'");
+  console.log('[db] colonne bulletins.type ajoutée');
+}
+if (!hasColumn('bulletins', 'period_label')) {
+  db.exec("ALTER TABLE bulletins ADD COLUMN period_label TEXT");
+  console.log('[db] colonne bulletins.period_label ajoutée');
+}
+
+// Backfill idempotent : re-analyse les bulletins existants sans period_label
+// (limité à 200 lignes pour ne pas bloquer le démarrage). Best-effort : chaque
+// ligne est en try/catch, un échec n'arrête pas le reste.
+(async () => {
+  const { analyzePdf } = require('./pdfService');
+  const { parsePeriodFromText } = require('./period');
+  const toBackfill = db.prepare(
+    'SELECT id, filepath FROM bulletins WHERE period_label IS NULL LIMIT 200'
+  ).all();
+  let backfilled = 0;
+  for (const row of toBackfill) {
+    try {
+      if (!row.filepath || !fs.existsSync(row.filepath)) continue;
+      const analysis = await analyzePdf(row.filepath);
+      const contentPeriod = analysis && analysis.text ? parsePeriodFromText(analysis.text) : null;
+      if (!contentPeriod) continue;
+      const type = contentPeriod.type === 'gratification' ? 'gratification' : 'paie';
+      // year/month ne doivent jamais être NULL (colonnes NOT NULL) : on garde les
+      // valeurs existantes quand le contenu n'en fournit pas.
+      const existing = db.prepare('SELECT year, month FROM bulletins WHERE id = ?').get(row.id);
+      const year = contentPeriod.year || existing.year;
+      const month = type === 'gratification' ? 0 : (contentPeriod.month || existing.month);
+      db.prepare('UPDATE bulletins SET type = ?, period_label = ?, year = ?, month = ? WHERE id = ?')
+        .run(type, contentPeriod.label || null, year, month, row.id);
+      backfilled++;
+    } catch (err) {
+      console.warn('[db] Backfill v7 : échec bulletin #' + row.id + ' — ' + err.message);
+    }
+  }
+  console.log(`[db] Backfill v7 : ${backfilled}/${toBackfill.length} bulletin(s) reclassé(s) depuis le contenu PDF`);
+})();
+
+// ----- Login par email (v8) -----
+// L'accès au compte se fait désormais par email (au lieu de matricule + code de
+// liaison). La colonne users.email est ajoutée ; les colonnes link_code_* restent
+// en base mais ne sont plus utilisées.
+if (!hasColumn('users', 'email')) {
+  db.exec("ALTER TABLE users ADD COLUMN email TEXT");
+  console.log('[db] colonne users.email ajoutée');
+}
+db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL AND email != '';`);
+
+db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_version', ?)").run('8');
+console.log('[db] Migration v8 terminée (db_version=8)');
+
+// ----- Sync jobs resumables (v9) -----
+// Colonnes pour la reprise des jobs de synchro par tranches (Phase 2) :
+//  - phase            : 'incremental' | 'recent' | 'history' (état du planner)
+//  - cursor           : curseur de reprise sérialisé (JSON { phase, from })
+//  - full_scan_after_current : un full scan demandé pendant un run incrémental
+//                              sera lancé après le job courant (pas de nouvelle ligne)
+//  - recent_window_months     : taille de la fenêtre récente (défaut 24 mois)
+// Idempotent : hasColumn + CREATE INDEX IF NOT EXISTS.
+if (!hasColumn('sync_requests', 'phase')) {
+  db.exec("ALTER TABLE sync_requests ADD COLUMN phase TEXT DEFAULT 'incremental'");
+  console.log('[db] colonne sync_requests.phase ajoutée');
+}
+if (!hasColumn('sync_requests', 'cursor')) {
+  db.exec("ALTER TABLE sync_requests ADD COLUMN cursor TEXT");
+  console.log('[db] colonne sync_requests.cursor ajoutée');
+}
+if (!hasColumn('sync_requests', 'full_scan_after_current')) {
+  db.exec("ALTER TABLE sync_requests ADD COLUMN full_scan_after_current INTEGER DEFAULT 0");
+  console.log('[db] colonne sync_requests.full_scan_after_current ajoutée');
+}
+if (!hasColumn('sync_requests', 'recent_window_months')) {
+  db.exec("ALTER TABLE sync_requests ADD COLUMN recent_window_months INTEGER DEFAULT 24");
+  console.log('[db] colonne sync_requests.recent_window_months ajoutée');
+}
+db.exec(`CREATE INDEX IF NOT EXISTS idx_sync_requests_device_status ON sync_requests(device_id, status);`);
+
+db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_version', ?)").run('9');
+console.log('[db] Migration v9 terminée (db_version=9)');
 
 module.exports = db;
