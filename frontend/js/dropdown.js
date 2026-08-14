@@ -24,7 +24,8 @@ const AppDropdown = (() => {
     function renderPanel() {
       panel.innerHTML = opts.map(opt => `
         <button class="dropdown-item${opt.selected ? ' selected' : ''}${opt.disabled ? ' disabled' : ''}"
-                data-value="${opt.value}" ${opt.disabled ? 'disabled' : ''}>
+                data-value="${opt.value}" ${opt.disabled ? 'disabled aria-disabled="true"' : ''}
+                role="option" aria-selected="${opt.selected ? 'true' : 'false'}">
           ${opt.label}
         </button>
       `).join('');
@@ -37,6 +38,7 @@ const AppDropdown = (() => {
 
       panel = document.createElement('div');
       panel.className = 'custom-dropdown-panel';
+      panel.setAttribute('role', 'listbox');
       renderPanel();
 
       // Position sous le trigger
@@ -47,7 +49,7 @@ const AppDropdown = (() => {
 
       document.body.appendChild(panel);
 
-      // Clic sur un élément
+      // Clic sur un élément (comportement historique, intact)
       panel.addEventListener('click', (e) => {
         const item = e.target.closest('.dropdown-item:not(.disabled)');
         if (item) {
@@ -55,14 +57,40 @@ const AppDropdown = (() => {
           onSelect(val);
           updateLabel(val);
           close();
+          trigger.focus();
         }
       });
 
-      // Fermeture : clic extérieur / Escape
+      // Navigation clavier dans le panneau (pattern listbox) :
+      // ArrowUp/ArrowDown (boucle), Home/End, Tab ferme, Enter/Space =
+      // comportement natif du bouton focussé (déclenche le clic → sélection).
+      const items = () => [...panel.querySelectorAll('.dropdown-item:not(.disabled)')];
+      const focusAt = (i) => {
+        const list = items();
+        if (!list.length) return;
+        list[(i + list.length) % list.length].focus();
+      };
+      panel.addEventListener('keydown', (e) => {
+        const list = items();
+        if (!list.length) return;
+        const current = list.indexOf(document.activeElement);
+        if (e.key === 'ArrowDown') { e.preventDefault(); focusAt(current + 1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); focusAt(current - 1); }
+        else if (e.key === 'Home') { e.preventDefault(); focusAt(0); }
+        else if (e.key === 'End') { e.preventDefault(); focusAt(list.length - 1); }
+        else if (e.key === 'Tab') { close(); }
+      });
+
+      // Fermeture : clic extérieur / Escape (Escape restitue le focus au trigger)
       onDocClick = (e) => { if (!trigger.contains(e.target) && !panel.contains(e.target)) close(); };
-      onKeyDown = (e) => { if (e.key === 'Escape') close(); };
+      onKeyDown = (e) => { if (e.key === 'Escape') { close(); trigger.focus(); } };
       document.addEventListener('click', onDocClick);
       document.addEventListener('keydown', onKeyDown);
+
+      // Focus initial : l'option sélectionnée, sinon la première disponible.
+      const selected = panel.querySelector('.dropdown-item.selected:not(.disabled)');
+      const first = panel.querySelector('.dropdown-item:not(.disabled)');
+      (selected || first || panel).focus();
     }
 
     trigger.addEventListener('click', (e) => {
