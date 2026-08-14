@@ -49,6 +49,12 @@
 
   <!-- ===== Vue : Tableau de bord ===== -->
   <section class="view" id="view-dashboard">
+    <section id="guided-status-card" class="card guided-card hidden" aria-live="polite" aria-busy="false">
+      <div class="eyebrow" id="guided-status-title"></div>
+      <p class="hint" id="guided-status-body"></p>
+      <button class="btn btn-primary" id="guided-status-action" type="button"></button>
+    </section>
+
     <div class="stack-hero">
       <div class="stack-card"></div>
       <div class="stack-card"></div>
@@ -466,6 +472,8 @@
 <script src="js/client.js?v=v36"></script>
 <script src="js/dropdown.js?v=v36"></script>
 <script src="js/pin.js?v=v25"></script>
+<script src="js/parcours.js?v=v1"></script>
+<script src="js/guided.js?v=v1"></script>
 <script src="js/dashboard.js?v=v26"></script>
 <script src="js/accounts.js?v=v33"></script>
 <script src="js/bulletins.js?v=v38"></script>

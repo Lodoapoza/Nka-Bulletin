@@ -93,8 +93,105 @@ const Dashboard = (() => {
           ? `À jour au ${new Date(lastSync).toLocaleString('fr-FR')}`
           : 'Jamais mis à jour';
       }
+      // Carte guidée : snapshot alimenté en arrière-plan (ne bloque pas le refresh).
+      updateGuided(accounts);
     } catch (_) {
       if (syncStatus) syncStatus.textContent = 'Erreur de chargement';
+    }
+  }
+
+  // ===== Carte guidée (parcours.js) =====
+
+  // Construit le snapshot du parcours et rafraîchit la carte guidée.
+  async function updateGuided(accounts) {
+    const container = document.getElementById('guided-status-card');
+    if (!container) return;
+    try {
+      let syncStatus = null;
+      let newBulletins = 0;
+      try {
+        const s = await Api.getSyncStatus();
+        syncStatus = s.status;
+        newBulletins = Number(s.new_bulletins) || 0;
+      } catch (_) {
+        // Hors ligne ou backend indisponible : aucun job connu — syncStatus reste null.
+      }
+      const cached = await Api.getCachedBulletinIds();
+      const state = resolveJourneyState({
+        accountCount: accounts.length,
+        syncStatus,
+        newBulletins,
+        online: navigator.onLine !== false,
+        hasCachedBulletins: cached.length > 0,
+      });
+      Guided.render(container, state);
+    } catch (_) {
+      // La carte ne doit jamais casser le refresh du dashboard.
+    }
+  }
+
+  // Actions de la carte guidée (ids du contrat : voir Guided.ALLOWED_ACTIONS).
+  function handleGuidedAction(actionId) {
+    if (actionId === 'connect-account') {
+      // TODO(Task 4) : remplacer par Settings.openAccountForm() (ouverture du
+      // formulaire de compte avec focus). La fonction n'existe pas encore ;
+      // on navigue vers Réglages en attendant.
+      Router.goTo('settings');
+      return;
+    }
+    if (actionId === 'start-sync' || actionId === 'retry-sync') {
+      // Réutilise le flux du bouton « Mettre à jour » (garde disabled incluse).
+      runSyncFlow(document.getElementById('dash-sync-now'));
+      return;
+    }
+    if (actionId === 'view-bulletins') {
+      Router.goTo('bulletins');
+    }
+  }
+
+  // Flux de synchro partagé : bouton « Mettre à jour » et carte guidée.
+  async function runSyncFlow(btn) {
+    if (!btn || btn.disabled) return;
+    const statusEl = document.getElementById('dash-sync-status');
+    const originalHtml = btn.innerHTML;
+    const originalStatus = statusEl ? statusEl.textContent : '';
+    let refreshed = false;
+    btn.disabled = true;
+    btn.classList.add('is-busy');
+    // Bouton compact : spinner seul ; la progression s'affiche dans le statut de la carte.
+    btn.innerHTML = '<span class="btn-spinner"></span>';
+    if (statusEl) statusEl.textContent = 'Mise à jour en cours...';
+    try {
+      await Api.runSync();
+      const status = await Api.pollSyncStatus((s) => {
+        if (statusEl) {
+          statusEl.textContent = s.new_bulletins > 0
+            ? `Mise à jour en cours... (${s.new_bulletins} nouveaux)`
+            : 'Mise à jour en cours...';
+        }
+      });
+      if (status.status === 'done') {
+        Toast.show(status.new_bulletins > 0
+          ? `${status.new_bulletins} nouveau(x) bulletin(s) trouvé(s) !`
+          : 'Aucun nouveau bulletin pour le moment.');
+      } else if (status.status === 'failed') {
+        Toast.show(status.error_message || 'Échec de la mise à jour');
+      } else {
+        // Garde de 2 h atteinte — la synchro continue en arrière-plan.
+        Toast.show('La mise à jour prend plus de temps que prévu. Elle continue en arrière-plan.');
+      }
+      // On rafraîchit le tableau de bord ET la liste des bulletins :
+      // les bulletins récents apparaissent dès que la synchro les a trouvés.
+      await Promise.all([Dashboard.refresh(), Bulletins.refresh()]);
+      refreshed = true;
+    } catch (e) {
+      Toast.show(ERR.msg(e));
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove('is-busy');
+      btn.innerHTML = originalHtml;
+      // En cas d'erreur, le refresh n'a pas re-rempli le statut : on le restaure.
+      if (!refreshed && statusEl) statusEl.textContent = originalStatus;
     }
   }
 
@@ -117,50 +214,11 @@ const Dashboard = (() => {
         });
       } catch (_) {}
     }
-    document.getElementById('dash-sync-now').addEventListener('click', async (e) => {
-      const btn = e.currentTarget;
-      const statusEl = document.getElementById('dash-sync-status');
-      const originalHtml = btn.innerHTML;
-      const originalStatus = statusEl ? statusEl.textContent : '';
-      let refreshed = false;
-      btn.disabled = true;
-      btn.classList.add('is-busy');
-      // Bouton compact : spinner seul ; la progression s'affiche dans le statut de la carte.
-      btn.innerHTML = '<span class="btn-spinner"></span>';
-      if (statusEl) statusEl.textContent = 'Mise à jour en cours...';
-      try {
-        await Api.runSync();
-        const status = await Api.pollSyncStatus((s) => {
-          if (statusEl) {
-            statusEl.textContent = s.new_bulletins > 0
-              ? `Mise à jour en cours... (${s.new_bulletins} nouveaux)`
-              : 'Mise à jour en cours...';
-          }
-        });
-        if (status.status === 'done') {
-          Toast.show(status.new_bulletins > 0
-            ? `${status.new_bulletins} nouveau(x) bulletin(s) trouvé(s) !`
-            : 'Aucun nouveau bulletin pour le moment.');
-        } else if (status.status === 'failed') {
-          Toast.show(status.error_message || 'Échec de la mise à jour');
-        } else {
-          // Garde de 2 h atteinte — la synchro continue en arrière-plan.
-          Toast.show('La mise à jour prend plus de temps que prévu. Elle continue en arrière-plan.');
-        }
-        // On rafraîchit le tableau de bord ET la liste des bulletins :
-        // les bulletins récents apparaissent dès que la synchro les a trouvés.
-        await Promise.all([Dashboard.refresh(), Bulletins.refresh()]);
-        refreshed = true;
-      } catch (e) {
-        Toast.show(ERR.msg(e));
-      } finally {
-        btn.disabled = false;
-        btn.classList.remove('is-busy');
-        btn.innerHTML = originalHtml;
-        // En cas d'erreur, le refresh n'a pas re-rempli le statut : on le restaure.
-        if (!refreshed && statusEl) statusEl.textContent = originalStatus;
-      }
+    document.getElementById('dash-sync-now').addEventListener('click', (e) => {
+      runSyncFlow(e.currentTarget);
     });
+    // Carte guidée : un seul listener pour toutes les actions du parcours.
+    Guided.bind(document.getElementById('guided-status-card'), handleGuidedAction);
   }
 
   // Si des données en cache sont servies alors que le statut est en erreur

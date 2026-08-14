@@ -139,7 +139,7 @@ a { color: inherit; }
 /* ===== Views ===== */
 .view { padding: 0 20px 20px; }
 .view.hidden { display: none; }
-@media (prefers-reduced-motion: reduce) { .view, .card, .btn { animation: none !important; transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { .view, .card, .btn, .btn-spinner { animation: none !important; transition: none !important; } }
 
 /* ===== Cards (Material 3) ===== */
 .card {
@@ -152,6 +152,15 @@ a { color: inherit; }
 }
 .card.elevated { box-shadow: var(--shadow-elevated); }
 .card-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+/* ===== Carte guidée (parcours utilisateur) ===== */
+.guided-card { display: grid; gap: 8px; }
+.guided-card.hidden { display: none; }
+.guided-card .btn { justify-self: start; }
+.guided-card .btn[hidden] { display: none; }
+@media (max-width: 360px) {
+  .guided-card .btn { width: 100%; }
+}
 
 /* Empêche les sauts de layout au chargement des données */
 #dash-latest { min-height: 72px; }
@@ -214,6 +223,15 @@ a { color: inherit; }
 .btn-danger { background: transparent; color: var(--md-error); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-sm { padding: 9px 14px; font-size: 0.85rem; }
+
+/* ===== Bouton « occupé » (synchro en cours) =====
+   Le bouton reste visiblement actif (pas estompé) pendant le sondage ;
+   le curseur « progress » indique qu'un traitement est en cours. */
+.btn-spinner {
+  width: 16px; height: 16px; border: 2px solid currentColor; border-top-color: transparent;
+  border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0;
+}
+.btn.is-busy { opacity: 1; cursor: progress; }
 
 /* ===== Export rapide (accueil) =====
    Variante compacte de carte : padding réduit, boutons en grille 2 colonnes
