@@ -443,6 +443,7 @@ a { color: inherit; }
 
 #add-account-form { transition: opacity 0.2s ease, max-height 0.3s ease; overflow: hidden; }
 #add-account-form.hidden { display: none; }
+#account-form-error { color: var(--md-error); font-size: 0.82rem; margin: 4px 0 10px; }
 
 .provider-card {
   padding: 10px; border-radius: var(--radius-sm); border: none; font-weight: 700; font-size: 0.85rem;

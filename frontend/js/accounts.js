@@ -8,7 +8,18 @@ const Accounts = (() => {
     imap:    { host: 'imap.gmail.com',        port: 993, appPwdUrl: null },
   };
 
+  // Icônes du toggle mot de passe (œil / œil barré — mêmes tracés que le
+  // masquage des montants du dashboard).
+  const EYE_ICON = '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/>';
+  const EYE_OFF_ICON = '<path d="M3 3l18 18M10.6 10.6a2.5 2.5 0 002.8 2.8M6.9 6.9C4.5 8.2 3 12 3 12s3.5 7 10 7c1.5 0 2.8-.4 3.9-1M9.9 5.2A10 10 0 0112 5c6.5 0 10 7 10 7a15 15 0 01-2.2 3.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
+
   let selectedProvider = 'gmail';
+
+  // Erreur inline du formulaire (role="alert" dans index.html).
+  function showFormError(message) {
+    const errEl = document.getElementById('account-form-error');
+    if (errEl) errEl.textContent = message || '';
+  }
 
   function updateProviderUI(provider) {
     selectedProvider = provider;
@@ -145,21 +156,42 @@ const Accounts = (() => {
     if (!hasAccounts || inError) refresh();
   });
 
+  // Ouvre le formulaire d'ajout de compte (utilisé par le bouton « + Connecter
+  // un compte email » et par le CTA de la carte guidée via Settings.openAccountForm()).
+  function openForm() {
+    const formCard = document.getElementById('add-account-form');
+    if (!formCard) return;
+    formCard.classList.remove('hidden');
+    updateProviderUI('gmail');
+    showFormError('');
+    const emailEl = document.getElementById('account-email');
+    if (emailEl) emailEl.focus();
+  }
+
   function bindForm() {
     const formCard = document.getElementById('add-account-form');
     const addBtn = document.getElementById('add-account-btn');
     const cancelBtn = document.getElementById('cancel-account-btn');
     const submitBtn = document.getElementById('submit-account-btn');
 
-    addBtn.addEventListener('click', () => {
-      formCard.classList.remove('hidden');
-      updateProviderUI('gmail');
-    });
+    addBtn.addEventListener('click', openForm);
     cancelBtn.addEventListener('click', () => {
       formCard.classList.add('hidden');
       document.getElementById('account-email').value = '';
       document.getElementById('account-password').value = '';
+      showFormError('');
     });
+
+    const togglePwdBtn = document.getElementById('toggle-password-btn');
+    if (togglePwdBtn) {
+      togglePwdBtn.addEventListener('click', () => {
+        const pwdInput = document.getElementById('account-password');
+        const show = pwdInput.type === 'password';
+        pwdInput.type = show ? 'text' : 'password';
+        togglePwdBtn.setAttribute('aria-label', show ? 'Masquer le mot de passe' : 'Afficher le mot de passe');
+        document.getElementById('toggle-password-icon').innerHTML = show ? EYE_OFF_ICON : EYE_ICON;
+      });
+    }
 
     document.querySelectorAll('.provider-card').forEach(card => {
       card.addEventListener('click', () => updateProviderUI(card.dataset.provider));
@@ -185,20 +217,26 @@ const Accounts = (() => {
       const host = provider === 'imap' ? document.getElementById('imap-host').value.trim() : preset.host;
       const port = provider === 'imap' ? document.getElementById('imap-port').value : preset.port;
 
-      if (!email || !email.includes('@')) { Toast.show('Adresse email invalide.'); return; }
-      if (!password) { Toast.show('Mot de passe requis.'); return; }
-      if (provider === 'imap' && !host) { Toast.show('Serveur IMAP requis pour un compte personnalisé.'); return; }
+      // Erreurs de validation : affichées en ligne (role="alert"), pas en toast.
+      if (!email || !email.includes('@')) { showFormError('Adresse email invalide.'); return; }
+      if (!password) { showFormError('Mot de passe requis.'); return; }
+      if (provider === 'imap' && !host) { showFormError('Serveur IMAP requis pour un compte personnalisé.'); return; }
+      showFormError('');
 
       submitBtn.disabled = true;
       submitBtn.textContent = 'Connexion en cours...';
       try {
-        await Api.addAccount({ provider, email, password, host, port, secure: true });
+        const result = await Api.addAccount({ provider, email, password, host, port, secure: true });
         Toast.show('Compte connecté avec succès !');
         formCard.classList.add('hidden');
         document.getElementById('account-email').value = '';
         document.getElementById('account-password').value = '';
         refresh();
+        // Publie le succès sans lancer de scan : le parcours guidé décidera
+        // de proposer la première recherche (pas de Api.runSync() ici).
+        window.dispatchEvent(new CustomEvent('nka-account-added', { detail: { account: result } }));
       } catch (e) {
+        showFormError(ERR.msg(e));
         Toast.show(ERR.msg(e));
       } finally {
         submitBtn.disabled = false;
@@ -207,5 +245,5 @@ const Accounts = (() => {
     });
   }
 
-  return { refresh, bindForm };
+  return { refresh, bindForm, openForm };
 })();

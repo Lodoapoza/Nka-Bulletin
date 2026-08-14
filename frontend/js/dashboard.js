@@ -133,10 +133,14 @@ const Dashboard = (() => {
   // Actions de la carte guidée (ids du contrat : voir Guided.ALLOWED_ACTIONS).
   function handleGuidedAction(actionId) {
     if (actionId === 'connect-account') {
-      // TODO(Task 4) : remplacer par Settings.openAccountForm() (ouverture du
-      // formulaire de compte avec focus). La fonction n'existe pas encore ;
-      // on navigue vers Réglages en attendant.
-      Router.goTo('settings');
+      // Settings.openAccountForm() ouvre Réglages + formulaire + focus email.
+      // settings.js est chargé après dashboard.js, mais l'appel est différé au
+      // clic : la garde couvre un chargement partiel ou un ordre modifié.
+      if (typeof Settings !== 'undefined' && Settings.openAccountForm) {
+        Settings.openAccountForm();
+      } else {
+        Router.goTo('settings');
+      }
       return;
     }
     if (actionId === 'start-sync' || actionId === 'retry-sync') {
@@ -220,6 +224,12 @@ const Dashboard = (() => {
     // Carte guidée : un seul listener pour toutes les actions du parcours.
     Guided.bind(document.getElementById('guided-status-card'), handleGuidedAction);
   }
+
+  // Compte connecté (accounts.js) : la carte guidée doit proposer la première
+  // recherche — le snapshot est re-alimenté par Dashboard.refresh().
+  window.addEventListener('nka-account-added', () => {
+    Dashboard.refresh();
+  });
 
   // Si des données en cache sont servies alors que le statut est en erreur
   // ou hors ligne, adoucir le message : les données ne sont pas perdues.

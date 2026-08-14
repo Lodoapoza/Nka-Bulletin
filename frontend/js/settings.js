@@ -310,5 +310,18 @@ const Settings = (() => {
     } catch (e) { console.warn('rescan-btn:', e); }
   }
 
-  return { bindActions, applyTheme };
+  // Ouvre la vue Réglages puis le formulaire d'ajout de compte, avec scroll et
+  // focus sur le champ email (CTA « Connecter ma boîte mail » de la carte guidée).
+  // Le Router toggle les vues de façon synchrone : la vue est visible au retour
+  // de goTo('settings'), le scroll/focus peuvent s'exécuter immédiatement.
+  function openAccountForm() {
+    Router.goTo('settings');
+    Accounts.openForm();
+    const formCard = document.getElementById('add-account-form');
+    if (formCard) formCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const emailEl = document.getElementById('account-email');
+    if (emailEl) emailEl.focus();
+  }
+
+  return { bindActions, applyTheme, openAccountForm };
 })();

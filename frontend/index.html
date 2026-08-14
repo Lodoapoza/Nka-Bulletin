@@ -226,8 +226,8 @@
           </div>
 
           <div id="custom-imap-fields" class="hidden">
-            <div class="field"><label>Serveur IMAP</label><input type="text" id="imap-host" placeholder="imap.monfournisseur.com"></div>
-            <div class="field"><label>Port</label><input type="number" id="imap-port" value="993"></div>
+            <div class="field"><label for="imap-host">Serveur IMAP</label><input type="text" id="imap-host" placeholder="imap.monfournisseur.com" autocomplete="off"></div>
+            <div class="field"><label for="imap-port">Port</label><input type="number" id="imap-port" value="993" inputmode="numeric"></div>
           </div>
 
           <div id="app-pwd-link" style="margin-bottom:14px;padding:12px;background:var(--md-primary-container);border-radius:var(--radius-sm);">
@@ -239,11 +239,20 @@
             </a>
           </div>
 
-          <div class="field"><label>Adresse email</label><input type="email" id="account-email" placeholder="vous@exemple.com"></div>
           <div class="field">
-            <label>Mot de passe d'application</label>
-            <input type="password" id="account-password" placeholder="••••••••••••">
+            <label for="account-email">Adresse email</label>
+            <input type="email" id="account-email" placeholder="vous@exemple.com" autocomplete="email">
           </div>
+          <div class="field">
+            <label for="account-password">Mot de passe d'application</label>
+            <div style="display:flex;gap:8px;">
+              <input type="password" id="account-password" placeholder="••••••••••••" autocomplete="current-password" style="flex:1;">
+              <button type="button" class="icon-btn" id="toggle-password-btn" aria-label="Afficher le mot de passe">
+                <svg id="toggle-password-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/></svg>
+              </button>
+            </div>
+          </div>
+          <div id="account-form-error" role="alert"></div>
         </div>
 
         <button class="btn btn-primary btn-full" id="submit-account-btn">Connecter</button>
