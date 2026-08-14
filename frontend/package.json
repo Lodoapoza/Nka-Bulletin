@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "deps": "npm install"
+    "deps": "npm install",
+    "test": "node --test test/*.test.cjs"
   },
   "devDependencies": {
     "clean-css": "^5.3.3",
