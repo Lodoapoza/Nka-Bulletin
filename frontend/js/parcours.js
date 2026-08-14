@@ -51,7 +51,7 @@
         kind: 'no-account',
         title: 'Connectons votre boîte mail',
         body: 'Ajoutez votre adresse e-mail pour recevoir vos bulletins ici.',
-        action: { id: 'connect-mail', label: 'Connecter ma boîte mail' },
+        action: { id: 'connect-account', label: 'Connecter ma boîte mail' },
       };
     }
 
@@ -69,7 +69,7 @@
         kind: 'failed',
         title: 'La recherche n’a pas abouti',
         body: 'Une erreur est survenue pendant la recherche. Vous pouvez réessayer.',
-        action: { id: 'retry', label: 'Réessayer' },
+        action: { id: 'retry-sync', label: 'Réessayer' },
       };
     }
 
@@ -87,7 +87,7 @@
         kind: 'done-empty',
         title: 'Aucun nouveau bulletin',
         body: 'Aucun nouveau bulletin n’a été trouvé sur votre compte.',
-        action: { id: 'rescan', label: 'Rechercher à nouveau' },
+        action: { id: 'start-sync', label: 'Rechercher à nouveau' },
       };
     }
 
@@ -95,7 +95,7 @@
       kind: 'ready-to-scan',
       title: 'Votre boîte mail est connectée',
       body: 'Votre compte est prêt. Lancez une recherche de nouveaux bulletins.',
-      action: { id: 'scan', label: 'Rechercher mes bulletins' },
+      action: { id: 'start-sync', label: 'Rechercher mes bulletins' },
     };
   }
 
