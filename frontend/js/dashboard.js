@@ -31,7 +31,19 @@ const Dashboard = (() => {
     renderAmounts();
   }
 
-  async function refresh() {
+  // Garde anti-refresh concurrent : le boot, Router.goTo('dashboard'),
+  // nka-account-added et la fin de synchro peuvent demander un refresh en
+  // même temps — tous partagent la même exécution au lieu de re-frapper l'API.
+  // Remise à null dans `finally` : un appel suivant relance un vrai refresh.
+  let refreshPromise = null;
+
+  function refresh() {
+    if (refreshPromise) return refreshPromise;
+    refreshPromise = doRefresh();
+    return refreshPromise.finally(() => { refreshPromise = null; });
+  }
+
+  async function doRefresh() {
     const syncStatus = document.getElementById('dash-sync-status');
     if (syncStatus) syncStatus.textContent = 'Chargement...';
     try {
@@ -184,6 +196,10 @@ const Dashboard = (() => {
         // Garde de 2 h atteinte — la synchro continue en arrière-plan.
         Toast.show('La mise à jour prend plus de temps que prévu. Elle continue en arrière-plan.');
       }
+      // Fin de synchro connue : les caches dérivés (ex. années disponibles des
+      // bulletins) doivent être invalidés. C'est le signal le plus fiable —
+      // émis uniquement par ce flux commun (bouton + boot).
+      window.dispatchEvent(new CustomEvent('nka-sync-completed', { detail: { status } }));
       // On rafraîchit le tableau de bord ET la liste des bulletins :
       // les bulletins récents apparaissent dès que la synchro les a trouvés.
       await Promise.all([Dashboard.refresh(), Bulletins.refresh()]);
@@ -245,5 +261,5 @@ const Dashboard = (() => {
     }
   });
 
-  return { refresh, bindActions };
+  return { refresh, bindActions, runSyncFlow };
 })();

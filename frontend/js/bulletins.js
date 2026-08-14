@@ -9,8 +9,43 @@ const Bulletins = (() => {
   let cache = [];
   let cachedSet = new Set();
   let availableYears = [];
+  // Années disponibles mémoïsées en mémoire : le premier chargement alimente
+  // le cache ; les changements de filtre le réutilisent (pas de second GET).
+  // null = pas encore calculé. Invalidé par nka-account-added / nka-sync-completed.
+  let availableYearsCache = null;
   let yearDropdown = null;
   let monthDropdown = null;
+
+  // ===== Erreur réseau sous la liste (keep-list) =====
+  // Élément dédié, créé une fois hors de #bulletins-list pour survivre aux
+  // re-rendus de la liste.
+  function listErrorEl() {
+    let el = document.getElementById('bulletins-error');
+    if (el) return el;
+    const listEl = document.getElementById('bulletins-list');
+    el = document.createElement('div');
+    el.id = 'bulletins-error';
+    el.className = 'hint';
+    el.setAttribute('role', 'status');
+    if (listEl && listEl.parentNode) listEl.parentNode.insertBefore(el, listEl.nextSibling);
+    return el;
+  }
+
+  function showListError(message) {
+    const el = listErrorEl();
+    if (el) el.textContent = message;
+  }
+
+  function hideListError() {
+    const el = document.getElementById('bulletins-error');
+    if (el) el.remove();
+  }
+
+  // Invalidation du cache des années : nouveau compte (accounts.js) ou
+  // synchro terminée (flux commun du dashboard). Ces signaux sont les plus
+  // fiables déjà émis — nka-sync-tick, lui, ne marque pas la fin.
+  window.addEventListener('nka-account-added', () => { availableYearsCache = null; });
+  window.addEventListener('nka-sync-completed', () => { availableYearsCache = null; });
 
   function markCached(btn) {
     btn.setAttribute('aria-label', 'En local');
@@ -218,7 +253,13 @@ const Bulletins = (() => {
     if (q) params.q = q;
 
     const listEl = document.getElementById('bulletins-list');
-    listEl.innerHTML = '<div class="loading-state"><div class="spinner"></div><div>Chargement des bulletins...</div></div>';
+    listEl.setAttribute('aria-busy', 'true');
+    // Keep-list : l'écran de chargement ne remplace la liste que si aucune
+    // ligne n'est déjà rendue — les bulletins restent visibles pendant le refresh.
+    if (!cache.length) {
+      listEl.innerHTML = '<div class="loading-state"><div class="spinner"></div><div>Chargement des bulletins...</div></div>';
+    }
+    hideListError();
 
     try {
       const serverList = await Api.getBulletins(params);
@@ -242,26 +283,41 @@ const Bulletins = (() => {
       cache = [...serverList, ...cachedBullets, ...noMetaRecs]
         .sort((a, b) => (b.year - a.year) || (b.month - a.month));
 
-      // Années disponibles : serveur (sans filtre) + cache local
-      let all = [];
-      try {
-        // N'envoyer q que s'il est défini : sinon URLSearchParams produit
-        // « q=undefined » et le serveur filtre filename LIKE '%undefined%' → liste vide.
-        all = await Api.getBulletins(params.q ? { q: params.q } : {});
-      } catch (_) {
-        all = serverList;
+      // Années disponibles : serveur (sans filtre) + cache local, mémoïsées
+      // en mémoire. Le premier chargement alimente le cache ; les changements
+      // de filtre le réutilisent sans second GET /bulletins. Invalidé après
+      // ajout de compte ou fin de synchro. La Phase 3 remplacera ce cache par
+      // le champ `years` fourni par l'API.
+      if (availableYearsCache === null) {
+        let all = [];
+        try {
+          // N'envoyer q que s'il est défini : sinon URLSearchParams produit
+          // « q=undefined » et le serveur filtre filename LIKE '%undefined%' → liste vide.
+          all = await Api.getBulletins(params.q ? { q: params.q } : {});
+        } catch (_) {
+          all = serverList;
+        }
+        const source = [...(all.length ? all : serverList), ...cachedAll];
+        availableYearsCache = [...new Set(source.map(b => b.year))].sort((a, b) => b - a);
       }
-      const source = [...(all.length ? all : serverList), ...cachedAll];
-      availableYears = [...new Set(source.map(b => b.year))].sort((a, b) => b - a);
+      availableYears = availableYearsCache;
 
       const ids = await Api.getCachedBulletinIds();
       cachedSet = new Set((ids || []).map(String));
       renderYearDropdown();
       renderMonthDropdown();
       renderList();
+      listEl.setAttribute('aria-busy', 'false');
     } catch (e) {
-      cache = [];
-      listEl.innerHTML = '';
+      // Erreur réseau : conserver les bulletins déjà affichés (keep-list) et
+      // signaler l'erreur SOUS la liste — jamais d'écran vide si une liste
+      // valide existe. `cache` n'est pas vidé : le prochain refresh réutilisera
+      // les lignes connues.
+      listEl.setAttribute('aria-busy', 'false');
+      if (!cache.length) {
+        listEl.innerHTML = '<div class="empty-state"><div class="glyph">🗂️</div><div>Aucun bulletin</div></div>';
+      }
+      showListError(ERR.msg(e));
       Toast.show(ERR.msg(e));
     }
   }

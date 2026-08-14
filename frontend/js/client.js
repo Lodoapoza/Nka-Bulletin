@@ -5,18 +5,22 @@ const API_BASE = window.NKA_API_BASE || '/api';
 const Api = (() => {
   let token = localStorage.getItem('nka_token');
   let deviceId = localStorage.getItem('nka_device_id');
+  // Mémoïsation single-flight manuelle : une seule requête d'enregistrement
+  // concurrente pour tout le boot (les appels simultanés partagent la même
+  // promesse). Remise à `null` dans `finally` : un appel ultérieur sans token
+  // (ex. 401 → token effacé) peut relancer un enregistrement.
+  // NB : singleFlight(fn) n'est pas utilisé ici car ensureDevice a des retries
+  // récursifs — un wrapper global ferait s'attendre la promesse à elle-même.
+  let ensureDevicePromise = null;
 
   function isOnline() {
     return navigator.onLine !== false;
   }
 
-  async function ensureDevice(retries = 2) {
-    if (token) return { token, deviceId };
-    if (!deviceId) {
-      deviceId = crypto.randomUUID();
-      localStorage.setItem('nka_device_id', deviceId);
-    }
-    if (!isOnline()) return { token: null, deviceId };
+  // Partie réseau de l'enregistrement, retries internes compris. Les appels
+  // récursifs passent par CETTE fonction (jamais par le wrapper mémoïsé,
+  // sinon deadlock sur la promesse partagée).
+  async function registerDevice(retries) {
     const url = `${API_BASE}/auth/register-device`;
     const res = await fetch(url, {
       method: 'POST',
@@ -31,13 +35,29 @@ const Api = (() => {
       console.error(`ensureDevice: réponse non-JSON de ${url} (${res.status}):\n${snippet}`);
       if (retries > 0) {
         await new Promise(r => setTimeout(r, 1000));
-        return ensureDevice(retries - 1);
+        return registerDevice(retries - 1);
       }
       throw new Error(`Backend injoignable (${res.status})`);
     }
     token = data.token;
     localStorage.setItem('nka_token', token);
     return { token, deviceId };
+  }
+
+  async function ensureDevice(retries = 2) {
+    if (token) return { token, deviceId };
+    if (!deviceId) {
+      deviceId = crypto.randomUUID();
+      localStorage.setItem('nka_device_id', deviceId);
+    }
+    if (!isOnline()) return { token: null, deviceId };
+    if (ensureDevicePromise) return ensureDevicePromise;
+    ensureDevicePromise = registerDevice(retries);
+    try {
+      return await ensureDevicePromise;
+    } finally {
+      ensureDevicePromise = null;
+    }
   }
 
   const RETRYABLE_STATUS = new Set([502, 503, 504]);

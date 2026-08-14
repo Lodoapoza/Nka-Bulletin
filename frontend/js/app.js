@@ -77,69 +77,6 @@ const Router = (() => {
   return { bind, goTo };
 })();
 
-/* ===== Liaison multi-appareils =====
-   Écran plein écran affiché au boot quand l'appareil n'est pas encore
-   relié à un compte (user_matricule absent). Le code de liaison se crée
-   dans Réglages, sur un appareil déjà connecté. */
-const LinkScreen = (() => {
-  const screen = document.getElementById('link-screen');
-  const matInput = document.getElementById('link-matricule-input');
-  const codeInput = document.getElementById('link-code-input');
-  const errorEl = document.getElementById('link-error');
-  const submitBtn = document.getElementById('link-submit-btn');
-
-  function show() {
-    if (!screen) return;
-    if (matInput) matInput.value = '';
-    if (codeInput) codeInput.value = '';
-    if (errorEl) errorEl.textContent = '';
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Lier cet appareil'; }
-    screen.classList.remove('hidden');
-    if (matInput) setTimeout(() => matInput.focus(), 60);
-  }
-
-  async function submit() {
-    if (!matInput || !codeInput || !errorEl || !submitBtn) return;
-    errorEl.textContent = '';
-    const matricule = matInput.value.trim().toUpperCase();
-    const code = codeInput.value.trim().toUpperCase();
-    if (!matricule) { errorEl.textContent = 'Saisissez votre matricule.'; return; }
-    if (code.length !== 6) { errorEl.textContent = 'Le code de liaison comporte 6 caractères.'; return; }
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Liaison en cours…';
-    try {
-      const res = await Api.linkDevice(matricule, code);
-      if (!res || !res.token) throw new Error('Réponse inattendue du serveur');
-      // Stockage comme register-device, puis redémarrage propre de l'app.
-      if (res.deviceId) localStorage.setItem('nka_device_id', res.deviceId);
-      localStorage.setItem('nka_token', res.token);
-      location.reload();
-    } catch (e) {
-      const m = String((e && e.message) || e || '');
-      errorEl.textContent = /401|incorrect|invalide/i.test(m)
-        ? 'Code de liaison incorrect. Vérifiez le matricule et le code, puis réessayez.'
-        : (ERR.msg(e) || 'Impossible de lier cet appareil. Réessayez plus tard.');
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Lier cet appareil';
-    }
-  }
-
-  function bind() {
-    if (!screen || !submitBtn) return;
-    submitBtn.addEventListener('click', submit);
-    if (codeInput) {
-      codeInput.addEventListener('input', () => {
-        codeInput.value = codeInput.value.toUpperCase().slice(0, 6);
-      });
-    }
-    [matInput, codeInput].forEach(inp => {
-      if (inp) inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
-    });
-  }
-
-  return { bind, show };
-})();
-
 async function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     try { await navigator.serviceWorker.register('/sworker.js'); }
@@ -157,7 +94,6 @@ async function bootApp() {
   safe('Analyse',   () => Analyse.bindActions());
   safe('Settings',  () => Settings.bindActions());
   safe('Keyboard',  () => NativeBridge && NativeBridge.ensureKeyboard && NativeBridge.ensureKeyboard());
-  safe('LinkScreen', () => LinkScreen.bind());
 
   const backendOk = await Api.ensureDevice().then(() => true).catch((e) => {
     Toast.show(ERR.msg(e));
@@ -176,35 +112,32 @@ async function bootApp() {
   }
   applyAnalyseNav(!!(settings && settings.extract_amounts));
 
-  // Appareil non lié : l'écran de liaison remplace l'accueil.
-  if (backendOk && settings && !settings.user_matricule) {
-    LinkScreen.show();
-  } else {
-    Router.goTo('dashboard');
-  }
+  // L'app démarre toujours sur l'accueil ; le rattachement à un compte
+  // (email) se fait dans Réglages, carte « Compte ».
+  // goTo('dashboard') re-demande Dashboard.refresh() : la garde interne du
+  // module (refreshPromise) coalesce avec le refresh lancé ci-dessus.
+  Router.goTo('dashboard');
   showVersion();
   initConnectionBadge();
 
   if (backendOk) {
-    Api.runSync().then(() => {
-      // Poll le statut de la synchro automatique au démarrage
-      const poll = async () => {
-        for (let i = 0; i < 40; i++) {
-          await new Promise(r => setTimeout(r, 1500));
-          const status = await Api.getSyncStatus();
-          if (status.status === 'done') {
-            if (status.new_bulletins > 0) {
-              Toast.show(`${status.new_bulletins} nouveau(x) bulletin(s) trouvé(s) !`);
-              Dashboard.refresh();
-              Bulletins.refresh();
-            }
-            return;
-          }
-          if (status.status === 'failed') return;
-        }
-      };
-      poll();
-    }).catch(e => console.warn('[app]', e.message || e));
+    // Synchro de démarrage via le flux commun du bouton « Mettre à jour »
+    // (dashboard.js : runSync + poll + toasts + refresh) — plus de boucle de
+    // poll locale. Uniquement si un compte existe et qu'aucun job
+    // pending/running n'est déjà actif. Le flux désactive le bouton pendant
+    // son exécution : la garde `disabled` empêche tout double run/poll
+    // (boot + clic utilisateur).
+    Api.getAccounts()
+      .then((accounts) => {
+        if (!accounts.length) return null;
+        return Api.getSyncStatus().then((s) => s.status);
+      })
+      .then((status) => {
+        if (!status || status === 'pending' || status === 'running') return;
+        const btn = document.getElementById('dash-sync-now');
+        if (btn && Dashboard.runSyncFlow) Dashboard.runSyncFlow(btn);
+      })
+      .catch((e) => console.warn('[app] sync boot:', e.message || e));
   } else {
     retryBackend();
   }
@@ -265,10 +198,6 @@ async function retryBackend() {
   if (ok) {
     retryCount = 0;
     updateConnectionBadge(true);
-    // L'appareil a pu démarrer hors ligne sans être lié : on re-vérifie
-    // la liaison avant de reprendre le mode normal.
-    const s = await Api.getSettings().catch(() => null);
-    if (s && !s.user_matricule) { LinkScreen.show(); return; }
     Toast.show('Backend reconnecté.');
     Dashboard.refresh();
     Bulletins.refresh();
