@@ -156,6 +156,18 @@ const Accounts = (() => {
     if (!hasAccounts || inError) refresh();
   });
 
+  // Remet le champ mot de passe à l'état initial (masqué) : évite l'état
+  // résiduel en clair si l'utilisateur a affiché le mot de passe puis
+  // annulé ou fermé le formulaire.
+  function resetPasswordVisibility() {
+    const pwdInput = document.getElementById('account-password');
+    if (pwdInput) pwdInput.type = 'password';
+    const togglePwdBtn = document.getElementById('toggle-password-btn');
+    if (togglePwdBtn) togglePwdBtn.setAttribute('aria-label', 'Afficher le mot de passe');
+    const icon = document.getElementById('toggle-password-icon');
+    if (icon) icon.innerHTML = EYE_ICON;
+  }
+
   // Ouvre le formulaire d'ajout de compte (utilisé par le bouton « + Connecter
   // un compte email » et par le CTA de la carte guidée via Settings.openAccountForm()).
   function openForm() {
@@ -164,6 +176,7 @@ const Accounts = (() => {
     formCard.classList.remove('hidden');
     updateProviderUI('gmail');
     showFormError('');
+    resetPasswordVisibility();
     const emailEl = document.getElementById('account-email');
     if (emailEl) emailEl.focus();
   }
@@ -180,6 +193,7 @@ const Accounts = (() => {
       document.getElementById('account-email').value = '';
       document.getElementById('account-password').value = '';
       showFormError('');
+      resetPasswordVisibility();
     });
 
     const togglePwdBtn = document.getElementById('toggle-password-btn');

@@ -245,7 +245,11 @@ const Bulletins = (() => {
     return true;
   }
 
-  async function refresh() {
+  // progressive : refresh déclenché par nka-sync-tick (rafraîchissement
+  // progressif pendant un scan). Ne recalcule PAS availableYearsCache quand
+  // il vient d'être invalidé (null) : le refresh final, après
+  // nka-sync-completed, fera le GET de remplissage sur des données complètes.
+  async function refresh(progressive = false) {
     const q = document.getElementById('search-input').value.trim();
     const params = {};
     if (currentYear) params.year = currentYear;
@@ -288,7 +292,7 @@ const Bulletins = (() => {
       // de filtre le réutilisent sans second GET /bulletins. Invalidé après
       // ajout de compte ou fin de synchro. La Phase 3 remplacera ce cache par
       // le champ `years` fourni par l'API.
-      if (availableYearsCache === null) {
+      if (availableYearsCache === null && !progressive) {
         let all = [];
         try {
           // N'envoyer q que s'il est défini : sinon URLSearchParams produit
@@ -300,7 +304,11 @@ const Bulletins = (() => {
         const source = [...(all.length ? all : serverList), ...cachedAll];
         availableYearsCache = [...new Set(source.map(b => b.year))].sort((a, b) => b - a);
       }
-      availableYears = availableYearsCache;
+      // Refresh progressif avec cache invalidé : availableYears garde les
+      // années déjà affichées (pas de re-remplissage pré-fin-de-scan).
+      if (availableYearsCache !== null) {
+        availableYears = availableYearsCache;
+      }
 
       const ids = await Api.getCachedBulletinIds();
       cachedSet = new Set((ids || []).map(String));
@@ -352,7 +360,9 @@ const Bulletins = (() => {
       if (!viewEl || viewEl.classList.contains('hidden')) return;
       if (Date.now() - lastSyncTick < 10000) return;
       lastSyncTick = Date.now();
-      refresh();
+      // Progressif : ne pas re-remplir availableYearsCache s'il vient d'être
+      // invalidé — le refresh final (après nka-sync-completed) le refera.
+      refresh(true);
     });
   }
 

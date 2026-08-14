@@ -39,6 +39,8 @@ const AppDropdown = (() => {
       panel = document.createElement('div');
       panel.className = 'custom-dropdown-panel';
       panel.setAttribute('role', 'listbox');
+      // Nomme le panneau pour les lecteurs d'écran (le trigger a un id unique).
+      panel.setAttribute('aria-labelledby', trigger.id);
       renderPanel();
 
       // Position sous le trigger
@@ -78,7 +80,7 @@ const AppDropdown = (() => {
         else if (e.key === 'ArrowUp') { e.preventDefault(); focusAt(current - 1); }
         else if (e.key === 'Home') { e.preventDefault(); focusAt(0); }
         else if (e.key === 'End') { e.preventDefault(); focusAt(list.length - 1); }
-        else if (e.key === 'Tab') { close(); }
+        else if (e.key === 'Tab') { close(); trigger.focus(); }
       });
 
       // Fermeture : clic extérieur / Escape (Escape restitue le focus au trigger)
