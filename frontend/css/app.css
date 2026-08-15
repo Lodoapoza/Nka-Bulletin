@@ -170,7 +170,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-#app { max-width: 480px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; padding: 0 0 calc(84px + env(safe-area-inset-bottom, 0px)); position: relative; }
+#app { max-width: 480px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; padding: 0 0 calc(96px + env(safe-area-inset-bottom, 0px)); position: relative; }
 
 /* ===== Fond de scène : blobs ambiants dérivés de l'accent (spec §4) ===== */
 .bg-scene { position: fixed; inset: 0 auto 0 50%; transform: translateX(-50%); width: 100%; max-width: 480px; overflow: hidden; pointer-events: none; z-index: 0; }
@@ -190,7 +190,7 @@ h2 { font-size: 1.15rem; margin: 0 0 12px; }
 a { color: inherit; }
 
 /* ===== Top bar ===== */
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: calc(20px + env(safe-area-inset-top, 0px)) 20px 8px; position: sticky; top: 0; z-index: 50; background: linear-gradient(180deg, var(--md-primary-container), var(--md-surface) 90%); }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: calc(20px + env(safe-area-inset-top, 0px)) 20px 8px; position: sticky; top: 0; z-index: 50; background: var(--glass-surface-strong); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); border-bottom: 1px solid var(--glass-border); }
 .topbar .brand { display: flex; align-items: center; gap: 10px; }
 .topbar-title { font-family: var(--font-display); font-weight: 700; font-size: 1.02rem; letter-spacing: -0.01em; }
 .topbar-actions { display: flex; align-items: center; gap: 6px; }
@@ -435,10 +435,14 @@ a { color: inherit; }
 
 /* ===== Bottom nav ===== */
 .bottom-nav {
-  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 100%; max-width: 480px; background: var(--md-surface-container);
-  box-shadow: 0 -4px 20px rgba(0,0,0,0.08); border-top-left-radius: 20px; border-top-right-radius: 20px;
-  display: flex; padding: 8px 8px max(10px, env(safe-area-inset-bottom, 0px));
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: max(10px, env(safe-area-inset-bottom, 0px));
+  width: calc(100% - 20px); max-width: 460px; border-radius: 24px;
+  background: var(--glass-surface-strong);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-lg);
+  display: flex; padding: 8px;
 }
 .nav-item {
   flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
@@ -452,7 +456,7 @@ a { color: inherit; }
 .nav-item svg { width: 22px; height: 22px; }
 
 .app-version {
-  position: fixed; bottom: 80px; right: 12px; font-size: 0.6rem;
+  position: fixed; bottom: 92px; right: 12px; font-size: 0.6rem;
   color: var(--md-outline); z-index: 1; pointer-events: none;
 }
 
@@ -468,16 +472,28 @@ a { color: inherit; }
 
 /* ===== PIN lock screen ===== */
 .pin-screen {
-  position: fixed; inset: 0; background: var(--md-surface); z-index: 100;
+  position: fixed; inset: 0; z-index: 100;
+  background: linear-gradient(180deg, var(--glass-surface-strong), var(--glass-surface-soft));
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
   display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px;
 }
 .pin-screen.hidden { display: none; }
+.pin-card {
+  background: var(--glass-surface-strong);
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  border-radius: 24px; padding: 28px; max-width: 320px; width: 100%;
+  box-shadow: var(--glass-shadow-lg);
+  display: flex; flex-direction: column; align-items: center;
+}
 .pin-dots { display: flex; gap: 16px; margin: 28px 0; }
 .pin-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--md-outline); transition: background 0.15s, border-color 0.15s; }
 .pin-dot.filled { background: var(--md-primary); border-color: var(--md-primary); }
 .pin-keypad { display: grid; grid-template-columns: repeat(3, 72px); gap: 14px; }
 .pin-key {
-  width: 72px; height: 72px; border-radius: 50%; border: none; background: var(--md-surface-container);
+  width: 72px; height: 72px; border-radius: 50%; border: 1px solid var(--glass-border-subtle); background: var(--glass-surface-soft);
   font-family: var(--font-display); font-size: 1.4rem; font-weight: 700; color: var(--md-on-surface); cursor: pointer;
 }
 .pin-key:active { background: var(--md-surface-container-high); }
@@ -639,3 +655,8 @@ a { color: inherit; }
 .badge-delta.delta-up { background: var(--md-primary-container); color: var(--md-on-primary-container); }
 .badge-delta.delta-down { background: var(--md-error-container, rgba(179, 38, 30, .14)); color: var(--md-on-error-container, #B3261E); }
 .badge-delta.delta-flat { background: var(--md-surface-container-high); color: var(--md-on-surface-variant); }
+
+/* ===== Fallback : pas de backdrop-filter → surfaces solides (spec §2) ===== */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .topbar, .bottom-nav, #pin-screen, .pin-card { background: var(--glass-surface-solid); }
+}
