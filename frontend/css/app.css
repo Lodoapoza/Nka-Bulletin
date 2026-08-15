@@ -28,6 +28,24 @@
   --font-display: 'Plus Jakarta Sans', sans-serif;
   --font-body: 'Inter', sans-serif;
   --font-mono: 'Roboto Mono', monospace;
+  /* ===== Glassmorphism — fond & tokens (spec refonte glass §3) ===== */
+  --bg-base: linear-gradient(165deg, #F4F9F6 0%, #EDF3F8 48%, #F8F3EE 100%);
+  --glass-surface:       rgba(255,255,255,0.58);  /* cartes */
+  --glass-surface-strong: rgba(255,255,255,0.80); /* topbar, nav, merge-bar, overlays */
+  --glass-surface-soft:   rgba(255,255,255,0.42); /* search, triggers, pin-keys */
+  --glass-surface-solid:  #F6F8F6;                /* fallback @supports + listes */
+  --glass-border:        rgba(255,255,255,0.65);
+  --glass-border-subtle: rgba(20,40,33,0.10);     /* hairlines internes */
+  --glass-blur:   20px;   --glass-blur-sm: 14px;  --glass-blur-lg: 28px;
+  --glass-saturate: 175%;
+  --glass-shadow:    0 8px 32px rgba(20,40,33,0.10), 0 2px 10px rgba(20,40,33,0.06);
+  --glass-shadow-lg: 0 20px 48px rgba(20,40,33,0.16), 0 4px 14px rgba(20,40,33,0.08);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --danger: #c0392b;
+  /* Blobs accent émeraude (clair) — spec §3.3 */
+  --blob-1: rgba(27,110,92,.34);
+  --blob-2: rgba(242,169,59,.20);
+  --blob-3: rgba(14,74,60,.16);
 }
 
 /* ===== Accents (version claire) ===== */
@@ -39,6 +57,10 @@
   --md-on-secondary: #3A2200;
   --md-success: #1E5AA8;
   --md-primary-deep: #123A70;
+  /* Blobs accent saphir (clair) — spec §3.3 */
+  --blob-1: rgba(30,90,168,.30);
+  --blob-2: rgba(242,169,59,.18);
+  --blob-3: rgba(18,58,112,.16);
 }
 [data-accent="amber"] {
   --md-primary: #B47800;
@@ -48,6 +70,10 @@
   --md-on-secondary: #06251D;
   --md-success: #B47800;
   --md-primary-deep: #7A5200;
+  /* Blobs accent ambre (clair) — spec §3.3 */
+  --blob-1: rgba(180,120,0,.26);
+  --blob-2: rgba(27,110,92,.18);
+  --blob-3: rgba(242,169,59,.16);
 }
 [data-accent="ruby"] {
   --md-primary: #A5343A;
@@ -57,6 +83,10 @@
   --md-on-secondary: #3A2200;
   --md-success: #A5343A;
   --md-primary-deep: #6E2025;
+  /* Blobs accent rubis (clair) — spec §3.3 */
+  --blob-1: rgba(165,52,58,.26);
+  --blob-2: rgba(242,169,59,.18);
+  --blob-3: rgba(110,32,37,.14);
 }
 
 [data-theme="dark"] {
@@ -77,6 +107,22 @@
   --md-outline: #33453B;
   --shadow-soft: 0 2px 10px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-elevated: 0 10px 30px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+  /* ===== Glassmorphism — fond & tokens sombres (spec refonte glass §3) ===== */
+  --bg-base: linear-gradient(165deg, #0A1512 0%, #0D191C 48%, #14100D 100%);
+  --glass-surface:       rgba(16,30,26,0.55);
+  --glass-surface-strong: rgba(22,38,32,0.74);
+  --glass-surface-soft:   rgba(16,30,26,0.38);
+  --glass-surface-solid:  #13221C;
+  --glass-border:        rgba(255,255,255,0.12);
+  --glass-border-subtle: rgba(231,238,233,0.10);
+  --glass-blur: 20px;  --glass-blur-sm: 14px;  --glass-blur-lg: 28px;
+  --glass-saturate: 150%;
+  --glass-shadow:    0 8px 32px rgba(0,0,0,0.36), 0 2px 10px rgba(0,0,0,0.26);
+  --glass-shadow-lg: 0 20px 48px rgba(0,0,0,0.48), 0 4px 14px rgba(0,0,0,0.30);
+  /* Blobs accent émeraude (sombre) — spec §3.3 */
+  --blob-1: rgba(127,217,190,.20);
+  --blob-2: rgba(242,169,59,.12);
+  --blob-3: rgba(14,74,60,.45);
 }
 
 /* ===== Accents (version sombre) ===== */
@@ -86,6 +132,10 @@
   --md-on-primary-container: #D4E4FB;
   --md-on-primary: #001D3D;
   --md-primary-deep: #123A70;
+  /* Blobs accent saphir (sombre) — spec §3.3 */
+  --blob-1: rgba(155,192,245,.18);
+  --blob-2: rgba(242,169,59,.10);
+  --blob-3: rgba(18,58,112,.45);
 }
 [data-accent="amber"][data-theme="dark"] {
   --md-primary: #FFC763;
@@ -93,6 +143,10 @@
   --md-on-primary-container: #FFE4B3;
   --md-on-primary: #402700;
   --md-primary-deep: #7A5200;
+  /* Blobs accent ambre (sombre) — spec §3.3 */
+  --blob-1: rgba(255,199,99,.18);
+  --blob-2: rgba(127,217,190,.10);
+  --blob-3: rgba(122,82,0,.45);
 }
 [data-accent="ruby"][data-theme="dark"] {
   --md-primary: #FFB2B4;
@@ -100,6 +154,10 @@
   --md-on-primary-container: #FFD9DA;
   --md-on-primary: #401114;
   --md-primary-deep: #6E2025;
+  /* Blobs accent rubis (sombre) — spec §3.3 */
+  --blob-1: rgba(255,178,180,.16);
+  --blob-2: rgba(242,169,59,.10);
+  --blob-3: rgba(110,32,37,.45);
 }
 
 * { box-sizing: border-box; }
@@ -107,12 +165,20 @@ html, body { height: 100%; }
 body {
   margin: 0;
   font-family: var(--font-body);
-  background: var(--md-surface);
+  background: var(--bg-base);
   color: var(--md-on-surface);
   -webkit-font-smoothing: antialiased;
 }
 
 #app { max-width: 480px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; padding: 0 0 calc(84px + env(safe-area-inset-bottom, 0px)); position: relative; }
+
+/* ===== Fond de scène : blobs ambiants dérivés de l'accent (spec §4) ===== */
+.bg-scene { position: fixed; inset: 0 auto 0 50%; transform: translateX(-50%); width: 100%; max-width: 480px; overflow: hidden; pointer-events: none; z-index: 0; }
+#app { position: relative; z-index: 1; }
+.blob { position: absolute; border-radius: 50%; will-change: transform; }
+.blob--1 { width: 480px; height: 480px; top: -140px; left: -140px;  background: radial-gradient(circle, var(--blob-1) 0%, transparent 70%); animation: blob-drift-1 26s ease-in-out infinite alternate; }
+.blob--2 { width: 380px; height: 380px; top: 30%; right: -160px;   background: radial-gradient(circle, var(--blob-2) 0%, transparent 70%); animation: blob-drift-2 34s ease-in-out infinite alternate; animation-delay: -9s; }
+.blob--3 { width: 420px; height: 420px; bottom: -160px; left: -80px; background: radial-gradient(circle, var(--blob-3) 0%, transparent 70%); animation: blob-drift-3 42s ease-in-out infinite alternate; animation-delay: -18s; }
 
 /* ===== Typo ===== */
 h1, h2, h3, .display { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.01em; }

@@ -7,10 +7,10 @@ const Settings = (() => {
   }
 
   const ACCENT_COLORS = {
-    emerald: { light: '#1B6E5C', dark: '#10201C' },
-    sapphire: { light: '#1E5AA8', dark: '#10201C' },
-    amber: { light: '#B47800', dark: '#10201C' },
-    ruby: { light: '#A5343A', dark: '#10201C' },
+    emerald: { light: '#F4F9F6', dark: '#0A1512' },
+    sapphire: { light: '#F4F9F6', dark: '#0A1512' },
+    amber: { light: '#F4F9F6', dark: '#0A1512' },
+    ruby: { light: '#F4F9F6', dark: '#0A1512' },
   };
 
   function updateThemeIcon(theme) {
