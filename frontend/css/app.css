@@ -662,18 +662,36 @@ a { color: inherit; }
 
 /* ===== Analyse (évolution des salaires) ===== */
 .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.stats-grid .card { margin-bottom: 0; } /* grille : les .card n'ajoutent pas leur marge basse */
 .stat-tile .stat-value { font-size: 1.05rem; margin: 2px 0; }
 .stat-tile .hint { font-size: 0.74rem; line-height: 1.35; }
 
-/* Tableau des variations : vrai tableau, sans bordures extérieures */
-.analyse-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+/* Panneau du graphique : fond glass tinté (inset dans la carte) + glow accent subtil
+   sur la courbe et les points primaires (le point min/erreur est exclu via l'attribut) */
+#analyse-chart {
+  background: var(--glass-surface-soft);
+  border: 1px solid var(--glass-border-subtle);
+  border-radius: var(--radius-md);
+  padding: 14px 10px 6px;
+}
+#analyse-chart polyline { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--md-primary) 55%, transparent)); }
+#analyse-chart circle[stroke="var(--md-primary)"] { filter: drop-shadow(0 0 2.5px color-mix(in srgb, var(--md-primary) 55%, transparent)); }
+
+/* Tableau des variations : panneau tint solide (PAS de blur — spec §2, listes haute fréquence) */
+.analyse-table {
+  width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.86rem;
+  background: var(--glass-surface-solid);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+}
 .analyse-table th {
-  text-align: left; padding: 0 8px 8px; font-size: 0.72rem; font-weight: 600;
+  text-align: left; padding: 12px 8px 8px; font-size: 0.72rem; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.04em; color: var(--md-on-surface-variant);
 }
 .analyse-table th.r, .analyse-table td.r { text-align: right; }
 .analyse-table td {
-  padding: 11px 8px; border-top: 1px solid var(--md-outline-variant); white-space: nowrap;
+  padding: 11px 8px; border-top: 1px solid var(--glass-border-subtle); white-space: nowrap;
 }
 .analyse-table tbody tr:first-child td { border-top: none; }
 .analyse-table .analyse-month { font-weight: 600; }
