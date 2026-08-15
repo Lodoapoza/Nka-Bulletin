@@ -236,7 +236,16 @@ a { color: inherit; }
 /* Risque 4 : CONSERVER `contain: layout style` + `display` piloté par JS (dashboard.js) ;
    gradient adapté en glass via color-mix (spec §10.4) */
 #dash-amounts-card { min-height: 0; contain: layout style; border: 1px solid var(--glass-border); background: linear-gradient(160deg, color-mix(in srgb, var(--md-primary-container) 55%, transparent), var(--glass-surface)); padding: 10px 16px; }
-#merge-bar { contain: layout style; }
+/* Risque 3 : sticky déplacé du style inline vers CSS (valeurs identiques + safe-area) */
+#merge-bar {
+  contain: layout style;
+  position: sticky;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  background: var(--glass-surface-strong);
+  backdrop-filter: blur(16px) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(16px) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-shadow-lg);
+}
 
 /* Compacité des cartes stats du tableau de bord (hauteur −30 %) */
 #dash-total { font-size: 1.7rem; }        /* nombre de bulletins de l'année (2rem → 1.7rem) */
@@ -329,8 +338,10 @@ a { color: inherit; }
   flex: 1; min-width: 140px; max-width: 180px;
   padding: 12px 40px 12px 16px;
   border-radius: 100px;
-  border: none;
-  background: var(--md-surface-container);
+  border: 1px solid var(--glass-border-subtle);
+  background: var(--glass-surface-soft);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
   color: var(--md-on-surface);
   font-family: var(--font-body);
   font-size: 0.9rem;
@@ -341,7 +352,7 @@ a { color: inherit; }
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23757575' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 14px center;
-  background-color: var(--md-surface-container);
+  background-color: var(--glass-surface-soft);
   transition: box-shadow 0.15s, background-color 0.15s;
 }
 .filter-select:hover {
@@ -361,8 +372,10 @@ a { color: inherit; }
   flex: 1; min-width: 140px; max-width: 180px;
   padding: 12px 40px 12px 16px;
   border-radius: 100px;
-  border: none;
-  background: var(--md-surface-container);
+  border: 1px solid var(--glass-border-subtle);
+  background: var(--glass-surface-soft);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
   color: var(--md-on-surface);
   font-family: var(--font-body);
   font-size: 0.9rem;
@@ -384,11 +397,15 @@ a { color: inherit; }
 /* ===== Custom Dropdown Panel (scrollable, styled) ===== */
 .custom-dropdown-panel {
   position: fixed; z-index: 1100;
-  background: var(--md-surface); color: var(--md-on-surface);
+  background: var(--glass-surface-strong);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  color: var(--md-on-surface);
   border-radius: 16px; padding: 4px;
   min-width: 160px; max-width: 280px;
   max-height: 280px; overflow-y: auto;
-  box-shadow: var(--shadow-elevated);
+  box-shadow: var(--glass-shadow-lg);
   scrollbar-width: thin; scrollbar-color: var(--md-outline) transparent;
 }
 .custom-dropdown-panel::-webkit-scrollbar { width: 6px; }
@@ -417,9 +434,11 @@ a { color: inherit; }
 .chip.disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
 
 /* ===== Bulletin list ===== */
+/* Tint solide, PAS de backdrop-filter : liste à haute fréquence = jank scroll (spec §2, risque 9) */
 .bulletin-item {
   display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: var(--radius-md);
-  background: var(--md-surface-container); margin-bottom: 10px; box-shadow: var(--shadow-soft);
+  background: var(--glass-surface-solid); border: 1px solid var(--glass-border);
+  margin-bottom: 10px; box-shadow: var(--shadow-soft);
 }
 .bulletin-item input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--md-primary); }
 .bulletin-icon {
@@ -433,7 +452,11 @@ a { color: inherit; }
 
 /* ===== Search bar ===== */
 .search-bar {
-  display: flex; align-items: center; gap: 10px; background: var(--md-surface-container);
+  display: flex; align-items: center; gap: 10px;
+  background: var(--glass-surface-soft);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  border: 1px solid var(--glass-border-subtle);
   border-radius: 100px; padding: 10px 16px; margin-bottom: 14px; box-shadow: var(--shadow-soft);
 }
 .search-bar svg { color: var(--md-primary); }
@@ -666,5 +689,6 @@ a { color: inherit; }
 /* ===== Fallback : pas de backdrop-filter → surfaces solides (spec §2) ===== */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .topbar, .bottom-nav, #pin-screen, .pin-card,
-  .card, .stack-card { background: var(--glass-surface-solid); }
+  .card, .stack-card, .search-bar, .dropdown-trigger, .filter-select,
+  .custom-dropdown-panel, #merge-bar { background: var(--glass-surface-solid); }
 }
