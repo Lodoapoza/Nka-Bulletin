@@ -76,6 +76,18 @@ test('fullScan sur running incrémental → full_scan_after_current=1, aucune no
   assert.equal(row.full_scan_after_current, 1);
 });
 
+test('re-sync incrémental pendant run incrémental → full_scan_after_current reste 0', () => {
+  const r1 = requestSync('dev1', { fullScan: false });
+  assert.equal(r1.reused, false);
+  claimNext(); // Make it running
+  const r2 = requestSync('dev1', { fullScan: false }); // plain incremental re-sync
+  assert.equal(r2.reused, true);
+  assert.equal(r2.fullScan, false);
+  assert.equal(countSyncRequests(), 1);
+  const row = getSyncRequest(r1.id);
+  assert.equal(row.full_scan_after_current, 0); // no full scan requested → flag stays 0
+});
+
 test('2 claimNext concurrents (séquentiel dans le test) → 1 seul gagnant, le 2e retourne null', () => {
   const r1 = requestSync('dev1', { fullScan: false });
   const claim1 = claimNext();

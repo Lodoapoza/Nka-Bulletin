@@ -56,22 +56,15 @@
     }
 
 if (syncStatus === 'pending' || syncStatus === 'running') {
-  // On the homepage, don't show the "en cours" message
-  if (window.location.pathname === '/') {
-    return {
-      kind: 'ready-to-scan',
-      title: 'Votre boîte mail est connectée',
-      body: 'Votre compte est prêt. Lancez une recherche de nouveaux bulletins.',
-      action: { id: 'start-sync', label: 'Rechercher mes bulletins' },
-    };
-  }
-  return {
-    kind: 'running',
-    title: 'Recherche des bulletins en cours',
-    body: 'Vos bulletins sont en cours de récupération, patientez quelques instants.',
-    action: { id: 'view-bulletins', label: 'Voir mes bulletins' },
-  };
-}
+      // SPA : le pathname est toujours '/' — la carte guidée n'existe que sur le
+      // dashboard, donc masquer l'état running ici équivaut à le masquer sur l'accueil.
+      return {
+        kind: 'ready-to-scan',
+        title: 'Votre boîte mail est connectée',
+        body: 'Votre compte est prêt. Lancez une recherche de nouveaux bulletins.',
+        action: { id: 'start-sync', label: 'Rechercher mes bulletins' },
+      };
+    }
 
     if (syncStatus === 'failed') {
       return {

@@ -59,8 +59,11 @@ function requestSync(deviceId, { fullScan = false } = {}) {
         };
       }
       if (active.status === 'running' && active.full_scan === 0) {
-        // Running incremental → mark that a full scan was requested
-        db.prepare("UPDATE sync_requests SET full_scan_after_current = 1 WHERE id = ?").run(active.id);
+        // Running incremental → reuse the job (single-flight). Only mark a
+        // full scan for after the current run if one was actually requested.
+        if (fullScan) {
+          db.prepare("UPDATE sync_requests SET full_scan_after_current = 1 WHERE id = ?").run(active.id);
+        }
         return {
           id: active.id,
           status: active.status,
@@ -84,10 +87,9 @@ function requestSync(deviceId, { fullScan = false } = {}) {
 }
 
 /**
- * Claim the next available job for a device.
+ * Claim the next available job.
  * Atomically selects the highest-priority pending job and transitions it to running.
  *
- * @param {string} deviceId - Device identifier
  * @returns {Object|null} The claimed job row or null if none available
  */
 function claimNext() {
@@ -108,7 +110,8 @@ function claimNext() {
 
 /**
  * Update the progress of a running job.
- * Serializes cursor, phase, and new_bulletins for resumption.
+ * Stores cursor, phase, and new_bulletins for resumption (the caller
+ * serializes the cursor — this module only persists the values).
  *
  * @param {number} id - Job ID
  * @param {Object} progress - { cursor, phase, totalNew }
