@@ -181,6 +181,43 @@ body {
 .blob--3 { width: 420px; height: 420px; bottom: -160px; left: -80px; background: radial-gradient(circle, var(--blob-3) 0%, transparent 70%); animation: blob-drift-3 42s ease-in-out infinite alternate; animation-delay: -18s; }
 
 /* ===== Typo ===== */
+/* ===== Animations (spec refonte glass §5) — transform/opacity uniquement ===== */
+/* view-enter : re-joué par le Router à chaque navigation (display none→block, zéro JS) */
+.view:not(.hidden) { animation: view-enter 260ms var(--ease-out) both; }
+@keyframes view-enter { from { opacity: 0; transform: translateY(10px); } }
+
+/* blob-drift : dérive permanente des blobs (délais négatifs = phases décalées) */
+@keyframes blob-drift-1 { from { transform: translate(0, 0) scale(1); } to { transform: translate(28px, 24px) scale(1.08); } }
+@keyframes blob-drift-2 { from { transform: translate(0, 0) scale(1); } to { transform: translate(-32px, -28px) scale(1.12); } }
+@keyframes blob-drift-3 { from { transform: translate(0, 0) scale(1); } to { transform: translate(24px, -36px) scale(1.15); } }
+
+/* panel-pop : apparition des dropdowns (panel recréé à chaque ouverture) */
+.custom-dropdown-panel { animation: panel-pop 160ms var(--ease-out); }
+@keyframes panel-pop { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+
+/* merge-bar-in : déclenché quand .hidden est retiré (≥2 sélections) */
+#merge-bar:not(.hidden) { animation: merge-bar-in 220ms var(--ease-out); }
+@keyframes merge-bar-in { from { opacity: 0; transform: translateY(10px); } }
+
+/* dot-pop : saisie PIN */
+.pin-dot.filled { animation: dot-pop 140ms var(--ease-out); }
+@keyframes dot-pop { from { transform: scale(0.6); opacity: 0.5; } }
+
+/* hero-float : carte 3 de la pile du tableau de bord (subtil, permanent) */
+.stack-card:nth-child(3) { animation: hero-float 7s ease-in-out infinite alternate; }
+@keyframes hero-float { from { transform: translateY(0); } to { transform: translateY(-2px); } }
+
+/* nav-icon : icône de l'onglet actif — pop à l'activation, maintenue agrandie */
+.nav-item.active svg { animation: nav-icon 200ms var(--ease-out) forwards; }
+@keyframes nav-icon { from { transform: scale(1); } to { transform: scale(1.08); } }
+
+/* prefers-reduced-motion : tout immobilisé (spec §5, liste EXACTE) */
+@media (prefers-reduced-motion: reduce) {
+  .view, .card, .btn, .btn-spinner, .topbar, .bottom-nav, .nav-item,
+  .blob, .stack-card, .pin-dot, .custom-dropdown-panel, #merge-bar,
+  .search-bar, .dropdown-trigger, .filter-select { animation: none !important; transition: none !important; }
+}
+
 h1, h2, h3, .display { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.01em; }
 h1 { font-size: 1.6rem; }
 h2 { font-size: 1.15rem; margin: 0 0 12px; }
@@ -205,7 +242,6 @@ a { color: inherit; }
 /* ===== Views ===== */
 .view { padding: 0 20px 20px; }
 .view.hidden { display: none; }
-@media (prefers-reduced-motion: reduce) { .view, .card, .btn, .btn-spinner { animation: none !important; transition: none !important; } }
 
 /* ===== Cards (verre dépoli — spec refonte glass §3.4) ===== */
 .card {
