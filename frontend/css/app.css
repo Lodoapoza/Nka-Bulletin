@@ -207,16 +207,19 @@ a { color: inherit; }
 .view.hidden { display: none; }
 @media (prefers-reduced-motion: reduce) { .view, .card, .btn, .btn-spinner { animation: none !important; transition: none !important; } }
 
-/* ===== Cards (Material 3) ===== */
+/* ===== Cards (verre dépoli — spec refonte glass §3.4) ===== */
 .card {
-  background: var(--md-surface-container);
+  background: var(--glass-surface);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
   border-radius: var(--radius-lg);
   padding: 20px;
-  box-shadow: var(--shadow-soft);
   margin-bottom: 14px;
   backface-visibility: hidden;
 }
-.card.elevated { box-shadow: var(--shadow-elevated); }
+.card.elevated { background: var(--glass-surface-strong); box-shadow: var(--glass-shadow-lg); }
 .card-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
 /* ===== Carte guidée (parcours utilisateur) ===== */
@@ -230,24 +233,28 @@ a { color: inherit; }
 
 /* Empêche les sauts de layout au chargement des données */
 #dash-latest { min-height: 72px; }
-#dash-amounts-card { min-height: 0; contain: layout style; border: 1px solid var(--md-primary-container); background: linear-gradient(160deg, var(--md-primary-container), var(--md-surface-container) 70%); padding: 10px 16px; }
+/* Risque 4 : CONSERVER `contain: layout style` + `display` piloté par JS (dashboard.js) ;
+   gradient adapté en glass via color-mix (spec §10.4) */
+#dash-amounts-card { min-height: 0; contain: layout style; border: 1px solid var(--glass-border); background: linear-gradient(160deg, color-mix(in srgb, var(--md-primary-container) 55%, transparent), var(--glass-surface)); padding: 10px 16px; }
 #merge-bar { contain: layout style; }
 
 /* Compacité des cartes stats du tableau de bord (hauteur −30 %) */
 #dash-total { font-size: 1.7rem; }        /* nombre de bulletins de l'année (2rem → 1.7rem) */
 #amounts-eye { width: 34px; height: 34px; } /* icône œil de la carte salaire (40px → 34px) */
 
-/* Élément signature : pile de bulletins archivés (hero du tableau de bord) */
+/* Élément signature : pile de bulletins archivés (hero du tableau de bord)
+   Cartes 1-2 : verre léger + blur 16 (opacités conservées) ; carte 3 : dégradé accent glass (risque 8) */
 .stack-hero { position: relative; height: 91px; margin: 6px 0 18px; }
-.stack-card { position: absolute; inset: 0; border-radius: var(--radius-md); background: var(--md-surface); box-shadow: var(--shadow-soft); }
+.stack-card { position: absolute; inset: 0; border-radius: var(--radius-md); background: var(--glass-surface-soft); border: 1px solid var(--glass-border); backdrop-filter: blur(16px) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(16px) saturate(var(--glass-saturate)); box-shadow: var(--glass-shadow); }
 .stack-card:nth-child(1) { transform: rotate(-6deg) translateY(8px); opacity: 0.55; }
 .stack-card:nth-child(2) { transform: rotate(-2deg) translateY(3px); opacity: 0.8; }
 .stack-card:nth-child(3) {
   transform: rotate(0deg);
   display: flex; flex-direction: column; justify-content: center; padding: 10px 16px;
-  background: linear-gradient(135deg, var(--md-primary-container), var(--md-surface));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--md-primary-container) 55%, transparent), var(--glass-surface));
+  backdrop-filter: blur(16px) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(16px) saturate(var(--glass-saturate));
 }
-[data-theme="dark"] .stack-card:nth-child(3) { background: linear-gradient(135deg, var(--md-primary-container), var(--md-surface-container)); }
 
 .stat-block { display: flex; flex-direction: column; gap: 2px; }
 .stat-value { font-family: var(--font-display); font-size: 2rem; font-weight: 800; color: var(--md-on-primary-container); }
@@ -658,5 +665,6 @@ a { color: inherit; }
 
 /* ===== Fallback : pas de backdrop-filter → surfaces solides (spec §2) ===== */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .topbar, .bottom-nav, #pin-screen, .pin-card { background: var(--glass-surface-solid); }
+  .topbar, .bottom-nav, #pin-screen, .pin-card,
+  .card, .stack-card { background: var(--glass-surface-solid); }
 }
