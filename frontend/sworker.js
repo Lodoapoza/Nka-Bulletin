@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nka-bulletin-v21';
+const CACHE_NAME = 'nka-bulletin-v22';
 const APP_SHELL = [
   '/index.html?v=v27',
   '/manifest.json?v=v25',
@@ -8,8 +8,8 @@ const APP_SHELL = [
   '/js/client.js?v=v36',
   '/js/dropdown.js?v=v36',
   '/js/pin.js?v=v25',
-  '/js/parcours.js?v=v1',
-  '/js/guided.js?v=v1',
+  '/js/parcours.js?v=v2',
+  '/js/guided.js?v=v2',
   '/js/capacitor.js?v=v27',
   '/js/admin.js?v=v28',
   '/js/dashboard.js?v=v26',
