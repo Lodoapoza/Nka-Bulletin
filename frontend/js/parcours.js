@@ -55,14 +55,23 @@
       };
     }
 
-    if (syncStatus === 'pending' || syncStatus === 'running') {
-      return {
-        kind: 'running',
-        title: 'Recherche des bulletins en cours',
-        body: 'Vos bulletins sont en cours de récupération, patientez quelques instants.',
-        action: { id: 'view-bulletins', label: 'Voir mes bulletins' },
-      };
-    }
+if (syncStatus === 'pending' || syncStatus === 'running') {
+  // On the homepage, don't show the "en cours" message
+  if (window.location.pathname === '/') {
+    return {
+      kind: 'ready-to-scan',
+      title: 'Votre boîte mail est connectée',
+      body: 'Votre compte est prêt. Lancez une recherche de nouveaux bulletins.',
+      action: { id: 'start-sync', label: 'Rechercher mes bulletins' },
+    };
+  }
+  return {
+    kind: 'running',
+    title: 'Recherche des bulletins en cours',
+    body: 'Vos bulletins sont en cours de récupération, patientez quelques instants.',
+    action: { id: 'view-bulletins', label: 'Voir mes bulletins' },
+  };
+}
 
     if (syncStatus === 'failed') {
       return {
