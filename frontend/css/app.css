@@ -63,12 +63,13 @@
   --blob-3: rgba(18,58,112,.16);
 }
 [data-accent="amber"] {
-  --md-primary: #B47800;
+  /* #B47800 → #966000 : AA sur verre (eyebrow 4.93:1) et blanc sur ambre (5.29:1) */
+  --md-primary: #966000;
   --md-primary-container: #FFE4B3;
   --md-on-primary-container: #402700;
   --md-secondary: #1B6E5C;
   --md-on-secondary: #06251D;
-  --md-success: #B47800;
+  --md-success: #966000;
   --md-primary-deep: #7A5200;
   /* Blobs accent ambre (clair) — spec §3.3 */
   --blob-1: rgba(180,120,0,.26);
@@ -180,7 +181,6 @@ body {
 .blob--2 { width: 380px; height: 380px; top: 30%; right: -160px;   background: radial-gradient(circle, var(--blob-2) 0%, transparent 70%); animation: blob-drift-2 34s ease-in-out infinite alternate; animation-delay: -9s; }
 .blob--3 { width: 420px; height: 420px; bottom: -160px; left: -80px; background: radial-gradient(circle, var(--blob-3) 0%, transparent 70%); animation: blob-drift-3 42s ease-in-out infinite alternate; animation-delay: -18s; }
 
-/* ===== Typo ===== */
 /* ===== Animations (spec refonte glass §5) — transform/opacity uniquement ===== */
 /* view-enter : re-joué par le Router à chaque navigation (display none→block, zéro JS) */
 .view:not(.hidden) { animation: view-enter 260ms var(--ease-out) both; }
@@ -218,6 +218,7 @@ body {
   .search-bar, .dropdown-trigger, .filter-select { animation: none !important; transition: none !important; }
 }
 
+/* ===== Typo ===== */
 h1, h2, h3, .display { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.01em; }
 h1 { font-size: 1.6rem; }
 h2 { font-size: 1.15rem; margin: 0 0 12px; }
@@ -235,7 +236,7 @@ a { color: inherit; }
 [data-theme="dark"] .brand-mark { background: linear-gradient(135deg, var(--md-primary), var(--md-primary-deep)); }
 .brand-logo { height: 24px; width: auto; max-width: 140px; object-fit: contain; border-radius: 7px; box-shadow: var(--shadow-soft); background: #FFFFFF; }
 .pin-logo { height: 84px; width: auto; max-width: 72vw; object-fit: contain; border-radius: 16px; box-shadow: var(--shadow-elevated); background: #FFFFFF; margin-bottom: 18px; }
-.icon-btn { width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--md-surface-container); color: var(--md-on-surface); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s; }
+.icon-btn { width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--md-surface-container); color: var(--md-on-surface); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s; }
 .icon-btn:hover { background: var(--md-surface-container-high); }
 .icon-btn:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
 
@@ -327,6 +328,7 @@ a { color: inherit; }
   font-family: var(--font-body); font-weight: 600; font-size: 0.92rem;
   border: none; border-radius: 100px; padding: 13px 22px; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; /* touch target ≥ 44px (a11y) */
   transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.15s;
 }
 .btn:active { transform: scale(0.97); }
@@ -458,6 +460,7 @@ a { color: inherit; }
   border: none; background: transparent; color: var(--md-on-surface);
   font-family: var(--font-body); font-size: 0.9rem; font-weight: 500;
   text-align: left; cursor: pointer; white-space: nowrap;
+  min-height: 44px; display: flex; align-items: center; /* touch target ≥ 44px */
   transition: background 0.1s;
 }
 .dropdown-item:hover:not(.disabled) { background: var(--md-surface-container-high); }
@@ -470,6 +473,7 @@ a { color: inherit; }
 .chip {
   flex: 0 0 auto; padding: 8px 16px; border-radius: 100px; font-size: 0.82rem; font-weight: 600;
   background: var(--md-surface-container-high); color: var(--md-on-surface-variant); border: none; cursor: pointer;
+  min-height: 44px; display: inline-flex; align-items: center; /* touch target ≥ 44px */
 }
 .chip.active { background: var(--md-primary); color: var(--md-surface); }
 [data-theme="dark"] .chip.active { color: var(--md-on-primary); }
@@ -504,6 +508,8 @@ a { color: inherit; }
 .search-bar svg { color: var(--md-primary); }
 .search-bar input { flex: 1; border: none; background: transparent; font-size: 0.95rem; color: var(--md-on-surface); }
 .search-bar input:focus { outline: none; }
+/* Focus visible : anneau autour de la pilule (l'input lui-même est sans bordure) */
+.search-bar:focus-within { outline: 2px solid var(--md-primary); outline-offset: 2px; }
 
 /* ===== Bottom nav ===== */
 .bottom-nav {
@@ -635,6 +641,8 @@ a { color: inherit; }
 }
 .switch input:checked + .track { background: var(--md-primary); border-color: var(--md-primary); }
 .switch input:checked + .track .thumb { transform: translateX(20px); background: #fff; }
+/* Focus visible : l'input est invisible (opacity 0) → anneau sur le track */
+.switch input:focus-visible + .track { outline: 2px solid var(--md-primary); outline-offset: 2px; }
 
 /* ===== Pastilles de couleur d'accent ===== */
 .accent-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
