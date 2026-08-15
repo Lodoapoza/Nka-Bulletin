@@ -614,25 +614,46 @@ a { color: inherit; }
 .accent-swatch.active svg { opacity: 1; transform: scale(1); }
 
 /* ===== Écran À propos ===== */
-.about-hero { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 24px 0 20px; gap: 8px; }
+.about-hero {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 28px 20px 22px; gap: 8px; margin-bottom: 14px;
+  background: var(--glass-surface-strong);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
+}
+/* Logo (PNG transparent) : fond clair conservé pour la lisibilité, bordure glass */
+.about-hero .pin-logo {
+  background: rgba(255,255,255,0.92);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
 .about-list { margin: 0; padding-left: 20px; font-size: 0.9rem; line-height: 1.6; }
 .about-list li { margin-bottom: 8px; }
 .about-list li:last-child { margin-bottom: 0; }
 
-/* ===== Reset complet de l'appareil ===== */
+/* ===== Reset complet de l'appareil (overlay créé dynamiquement par reset.js / confirm.js) ===== */
 .reset-overlay {
   position: fixed; inset: 0; z-index: 1000;
-  background: rgba(0,0,0,.55);
+  background: rgba(255,255,255,0.45);
+  backdrop-filter: blur(24px) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(24px) saturate(var(--glass-saturate));
   display: flex; align-items: center; justify-content: center;
   padding: 24px;
 }
+[data-theme="dark"] .reset-overlay { background: rgba(10,20,17,0.5); }
 .reset-modal {
-  background: var(--md-surface);
+  background: var(--glass-surface-strong);
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
   color: var(--md-on-surface);
-  border-radius: 16px; padding: 24px;
+  border-radius: 24px; padding: 24px;
   max-width: 360px; width: 100%;
   text-align: center;
-  box-shadow: var(--shadow-elevated);
+  box-shadow: var(--glass-shadow-lg);
 }
 .reset-icon { font-size: 2rem; margin-bottom: 8px; }
 .reset-modal h3 { margin: 0 0 8px; color: var(--md-on-surface); }
@@ -645,16 +666,22 @@ a { color: inherit; }
 /* ===== Licence / Administration (overlays) ===== */
 .fullscreen-overlay {
   position: fixed; inset: 0; z-index: 1200;
-  background: var(--md-surface);
+  background: rgba(255,255,255,0.45);
+  backdrop-filter: blur(24px) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(24px) saturate(var(--glass-saturate));
   color: var(--md-on-surface);
   display: flex; align-items: center; justify-content: flex-start;
   padding: 20px; overflow-y: auto;
 }
+[data-theme="dark"] .fullscreen-overlay { background: rgba(10,20,17,0.5); }
 .overlay-card {
-  background: var(--md-surface);
-  border-radius: 20px; padding: 24px;
+  background: var(--glass-surface-strong);
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  border-radius: 24px; padding: 24px;
   max-width: 420px; width: 100%;
-  box-shadow: var(--shadow-elevated);
+  box-shadow: var(--glass-shadow-lg);
   margin: 24px auto;
 }
 .overlay-card-wide { max-width: 480px; }
@@ -662,7 +689,7 @@ a { color: inherit; }
 .admin-error { color: var(--md-error); margin-top: 8px; }
 .license-row {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 10px 0; border-bottom: 1px solid var(--md-outline-variant);
+  padding: 10px 0; border-bottom: 1px solid var(--glass-border-subtle);
 }
 .license-row:last-child { border-bottom: none; }
 .license-main { min-width: 0; }
@@ -729,5 +756,7 @@ a { color: inherit; }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .topbar, .bottom-nav, #pin-screen, .pin-card,
   .card, .stack-card, .search-bar, .dropdown-trigger, .filter-select,
-  .custom-dropdown-panel, #merge-bar { background: var(--glass-surface-solid); }
+  .custom-dropdown-panel, #merge-bar, .about-hero,
+  .fullscreen-overlay, .overlay-card, .reset-overlay, .reset-modal,
+  .switch .track { background: var(--glass-surface-solid); }
 }
