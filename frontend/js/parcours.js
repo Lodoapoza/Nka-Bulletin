@@ -55,15 +55,10 @@
       };
     }
 
-if (syncStatus === 'pending' || syncStatus === 'running') {
-      // SPA : le pathname est toujours '/' — la carte guidée n'existe que sur le
-      // dashboard, donc masquer l'état running ici équivaut à le masquer sur l'accueil.
-      return {
-        kind: 'ready-to-scan',
-        title: 'Votre boîte mail est connectée',
-        body: 'Votre compte est prêt. Lancez une recherche de nouveaux bulletins.',
-        action: { id: 'start-sync', label: 'Rechercher mes bulletins' },
-      };
+    if (syncStatus === 'pending' || syncStatus === 'running') {
+      // Pendant une recherche en cours, masquer la carte guidée
+      // (le statut est déjà affiché dans le bloc dédié / bouton dash-sync-now)
+      return null;
     }
 
     if (syncStatus === 'failed') {

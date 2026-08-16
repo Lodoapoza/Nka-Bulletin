@@ -38,7 +38,7 @@ test('no-account : prime sur done-with-results', () => {
   assert.equal(s.action.label, 'Connecter ma boîte mail');
 });
 
-test('running : job pending ou running', () => {
+test('running : job pending ou running masque la carte guidée', () => {
   for (const syncStatus of ['pending', 'running']) {
     const s = resolveJourneyState({
       accountCount: 1,
@@ -47,9 +47,7 @@ test('running : job pending ou running', () => {
       online: true,
       hasCachedBulletins: false,
     });
-    assertStateShape(s, 'running');
-    assert.equal(s.title, 'Recherche des bulletins en cours');
-    assert.equal(s.action.label, 'Voir mes bulletins');
+    assert.equal(s, null, 'la carte guidée doit être masquée pendant un scan');
   }
 });
 
@@ -117,6 +115,7 @@ test('aucun libellé ne contient « messagerie » ni « synchronisation »', () 
   ];
   for (const snapshot of snapshots) {
     const s = resolveJourneyState(snapshot);
+    if (!s) continue;
     const texts = [s.title, s.body, s.action ? s.action.label : ''];
     for (const text of texts) {
       const lower = text.toLowerCase();
