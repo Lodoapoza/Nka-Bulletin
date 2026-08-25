@@ -87,12 +87,20 @@ async function main() {
     console.log(`[worker] ${resetCount.changes} sync(s) relancée(s) après redémarrage`);
   }
 
-  // Nettoyage des jobs stuck en 'running' depuis > 30 min (timeout blowup)
-  const stuckCount = db.prepare(
-    "UPDATE sync_requests SET status = 'failed', error_message = 'timeout: stuck > 30min' WHERE status = 'running' AND created_at < datetime('now', '-30 minutes')"
-  ).run();
-  if (stuckCount.changes > 0) {
-    console.log(`[worker] ${stuckCount.changes} sync(s) stuck nettoyée(s)`);
+  // Nettoyage des jobs stuck en 'running' depuis > 30 min (timeout blowup).
+  // CRITIQUE : ce cleanup ne doit JAMAIS faire planter le worker — une erreur
+  // ici est loguée et ignorée (leçon du 25/08 : colonne inexistante → crash
+  // au démarrage → 10 relances → plus de worker du tout → scans sans fin).
+  try {
+    const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const stuckCount = db.prepare(
+      "UPDATE sync_requests SET status = 'failed', error_message = 'timeout: stuck > 30min' WHERE status = 'running' AND requested_at < ?"
+    ).run(cutoff);
+    if (stuckCount.changes > 0) {
+      console.log(`[worker] ${stuckCount.changes} sync(s) stuck nettoyée(s)`);
+    }
+  } catch (e) {
+    console.error('[worker] Cleanup stuck ignoré:', e.message);
   }
 
   console.log(`[worker] Démarré, PID ${process.pid}, intervalle d'interrogation: ${POLL_INTERVAL}ms`);
