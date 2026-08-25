@@ -513,6 +513,7 @@ const Api = (() => {
     getVapidKey: () => request('/push/vapid-public-key'),
     subscribePush: (subscription) => request('/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription }) }),
     unsubscribePush: () => request('/push/unsubscribe', { method: 'POST' }),
+    sendTestPush: () => request('/push/test', { method: 'POST' }),
 
     // ===== Admin (système de licences) =====
     // Appels authentifiés par X-Admin-Token (indépendants de la session device).

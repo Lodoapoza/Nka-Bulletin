@@ -1,0 +1,1 @@
+!function(e){"use strict";function l(e){let l=null;return function(...t){return l||(l=e.apply(this,t),l.finally(()=>{l=null}))}}"object"==typeof module&&module.exports?module.exports={singleFlight:l}:e.singleFlight=l}("undefined"!=typeof self?self:"undefined"!=typeof globalThis?globalThis:this);

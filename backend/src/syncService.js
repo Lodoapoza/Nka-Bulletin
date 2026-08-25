@@ -150,6 +150,19 @@ async function runSyncForDevice(deviceId, options = {}) {
   let totalNew = 0;
   const errors = [];
   let successCount = 0;
+  const requestId = options.requestId || null;
+
+  // Progression temps réel : écrite dans sync_requests (colonnes cursor/phase/
+  // new_bulletins) après chaque tranche. Le frontend lit /sync/status et affiche
+  // « Scan 2026… 3/35 ». Échec silencieux toléré (la sync ne doit pas casser).
+  const reportProgress = (data) => {
+    if (!requestId) return;
+    try {
+      db.prepare(
+        "UPDATE sync_requests SET cursor = ?, phase = 'scanning', new_bulletins = ? WHERE id = ? AND status = 'running'"
+      ).run(JSON.stringify(data), data.found || 0, requestId);
+    } catch (_) {}
+  };
 
   for (const account of accounts) {
     try {
@@ -179,9 +192,11 @@ async function runSyncForDevice(deviceId, options = {}) {
       let accountNew = 0;
       let accountOk = true;
       console.log(`[sync] Account ${account.email}: scan ${chunks.length} tranche(s) depuis ${sinceDate.toISOString()}`);
+      reportProgress({ chunk: 0, total: chunks.length, year: '', found: 0 });
 
       for (let ci = 0; ci < chunks.length; ci++) {
         const chunk = chunks[ci];
+        const yearLabel = String(chunk.since.getFullYear());
         try {
           const controller = new AbortController();
           console.log(`[sync]   Tranche ${ci + 1}/${chunks.length}: ${chunk.since.toISOString()} → ${chunk.before ? chunk.before.toISOString() : 'now'}`);
@@ -198,6 +213,7 @@ async function runSyncForDevice(deviceId, options = {}) {
 
           console.log(`[sync]   Tranche ${ci + 1}: ${found.length} candidat(s) trouvé(s)`);
           accountNew += await importFound(device, account, found);
+          reportProgress({ chunk: ci + 1, total: chunks.length, year: yearLabel, found: accountNew });
 
           // Progression : last_sync_at = fin de tranche ou now
           const progress = chunk.before && chunk.before.getTime() <= Date.now() ? chunk.before : now;

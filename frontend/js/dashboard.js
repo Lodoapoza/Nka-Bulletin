@@ -165,6 +165,19 @@ const Dashboard = (() => {
     }
   }
 
+  // Formatte le statut de synchro avec la progression par tranches renvoyée
+  // par /sync/status (progress = { chunk, total, year, found }).
+  function syncStatusText(s) {
+    const p = s && s.progress;
+    if (p && Number.isInteger(p.total) && p.total > 1 && Number.isInteger(p.chunk)) {
+      const base = `Scan ${p.year ? p.year + ' · ' : ''}${p.chunk}/${p.total}`;
+      return s.new_bulletins > 0 ? `${base} — ${s.new_bulletins} trouvé(s)` : base;
+    }
+    return s.new_bulletins > 0
+      ? `Mise à jour en cours... (${s.new_bulletins} nouveaux)`
+      : 'Mise à jour en cours...';
+  }
+
   // Flux de synchro partagé : bouton « Mettre à jour » et carte guidée.
   async function runSyncFlow(btn) {
     if (!btn || btn.disabled) return;
@@ -180,11 +193,7 @@ const Dashboard = (() => {
     try {
       await Api.runSync();
       const status = await Api.pollSyncStatus((s) => {
-        if (statusEl) {
-          statusEl.textContent = s.new_bulletins > 0
-            ? `Mise à jour en cours... (${s.new_bulletins} nouveaux)`
-            : 'Mise à jour en cours...';
-        }
+        if (statusEl) statusEl.textContent = syncStatusText(s);
       });
       if (status.status === 'done') {
         Toast.show(status.new_bulletins > 0

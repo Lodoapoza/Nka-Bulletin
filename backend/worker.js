@@ -45,7 +45,7 @@ async function processOne() {
   const now = new Date().toISOString();
 
   try {
-    const result = await runSyncForDevice(req.device_id, { fullScan: !!req.full_scan });
+    const result = await runSyncForDevice(req.device_id, { fullScan: !!req.full_scan, requestId: req.id });
     if (result.ok) {
       // Guard `AND status = 'running'` : un request annulé entre-temps n'est pas écrasé.
       const info = db.prepare(

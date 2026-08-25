@@ -677,6 +677,7 @@ a { color: inherit; }
 .about-list { margin: 0; padding-left: 20px; font-size: 0.9rem; line-height: 1.6; }
 .about-list li { margin-bottom: 8px; }
 .about-list li:last-child { margin-bottom: 0; }
+.diag-error { color: var(--md-error); }
 
 /* ===== Reset complet de l'appareil (overlay créé dynamiquement par reset.js / confirm.js) ===== */
 .reset-overlay {

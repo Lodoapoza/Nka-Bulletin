@@ -80,6 +80,64 @@ const Settings = (() => {
     } catch (e) { /* backend peut-être hors ligne au premier chargement */ }
   }
 
+  // Formatte la progression par tranches (même contrat que dashboard.js).
+  function syncStatusText(s) {
+    const p = s && s.progress;
+    if (p && Number.isInteger(p.total) && p.total > 1 && Number.isInteger(p.chunk)) {
+      const base = `Scan ${p.year ? p.year + ' · ' : ''}${p.chunk}/${p.total}`;
+      return s.new_bulletins > 0 ? `${base} — ${s.new_bulletins} trouvé(s)` : base;
+    }
+    return s.new_bulletins > 0
+      ? `Re-scan en cours... (${s.new_bulletins} nouveaux)`
+      : 'Re-scan en cours...';
+  }
+
+  // ===== Diagnostic (vue À propos) =====
+  // État du backend + derniers logs de synchro + statut push. Lecture seule,
+  // rechargée à chaque ouverture de « À propos ».
+  async function loadDiagnostics() {
+    const healthEl = document.getElementById('diag-health');
+    const logsEl = document.getElementById('diag-logs');
+    if (!healthEl || !logsEl) return;
+    healthEl.textContent = 'Vérification…';
+    logsEl.textContent = '';
+    try {
+      const h = await fetch('/api/health').then(r => r.json());
+      const upMin = h.uptime ? Math.floor(h.uptime / 60) : 0;
+      healthEl.textContent =
+        `Backend OK · worker ${h.worker && h.worker.alive ? 'actif' : 'INDISPONIBLE'} · ` +
+        `redémarrages ${h.worker ? h.worker.restarts : '?'} · mémoire ${h.memory ? h.memory.heapUsed : '?'} Mo · uptime ${upMin} min`;
+    } catch (_) {
+      healthEl.textContent = 'Backend injoignable';
+    }
+    try {
+      const logs = await Api.getSyncLogs();
+      if (!logs.length) { logsEl.textContent = 'Aucun log de synchro.'; return; }
+      logsEl.innerHTML = '';
+      logs.slice(0, 6).forEach((l) => {
+        const li = document.createElement('li');
+        const when = l.ran_at ? new Date(l.ran_at).toLocaleString('fr-FR') : '';
+        li.textContent = `[${l.status === 'error' ? 'Erreur' : 'OK'}] ${when} — ${l.message}`;
+        li.className = l.status === 'error' ? 'diag-error' : '';
+        logsEl.appendChild(li);
+      });
+    } catch (_) {
+      logsEl.textContent = 'Logs indisponibles (hors ligne ?)';
+    }
+  }
+
+  async function sendTestPush(btn) {
+    btn.disabled = true;
+    try {
+      await Api.sendTestPush();
+      Toast.show('Notification test envoyée — vérifie ton téléphone.');
+    } catch (e) {
+      Toast.show(ERR.msg(e));
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   async function enablePush() {
     if (typeof NativeBridge !== 'undefined' && NativeBridge.isNative) {
       try {
@@ -173,7 +231,10 @@ const Settings = (() => {
     loadServerSettings();
 
     try {
-      document.getElementById('about-btn').addEventListener('click', () => Router.goTo('about'));
+      document.getElementById('about-btn').addEventListener('click', () => {
+        Router.goTo('about');
+        loadDiagnostics();
+      });
       document.getElementById('about-back-btn').addEventListener('click', () => Router.goTo('settings'));
       document.getElementById('about-website-btn').addEventListener('click', () => {
         NativeBridge && NativeBridge.openExternal('https://www.glocal-innov.com')
@@ -234,6 +295,16 @@ const Settings = (() => {
     } catch (e) { console.warn('push-switch:', e); }
 
     try {
+      const pushTestBtn = document.getElementById('push-test-btn');
+      if (pushTestBtn) pushTestBtn.addEventListener('click', () => sendTestPush(pushTestBtn));
+    } catch (e) { console.warn('push-test:', e); }
+
+    try {
+      const diagRefresh = document.getElementById('diag-refresh-btn');
+      if (diagRefresh) diagRefresh.addEventListener('click', loadDiagnostics);
+    } catch (e) { console.warn('diag-refresh:', e); }
+
+    try {
       ensureOfflineCard();
       const offBtn = document.getElementById('prepare-offline-btn');
       if (offBtn) {
@@ -284,9 +355,7 @@ const Settings = (() => {
           await Api.resetSync();
           await Api.runSync({ full_scan: 1 });
           const status = await Api.pollSyncStatus((s) => {
-            statusEl.textContent = s.new_bulletins > 0
-              ? `Re-scan en cours... (${s.new_bulletins} nouveaux)`
-              : 'Re-scan en cours...';
+            statusEl.textContent = syncStatusText(s);
           });
           if (status.status === 'done') {
             Toast.show(status.new_bulletins > 0

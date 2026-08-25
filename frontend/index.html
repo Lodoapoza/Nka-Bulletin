@@ -16,7 +16,7 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/plusjakartasans/v12/LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yygg_vb.woff2">
 <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/robotomono/v31/L0x5DF4xlVMF-BfR8bXMIjhLq3-cXbKD.woff2">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@500;600&display=optional">
-<link rel="stylesheet" href="css/app.css?v=v39">
+<link rel="stylesheet" href="css/app.css?v=v40">
 </head>
 <body>
 
@@ -333,6 +333,7 @@
         </div>
         <label class="switch"><input type="checkbox" id="push-switch"><span class="track"><span class="thumb"></span></span></label>
       </div>
+      <button class="btn btn-outline btn-full" id="push-test-btn" style="margin-top:12px;">Envoyer une notification test</button>
     </div>
 
     <div class="card">
@@ -366,6 +367,18 @@
     <div class="card">
       <div class="eyebrow" style="margin-bottom:8px;">Description</div>
       <div style="font-size:0.9rem;line-height:1.55;">Nka Bulletin récupère automatiquement vos bulletins de paie reçus par email, les archive de façon sécurisée et vous permet de les consulter, les rechercher et les partager à tout moment, même hors ligne.</div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div class="eyebrow">Diagnostic</div>
+        <button class="icon-btn" id="diag-refresh-btn" aria-label="Actualiser le diagnostic" style="width:36px;height:36px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 12a9 9 0 11-3-6.7M21 4v4h-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <div class="hint mono" id="diag-health" style="font-size:0.78rem;line-height:1.5;">—</div>
+      <div class="eyebrow" style="margin:12px 0 6px;font-size:0.65rem;">Dernières synchronisations</div>
+      <ul class="about-list" id="diag-logs" style="font-size:0.8rem;"></ul>
     </div>
 
     <div class="card">
@@ -484,21 +497,21 @@
   </div>
 </div>
 
-<script src="js/capacitor.js?v=v39"></script>
-<script src="js/client.js?v=v39"></script>
-<script src="js/dropdown.js?v=v39"></script>
-<script src="js/pin.js?v=v39"></script>
-<script src="js/parcours.js?v=v39"></script>
-<script src="js/guided.js?v=v39"></script>
-<script src="js/dashboard.js?v=v39"></script>
-<script src="js/accounts.js?v=v39"></script>
-<script src="js/bulletins.js?v=v39"></script>
-<script src="js/confirm.js?v=v39"></script>
-<script src="js/settings.js?v=v39"></script>
-<script src="js/reset.js?v=v39"></script>
-<script src="js/version.js?v=v39"></script>
-<script src="js/admin.js?v=v39"></script>
-<script src="js/analyse.js?v=v39"></script>
-<script src="js/app.js?v=v39"></script>
+<script src="js/capacitor.js?v=v40"></script>
+<script src="js/client.js?v=v40"></script>
+<script src="js/dropdown.js?v=v40"></script>
+<script src="js/pin.js?v=v40"></script>
+<script src="js/parcours.js?v=v40"></script>
+<script src="js/guided.js?v=v40"></script>
+<script src="js/dashboard.js?v=v40"></script>
+<script src="js/accounts.js?v=v40"></script>
+<script src="js/bulletins.js?v=v40"></script>
+<script src="js/confirm.js?v=v40"></script>
+<script src="js/settings.js?v=v40"></script>
+<script src="js/reset.js?v=v40"></script>
+<script src="js/version.js?v=v40"></script>
+<script src="js/admin.js?v=v40"></script>
+<script src="js/analyse.js?v=v40"></script>
+<script src="js/app.js?v=v40"></script>
 </body>
 </html>

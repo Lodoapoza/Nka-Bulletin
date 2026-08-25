@@ -1,0 +1,1 @@
+!function(){var e=localStorage.getItem("nka_theme");e||(e=window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light"),document.documentElement.setAttribute("data-theme",e);var t=localStorage.getItem("nka_accent")||"emerald";document.documentElement.setAttribute("data-accent",t)}();

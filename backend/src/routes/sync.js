@@ -29,8 +29,15 @@ router.post('/run', (req, res) => {
 
 router.get('/status', (req, res) => {
   const row = db.prepare(
-    "SELECT id, status, new_bulletins, error_message, completed_at FROM sync_requests WHERE device_id = ? AND status != 'cancelled' ORDER BY id DESC LIMIT 1"
+    "SELECT id, status, new_bulletins, error_message, completed_at, cursor, phase FROM sync_requests WHERE device_id = ? AND status != 'cancelled' ORDER BY id DESC LIMIT 1"
   ).get(req.deviceId);
+  if (row && row.cursor) {
+    // cursor contient la progression JSON { chunk, total, year, found } écrite
+    // par le worker pendant le scan. On l'expose en objet prêt à l'emploi ;
+    // un JSON invalide est ignoré silencieusement.
+    try { row.progress = JSON.parse(row.cursor); } catch (_) { row.progress = null; }
+    delete row.cursor;
+  }
   res.json(row || { status: 'none' });
 });
 
