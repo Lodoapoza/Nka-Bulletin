@@ -10,10 +10,7 @@ router.get('/', (req, res) => {
   ).get(req.deviceId);
   if (row) {
     row.push_enabled = !!row.push_subscription;
-    const user = row.user_matricule
-      ? db.prepare('SELECT link_code_hash FROM users WHERE matricule = ?').get(row.user_matricule)
-      : null;
-    row.link_code_set = !!(user && user.link_code_hash);
+    row.email = row.user_matricule ? (db.prepare('SELECT email FROM users WHERE matricule = ?').get(row.user_matricule) || {}).email || null : null;
   }
   res.json(row);
 });

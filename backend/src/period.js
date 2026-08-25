@@ -96,4 +96,65 @@ function parsePeriodFromPayslip(text) {
   return null;
 }
 
-module.exports = { parsePeriodFromPayslip, monthFromName };
+/**
+ * Détermine la période ET le type (paie / gratification) depuis le CONTENU du PDF.
+ * Prioritaire sur le nom de fichier : en décembre, deux documents arrivent
+ * (bulletin de paie + gratification) avec le même nom de fichier.
+ *
+ * Pattern 1 (le plus fiable) : le libellé après "Taux H.Suppl.:"
+ *   - "Taux H.Suppl.: Decembre 2024 BASELIBELLE"  → paie, décembre 2024
+ *   - "Taux H.Suppl.: Gratification 2024 BASELIBELLE" → gratification 2024
+ * Pattern 2 (fallback) : "D. Retour: 01/12/2024 AU :31/12/2024"
+ * Pattern 3 (fallback) : "Period: 01/12/24-25/12/24"
+ * @returns {{type:'paie'|'gratification', year:number|null, month:number|null, label:string|null}|null}
+ */
+function parsePeriodFromText(text) {
+  if (!text) return null;
+
+  // Pattern 1 : libellé après "Taux H.Suppl.:" (texte normalisé : accents et
+  // ponctuation retirés par norm(), espaces simples).
+  const s = norm(text);
+  const m1 = /taux\s*h\.?\s*suppl[^:]*:\s*([a-zà-ÿ]+(?:\s+20\d{2})?)/i.exec(s);
+  if (m1) {
+    const label = m1[1].trim();
+    if (/gratification/.test(label)) {
+      const ym = label.match(/(1[89]\d{2}|20\d{2})/);
+      return {
+        type: 'gratification',
+        year: ym ? clampYear(parseInt(ym[1], 10)) : null,
+        month: null,
+        label,
+      };
+    }
+    const parts = label.split(/\s+/);
+    const month = monthFromName(parts[0]);
+    const year = parts[1] ? clampYear(parseInt(parts[1], 10)) : null;
+    if (month) return { type: 'paie', year, month, label };
+  }
+
+  // Patterns 2 et 3 : sur le texte BRUT (espaces simples) — norm() remplace les
+  // "/" par des espaces, ce qui détruirait les dates.
+  const raw = String(text || '').replace(/\s+/g, ' ').trim();
+
+  // Pattern 2 : "D. Retour: 01/12/2024 AU :31/12/2024" (DD/MM/YYYY)
+  const m2 = /D\.?\s*Retour\s*:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s*AU\s*:?\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/i.exec(raw);
+  if (m2) {
+    const year = clampYear(parseInt(m2[3], 10));
+    const month = parseInt(m2[2], 10);
+    if (year && month >= 1 && month <= 12) return { type: 'paie', year, month };
+  }
+
+  // Pattern 3 : "Period: 01/12/24-25/12/24" (année 2 ou 4 chiffres)
+  const m3 = /Period\s*:\s*(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{2,4})/i.exec(raw);
+  if (m3) {
+    let year = parseInt(m3[3], 10);
+    if (year < 100) year += 2000;
+    year = clampYear(year);
+    const month = parseInt(m3[2], 10);
+    if (year && month >= 1 && month <= 12) return { type: 'paie', year, month };
+  }
+
+  return null;
+}
+
+module.exports = { parsePeriodFromPayslip, parsePeriodFromText, monthFromName };

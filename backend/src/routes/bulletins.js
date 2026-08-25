@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('../db');
 const { mergePdfs, analyzePdf } = require('../pdfService');
+const { parsePeriodFromText } = require('../period');
 
 const router = express.Router();
 
@@ -64,7 +65,9 @@ router.get('/:id/download', (req, res) => {
   if (!row) return res.status(404).json({ error: 'Bulletin introuvable' });
   if (!fs.existsSync(row.filepath)) return res.status(410).json({ error: 'Fichier manquant sur le disque' });
   const mm = String(row.month).padStart(2, '0');
-  const filename = `Bulletin_${row.year}-${mm}${row.matricule ? '_' + row.matricule : ''}.pdf`;
+  const filename = row.type === 'gratification'
+    ? `Gratification_${row.year}${row.matricule ? '_' + row.matricule : ''}.pdf`
+    : `Bulletin_${row.year}-${mm}${row.matricule ? '_' + row.matricule : ''}.pdf`;
   res.download(row.filepath, filename);
 });
 
@@ -139,12 +142,13 @@ router.post('/export/merge', async (req, res) => {
   }
 });
 
-// Reprocess les bulletins existants : extrait net + nom + matricule (avec OCR si scanné)
+// Reprocess les bulletins existants : extrait net + nom + matricule (avec OCR si scanné),
+// et recalcule type / period_label / year / month depuis le CONTENU du PDF (gratifications).
 router.post('/reprocess-amounts', async (req, res) => {
   const mat = req.userMatricule;
   const where = mat ? 'user_matricule = ?' : 'device_id = ?';
   const rows = db.prepare(
-    `SELECT id, filepath FROM bulletins WHERE ${where}`
+    `SELECT id, filepath, received_at FROM bulletins WHERE ${where}`
   ).all(mat || req.deviceId);
 
   let processed = 0;
@@ -153,8 +157,14 @@ router.post('/reprocess-amounts', async (req, res) => {
     try {
       if (!fs.existsSync(row.filepath)) continue;
       const analysis = await analyzePdf(row.filepath);
-      db.prepare('UPDATE bulletins SET net_amount = ?, nom = ?, matricule = ? WHERE id = ?')
-        .run(analysis.netAmount, analysis.nom, analysis.matricule, row.id);
+      // Même logique que syncService : le contenu prime, repli sur la date de réception.
+      const contentPeriod = analysis && analysis.text ? parsePeriodFromText(analysis.text) : null;
+      const type = contentPeriod && contentPeriod.type === 'gratification' ? 'gratification' : 'paie';
+      const year = contentPeriod && contentPeriod.year ? contentPeriod.year : new Date(row.received_at).getFullYear();
+      const month = type === 'gratification' ? 0 : (contentPeriod && contentPeriod.month ? contentPeriod.month : new Date(row.received_at).getMonth() + 1);
+      const periodLabel = contentPeriod ? contentPeriod.label : null;
+      db.prepare('UPDATE bulletins SET net_amount = ?, nom = ?, matricule = ?, type = ?, period_label = ?, year = ?, month = ? WHERE id = ?')
+        .run(analysis.netAmount, analysis.nom, analysis.matricule, type, periodLabel, year, month, row.id);
       processed++;
     } catch (_) { errors++; }
   }

@@ -63,7 +63,7 @@ def connect():
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
-    ftp = ftplib.FTP_TLS(host=HOST, context=ctx, timeout=60)
+    ftp = ftplib.FTP_TLS(host=HOST, context=ctx, timeout=15)
     ftp.login(USER, PASS)
     ftp.prot_p()
     print(f"Connecté (FTPS, PROT P) — {HOST}")
@@ -71,10 +71,23 @@ def connect():
 
 
 def upload(ftp, local, remote):
-    with open(local, "rb") as f:
-        ftp.storbinary(f"STOR {remote}", f)
     size = os.path.getsize(local)
-    print(f"  OK  {os.path.basename(local)} ({size} o)")
+    for attempt in range(3):
+        try:
+            with open(local, "rb") as f:
+                ftp.storbinary(f"STOR {remote}", f)
+            print(f"  OK  {os.path.basename(local)} ({size} o)")
+            return ftp
+        except Exception as e:
+            if attempt == 2:
+                raise
+            print(f"  RETRY {os.path.basename(local)}: {e}")
+            try:
+                ftp.quit()
+            except Exception:
+                pass
+            ftp = connect()
+    return ftp
 
 
 def main():
@@ -82,23 +95,23 @@ def main():
     try:
         print("=== 1/4 Frontend webroot ===")
         for f in FRONT_WEBROOT:
-            upload(ftp, os.path.join(FRONTEND, f), f"{REMOTE_FRONT}/{f}")
+            ftp = upload(ftp, os.path.join(FRONTEND, f), f"{REMOTE_FRONT}/{f}")
 
         print("=== 2/4 Frontend css/ + js/ ===")
         for f in FRONT_CSS_JS:
-            upload(ftp, os.path.join(FRONTEND, f), f"{REMOTE_FRONT}/{f}")
+            ftp = upload(ftp, os.path.join(FRONTEND, f), f"{REMOTE_FRONT}/{f}")
 
         print("=== 2.5/4 Icônes PWA ===")
         for f in FRONT_ICONS:
-            upload(ftp, os.path.join(FRONTEND, "icons", f), f"{REMOTE_FRONT}/{f}")
+            ftp = upload(ftp, os.path.join(FRONTEND, "icons", f), f"{REMOTE_FRONT}/{f}")
 
         print("=== 3/4 Backend source ===")
         for f in BACK_ROOT:
-            upload(ftp, os.path.join(ROOT, f), f"{REMOTE_BACK}/{f}")
+            ftp = upload(ftp, os.path.join(ROOT, f), f"{REMOTE_BACK}/{f}")
         for f in BACK_SRC:
-            upload(ftp, os.path.join(ROOT, "src", f), f"{REMOTE_BACK}/src/{f}")
+            ftp = upload(ftp, os.path.join(ROOT, "src", f), f"{REMOTE_BACK}/src/{f}")
         for f in BACK_ROUTES:
-            upload(ftp, os.path.join(ROOT, "src", "routes", f), f"{REMOTE_BACK}/src/routes/{f}")
+            ftp = upload(ftp, os.path.join(ROOT, "src", "routes", f), f"{REMOTE_BACK}/src/routes/{f}")
 
         print("=== 4/4 Restart Passenger ===")
         ftp.cwd(REMOTE_BACK)

@@ -44,10 +44,11 @@ router.get('/salary', (req, res) => {
   const yearQ = req.query.year ? Number(req.query.year) : null;
 
   // Toutes les données (net non nul) : sert au global + au par-année.
+  // month > 0 : exclut les gratifications (month=0) — ce ne sont pas des salaires mensuels.
   const mat = req.userMatricule;
   const where = mat ? 'user_matricule = ?' : 'device_id = ?';
   const allRows = db.prepare(
-    `SELECT year, month, net_amount FROM bulletins WHERE ${where} AND net_amount IS NOT NULL ORDER BY year, month`
+    `SELECT year, month, net_amount FROM bulletins WHERE ${where} AND net_amount IS NOT NULL AND month > 0 ORDER BY year, month`
   ).all(mat || req.deviceId);
 
   // Série affichée (toutes ou une seule année selon le filtre).

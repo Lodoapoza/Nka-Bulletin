@@ -15,8 +15,13 @@ router.post('/run', (req, res) => {
       db.prepare("UPDATE sync_requests SET status = 'cancelled', completed_at = ? WHERE id = ? AND status = 'pending'")
         .run(new Date().toISOString(), existing.id);
     }
-    const info = db.prepare("INSERT INTO sync_requests (device_id) VALUES (?)").run(req.deviceId);
-    res.json({ ok: true, queued: true, requestId: info.lastInsertRowid });
+    // full_scan : force un scan complet (35 ans) quelle que soit la valeur de
+    // last_sync_at. Le flag voyage avec la requête jusqu'au worker, ce qui évite
+    // la race condition où un reset (last_sync_at = NULL) est écrasé par une sync
+    // en cours qui réécrit last_sync_at progressivement.
+    const fullScan = req.body && req.body.full_scan ? 1 : 0;
+    const info = db.prepare("INSERT INTO sync_requests (device_id, full_scan) VALUES (?, ?)").run(req.deviceId, fullScan);
+    res.json({ ok: true, queued: true, requestId: info.lastInsertRowid, full_scan: !!fullScan });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
