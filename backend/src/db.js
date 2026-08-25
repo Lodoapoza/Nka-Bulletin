@@ -406,4 +406,81 @@ if (!hasColumn('sync_requests', 'scan_year')) {
 db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_version', ?)").run('10');
 console.log('[db] Migration v10 terminée (db_version=10)');
 
+// ----- Coordination multi-appareils (v11) -----
+// Un même email connecté sur plusieurs appareils doit fonctionner sans
+// chevauchement : vue partagée au niveau user (existante), import coordonné.
+// 1. Backfill : les bulletins d'appareils rattachés à un user héritent du
+//    user_matricule (les vieux imports avant la feature restaient NULL).
+// 2. Dédoublonnage visible : même (propriétaire, filename, année, mois, type)
+//    → on garde l'import le plus ancien (le même PDF arrive dans la boîte de
+//    chaque appareil = emails distincts, hash différent, mais un seul doit
+//    rester visible).
+// 3. Filets de sécurité en base :
+//    - unicité hash PAR PROPRIÉTAIRE (IFNULL(user_matricule, device_id))
+//    - unicité période PAR PROPRIÉTAIRE (filename, year, month, type)
+try {
+  const backfill = db.prepare(`
+    UPDATE bulletins SET user_matricule =
+      (SELECT d.user_matricule FROM devices d WHERE d.id = bulletins.device_id)
+    WHERE user_matricule IS NULL
+      AND device_id IN (SELECT id FROM devices WHERE user_matricule IS NOT NULL)
+  `).run();
+  if (backfill.changes > 0) console.log(`[db] v11: ${backfill.changes} bulletin(s) rattachés au user`);
+
+  // Réparation des périodes : le nom de fichier est la source de vérité quand
+  // il porte un mois explicite qui contredit la ligne stockée (décalage
+  // « mois de paiement » vs « période » observé sur les PDFs réels).
+  // GRATIFICATION dans le nom → type gratification, mois 0.
+  const { parsePeriodFromPayslip } = require('./period');
+  const fixStmt = db.prepare('UPDATE bulletins SET year = ?, month = ?, type = ? WHERE id = ?');
+  let repaired = 0;
+  for (const r of db.prepare('SELECT id, filename, year, month, type FROM bulletins').all()) {
+    if (/gratification/i.test(r.filename)) {
+      const fp = parsePeriodFromPayslip(r.filename);
+      const gy = fp && fp.year ? fp.year : r.year;
+      if (r.type !== 'gratification' || r.month !== 0 || r.year !== gy) {
+        fixStmt.run(gy, 0, 'gratification', r.id);
+        repaired++;
+      }
+      continue;
+    }
+    if (r.type === 'gratification') continue; // ne pas écraser une gratification légitime
+    const fp = parsePeriodFromPayslip(r.filename);
+    if (fp && fp.month && (r.year !== fp.year || r.month !== fp.month)) {
+      fixStmt.run(fp.year, fp.month, r.type || 'paie', r.id);
+      repaired++;
+    }
+  }
+  if (repaired > 0) console.log(`[db] v11: ${repaired} période(s) réparée(s) depuis le nom de fichier`);
+
+  // Exports fusionnés de l'app revenus par email et réimportés comme bulletins :
+  // artefacts dérivés (les périodes couvertes existent déjà individuellement).
+  const delMerge = db.prepare("DELETE FROM bulletins WHERE filename LIKE 'Bulletins du %' OR filename LIKE 'Bulletins_du_%'").run();
+  if (delMerge.changes > 0) console.log(`[db] v11: ${delMerge.changes} export(s) fusionné(s) réimporté(s) supprimé(s)`);
+
+  const dedupPeriod = db.prepare(`
+    DELETE FROM bulletins WHERE id NOT IN (
+      SELECT MIN(id) FROM bulletins
+      GROUP BY IFNULL(user_matricule, device_id), filename, year, month, type
+    )
+  `).run();
+  if (dedupPeriod.changes > 0) console.log(`[db] v11: ${dedupPeriod.changes} doublon(s) de période supprimé(s)`);
+
+  const dedupHash = db.prepare(`
+    DELETE FROM bulletins WHERE id NOT IN (
+      SELECT MIN(id) FROM bulletins
+      GROUP BY IFNULL(user_matricule, device_id), message_hash
+    )
+  `).run();
+  if (dedupHash.changes > 0) console.log(`[db] v11: ${dedupHash.changes} doublon(s) de hash supprimé(s)`);
+
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_bulletins_owner_hash ON bulletins(IFNULL(user_matricule, device_id), message_hash);`);
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_bulletins_owner_period ON bulletins(IFNULL(user_matricule, device_id), filename, year, month, type);`);
+  console.log('[db] v11: index unicite proprietaire crees');
+} catch (e) {
+  console.error('[db] Migration v11 partiellement échouée:', e.message);
+}
+db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_version', ?)").run('11');
+console.log('[db] Migration v11 terminée (db_version=11)');
+
 module.exports = db;

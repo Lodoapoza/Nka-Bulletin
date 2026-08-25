@@ -17,9 +17,12 @@ const WEAK_MARKERS = [
 ];
 
 // Nom de fichiers manifestement PAS des bulletins (docs, comparatifs, tests…)
+// + « bulletins du » : exports fusionnés de l'app elle-même, revenus par email —
+// les réimporter créerait des doublons de périodes déjà couvertes.
 const FILENAME_DENYLIST = [
   'comparatif', 'devis', 'support', 'procédure', 'procedure', 'ordre de paiement',
   'cours', 'test', 'reçu', 'recu', 'exemple', 'etat de salaire', 'etat des salaires',
+  'bulletins du',
 ];
 
 // Marqueurs négatifs : présents dans le contenu, le document n'est PAS un bulletin

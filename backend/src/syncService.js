@@ -59,10 +59,19 @@ async function importFound(device, account, items) {
       : db.prepare('SELECT id FROM bulletins WHERE message_hash = ? AND device_id = ?').get(item.messageHash, account.device_id);
 
     const filePeriod = parsePeriodFromPayslip(`${item.filename} ${item.subject}`);
+    const itemYear = filePeriod ? filePeriod.year : item.receivedAt.getFullYear();
+    const itemMonth = filePeriod ? filePeriod.month : item.receivedAt.getMonth() + 1;
 
-    const alreadyPeriod = db.prepare(
-      'SELECT id FROM bulletins WHERE account_id = ? AND filename = ? AND year = ? AND month = ?'
-    ).get(account.id, item.filename, filePeriod ? filePeriod.year : item.receivedAt.getFullYear(), filePeriod ? filePeriod.month : item.receivedAt.getMonth() + 1);
+    // Garde de période : pour un appareil rattaché à un user, la déduplication
+    // est AU NIVEAU USER — si un autre appareil du même user a déjà importé ce
+    // (filename, année, mois), on saute. Sinon chaque appareil réimporterait la
+    // même pièce jointe reçue dans sa propre boîte (chevauchement multi-devices).
+    // Sans user_matricule : comportement historique par compte.
+    const alreadyPeriod = userMat
+      ? db.prepare('SELECT id FROM bulletins WHERE user_matricule = ? AND filename = ? AND year = ? AND month = ?')
+          .get(userMat, item.filename, itemYear, itemMonth)
+      : db.prepare('SELECT id FROM bulletins WHERE account_id = ? AND filename = ? AND year = ? AND month = ?')
+          .get(account.id, item.filename, itemYear, itemMonth);
     if (alreadyHash || alreadyPeriod) continue;
 
     if (!item.buffer || item.buffer.length === 0) continue;
@@ -76,12 +85,27 @@ async function importFound(device, account, items) {
       console.warn('[sync] Analyse PDF impossible:', err.message);
     }
 
-    // Période et type depuis le CONTENU du PDF (prioritaire sur le nom de fichier) :
-    // en décembre, bulletin de paie ET gratification partagent le même nom de fichier.
+    // Période et type :
+    // - Gratification → toujours via le CONTENU (mois = 0).
+    // - Paie avec mois explicite dans le nom de fichier (JANVIER_2026,
+    //   BUL_202304…) → le FICHIER fait foi : observé en prod, le libellé du
+    //   PDF peut pointer le mois de paiement (+1) au lieu de la période.
+    // - Sinon (fichier sans mois déchiffrable, ex. GRATIFICATION_2025) →
+    //   contenu, puis date de réception en dernier recours.
     const contentPeriod = analysis && analysis.text ? parsePeriodFromText(analysis.text) : null;
-    const type = contentPeriod && contentPeriod.type === 'gratification' ? 'gratification' : 'paie';
-    const year = contentPeriod && contentPeriod.year ? contentPeriod.year : (filePeriod ? filePeriod.year : item.receivedAt.getFullYear());
-    const month = type === 'gratification' ? 0 : (contentPeriod && contentPeriod.month ? contentPeriod.month : (filePeriod ? filePeriod.month : item.receivedAt.getMonth() + 1));
+    const isGratification = !!(contentPeriod && contentPeriod.type === 'gratification');
+    const type = isGratification ? 'gratification' : 'paie';
+    const fileHasMonth = !!(filePeriod && filePeriod.month);
+    const useFilePeriod = !isGratification && fileHasMonth;
+    const year = useFilePeriod && filePeriod.year
+      ? filePeriod.year
+      : (contentPeriod && contentPeriod.year ? contentPeriod.year
+        : (filePeriod ? filePeriod.year : item.receivedAt.getFullYear()));
+    const month = isGratification
+      ? 0
+      : (useFilePeriod ? filePeriod.month
+        : (contentPeriod && contentPeriod.month ? contentPeriod.month
+          : (filePeriod ? filePeriod.month : item.receivedAt.getMonth() + 1)));
     const periodLabel = contentPeriod ? contentPeriod.label : null;
 
     const ownerMatricule = device && device.owner_matricule ? device.owner_matricule : null;
