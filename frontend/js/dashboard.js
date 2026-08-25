@@ -179,7 +179,10 @@ const Dashboard = (() => {
   }
 
   // Flux de synchro partagé : bouton « Mettre à jour » et carte guidée.
-  async function runSyncFlow(btn) {
+  // opts est transmis tel quel au backend via Api.runSync (ex. { year: 2024 }
+  // pour une année précise, { full_scan: 1 } pour tout l'historique) ;
+  // vide = recherche incrémentale habituelle.
+  async function runSyncFlow(btn, opts = {}) {
     if (!btn || btn.disabled) return;
     const statusEl = document.getElementById('dash-sync-status');
     const originalHtml = btn.innerHTML;
@@ -191,7 +194,7 @@ const Dashboard = (() => {
     btn.innerHTML = '<span class="btn-spinner"></span>';
     if (statusEl) statusEl.textContent = 'Mise à jour en cours...';
     try {
-      await Api.runSync();
+      await Api.runSync(opts);
       const status = await Api.pollSyncStatus((s) => {
         if (statusEl) statusEl.textContent = syncStatusText(s);
       });
@@ -224,6 +227,126 @@ const Dashboard = (() => {
     }
   }
 
+  // ===== Modale de choix de recherche (créée dynamiquement, cf. confirm.js) =====
+  // Trois parcours : incrémental (défaut), une année précise, historique complet.
+  // La carte guidée, elle, lance runSyncFlow directement — pas de friction
+  // supplémentaire pendant l'onboarding.
+
+  const SYNC_MODAL_YEAR_TRIGGER_ID = 'sync-modal-year-trigger';
+  const YEAR_RANGE = 15; // année courante jusqu'à courant - 15 inclus
+
+  function buildYearOptions(selectedYear) {
+    const currentYear = new Date().getFullYear();
+    const options = [];
+    for (let offset = 0; offset <= YEAR_RANGE; offset++) {
+      const year = currentYear - offset;
+      options.push({ value: String(year), label: String(year), selected: year === selectedYear });
+    }
+    return options;
+  }
+
+  function openSyncModal(btn) {
+    if (!btn || btn.disabled) return;
+    const currentYear = new Date().getFullYear();
+    let chosenYear = currentYear; // présélection : année courante
+    let yearDropdown = null;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'reset-overlay';
+    overlay.innerHTML = `
+      <div class="reset-modal sync-modal" role="alertdialog" aria-modal="true" aria-labelledby="sync-modal-title">
+        <h3 id="sync-modal-title">Rechercher des bulletins</h3>
+        <div class="sync-choice">
+          <button type="button" class="btn btn-primary btn-full" data-role="recent">Rechercher les nouveaux</button>
+          <p class="hint">Rapide — reprend depuis votre dernière mise à jour</p>
+        </div>
+        <div class="sync-choice">
+          <div class="eyebrow">Rechercher une année</div>
+          <div class="sync-modal-year-row">
+            <button type="button" id="${SYNC_MODAL_YEAR_TRIGGER_ID}" class="dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">
+              <span class="dropdown-label">${currentYear}</span>
+              <svg class="dropdown-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button type="button" class="btn btn-outline" data-role="year">Rechercher</button>
+          </div>
+        </div>
+        <div class="sync-choice">
+          <button type="button" class="btn btn-outline btn-full" data-role="full">Tout l'historique</button>
+          <p class="hint">Complet, peut prendre plus d'une heure</p>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // Focus mémorisé avant ouverture : restitué à la fermeture.
+    const lastFocus = document.activeElement;
+
+    // Ferme la modale puis, si un choix a été fait, lance le flux associé.
+    const done = (launch) => {
+      document.removeEventListener('keydown', onKeyDown);
+      if (yearDropdown) yearDropdown.close(); // retire le panel ouvert du body
+      overlay.remove();
+      if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+      if (launch) launch();
+    };
+
+    // Piège Tab/Shift+Tab : le focus reste enfermé entre les contrôles.
+    const focusables = () =>
+      [...overlay.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+        .filter((el) => !el.disabled);
+
+    function onKeyDown(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        done(null);
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const els = focusables();
+      if (!els.length) {
+        e.preventDefault();
+        return;
+      }
+      const first = els[0];
+      const last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener('keydown', onKeyDown);
+
+    // Fermeture au clic sur le fond (overlay), pas sur la modale.
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) done(null);
+    });
+
+    overlay.querySelector('[data-role="recent"]').addEventListener('click', () => {
+      done(() => runSyncFlow(btn));
+    });
+    overlay.querySelector('[data-role="year"]').addEventListener('click', () => {
+      done(() => runSyncFlow(btn, { year: chosenYear }));
+    });
+    overlay.querySelector('[data-role="full"]').addEventListener('click', () => {
+      done(() => runSyncFlow(btn, { full_scan: 1 }));
+    });
+
+    // Sélecteur d'année (composant partagé — voir dropdown.js ; le trigger est
+    // dans la modale, le panel est ajouté au body par le composant).
+    yearDropdown = AppDropdown.create(
+      SYNC_MODAL_YEAR_TRIGGER_ID,
+      buildYearOptions(currentYear),
+      (v) => { chosenYear = v; },
+      (v) => String(v)
+    );
+
+    // Focus initial : l'action principale (recherche incrémentale).
+    overlay.querySelector('[data-role="recent"]').focus();
+  }
+
   function bindActions() {
     const eye = document.getElementById('amounts-eye');
     if (eye) {
@@ -244,7 +367,8 @@ const Dashboard = (() => {
       } catch (_) {}
     }
     document.getElementById('dash-sync-now').addEventListener('click', (e) => {
-      runSyncFlow(e.currentTarget);
+      // Ouvre la modale de choix ; le flux n'est lancé qu'après un choix.
+      openSyncModal(e.currentTarget);
     });
     // Carte guidée : un seul listener pour toutes les actions du parcours.
     Guided.bind(document.getElementById('guided-status-card'), handleGuidedAction);

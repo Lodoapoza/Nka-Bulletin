@@ -708,6 +708,18 @@ a { color: inherit; }
 .reset-actions .btn-danger { background: var(--md-error); color: #fff; border: none; }
 .reset-actions .btn-danger:disabled { opacity: .6; }
 
+/* ===== Modale de choix de recherche (dashboard.js — injectée dynamiquement) =====
+   Réutilise .reset-overlay / .reset-modal (glassmorphism) ; trois choix empilés
+   séparés par des hairlines : incrémental, une année, historique complet. */
+.sync-modal h3 { margin-bottom: 16px; }
+.sync-choice + .sync-choice {
+  margin-top: 16px; padding-top: 16px;
+  border-top: 1px solid var(--glass-border-subtle);
+}
+.sync-modal-year-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+.sync-modal-year-row .dropdown-trigger { flex: 1 1 auto; min-width: 0; max-width: none; }
+.sync-modal-year-row .btn { flex-shrink: 0; white-space: nowrap; }
+
 /* ===== Licence / Administration (overlays) ===== */
 .fullscreen-overlay {
   position: fixed; inset: 0; z-index: 1200;

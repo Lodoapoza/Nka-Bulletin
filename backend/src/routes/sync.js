@@ -19,9 +19,15 @@ router.post('/run', (req, res) => {
     // last_sync_at. Le flag voyage avec la requête jusqu'au worker, ce qui évite
     // la race condition où un reset (last_sync_at = NULL) est écrasé par une sync
     // en cours qui réécrit last_sync_at progressivement.
+    // scan_year : recherche ciblée sur une année précise (modale dashboard).
+    // Une année valide prend la précédence sur full_scan (fenêtre plus courte).
     const fullScan = req.body && req.body.full_scan ? 1 : 0;
-    const info = db.prepare("INSERT INTO sync_requests (device_id, full_scan) VALUES (?, ?)").run(req.deviceId, fullScan);
-    res.json({ ok: true, queued: true, requestId: info.lastInsertRowid, full_scan: !!fullScan });
+    const nowYear = new Date().getFullYear();
+    const reqYear = req.body ? Number(req.body.year) : NaN;
+    const scanYear = Number.isInteger(reqYear) && reqYear >= 1990 && reqYear <= nowYear + 1 ? reqYear : null;
+    const info = db.prepare("INSERT INTO sync_requests (device_id, full_scan, scan_year) VALUES (?, ?, ?)")
+      .run(req.deviceId, scanYear ? 0 : fullScan, scanYear);
+    res.json({ ok: true, queued: true, requestId: info.lastInsertRowid, full_scan: !!fullScan, scan_year: scanYear });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

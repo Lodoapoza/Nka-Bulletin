@@ -396,4 +396,14 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_sync_requests_device_status ON sync_requ
 db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_version', ?)").run('9');
 console.log('[db] Migration v9 terminée (db_version=9)');
 
+// ----- Recherche ciblée par année (v10) -----
+// scan_year : année précise demandée pour une synchro (modale « Rechercher une
+// année »). NULL = comportement historique (incrémental ou full_scan).
+if (!hasColumn('sync_requests', 'scan_year')) {
+  db.exec("ALTER TABLE sync_requests ADD COLUMN scan_year INTEGER");
+  console.log('[db] colonne sync_requests.scan_year ajoutée');
+}
+db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_version', ?)").run('10');
+console.log('[db] Migration v10 terminée (db_version=10)');
+
 module.exports = db;

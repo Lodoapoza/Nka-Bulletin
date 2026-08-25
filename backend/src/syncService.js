@@ -177,17 +177,29 @@ async function runSyncForDevice(deviceId, options = {}) {
       // - Scans suivants : grace period 48h autour de last_sync_at pour ne jamais
       //   perdre un message en cas d'échec ponctuel (dédupliqué par hash ensuite).
       const now = new Date();
-      const sinceDate = (options.fullScan || !account.last_sync_at)
-        ? new Date(Date.now() - INITIAL_SCAN_DAYS * 24 * 60 * 60 * 1000)
-        : new Date(new Date(account.last_sync_at).getTime() - 48 * 60 * 60 * 1000);
+      const scanYear = Number.isInteger(options.scanYear) ? options.scanYear : null;
+      let sinceDate;
+      let chunks;
+      if (scanYear) {
+        // Recherche ciblée : fenêtre [1er janvier année, 1er janvier année+1[
+        // (borne haute ramenée à « maintenant » pour l'année en cours).
+        sinceDate = new Date(scanYear, 0, 1);
+        const yearEnd = new Date(scanYear + 1, 0, 1);
+        chunks = [{ since: sinceDate, before: yearEnd.getTime() <= now.getTime() ? yearEnd : null }];
+        console.log(`[sync] Account ${account.email}: recherche ciblée année ${scanYear}`);
+      } else {
+        sinceDate = (options.fullScan || !account.last_sync_at)
+          ? new Date(Date.now() - INITIAL_SCAN_DAYS * 24 * 60 * 60 * 1000)
+          : new Date(new Date(account.last_sync_at).getTime() - 48 * 60 * 60 * 1000);
 
-      // Fenêtre > 1 an → découpage par tranches annuelles : chaque tranche est
-      // scannée avec son propre timeout (SYNC_TIMEOUT_MS), et last_sync_at est
-      // mis à jour après chaque tranche réussie → reprise progressive en cas
-      // d'échec, plus jamais de timeout global sur un scan initial de 35 ans.
-      const chunks = (now.getTime() - sinceDate.getTime() > 366 * 24 * 60 * 60 * 1000)
-        ? buildYearChunks(sinceDate, now)
-        : [{ since: sinceDate, before: null }];
+        // Fenêtre > 1 an → découpage par tranches annuelles : chaque tranche est
+        // scannée avec son propre timeout (SYNC_TIMEOUT_MS), et last_sync_at est
+        // mis à jour après chaque tranche réussie → reprise progressive en cas
+        // d'échec, plus jamais de timeout global sur un scan initial de 35 ans.
+        chunks = (now.getTime() - sinceDate.getTime() > 366 * 24 * 60 * 60 * 1000)
+          ? buildYearChunks(sinceDate, now)
+          : [{ since: sinceDate, before: null }];
+      }
 
       let accountNew = 0;
       let accountOk = true;
@@ -215,9 +227,14 @@ async function runSyncForDevice(deviceId, options = {}) {
           accountNew += await importFound(device, account, found);
           reportProgress({ chunk: ci + 1, total: chunks.length, year: yearLabel, found: accountNew });
 
-          // Progression : last_sync_at = fin de tranche ou now
-          const progress = chunk.before && chunk.before.getTime() <= Date.now() ? chunk.before : now;
-          db.prepare('UPDATE accounts SET last_sync_at = ? WHERE id = ?').run(progress.toISOString(), account.id);
+          // Progression : last_sync_at = fin de tranche ou now.
+          // JAMAIS pour une recherche ciblée par année : avancer le curseur
+          // global à « maintenant » ferait perdre les mois jamais scannés
+          // entre l'année ciblée et aujourd'hui aux prochains scans incrémentaux.
+          if (!scanYear) {
+            const progress = chunk.before && chunk.before.getTime() <= Date.now() ? chunk.before : now;
+            db.prepare('UPDATE accounts SET last_sync_at = ? WHERE id = ?').run(progress.toISOString(), account.id);
+          }
         } catch (err) {
           accountOk = false;
           errors.push(err.message);
@@ -228,14 +245,17 @@ async function runSyncForDevice(deviceId, options = {}) {
         }
       }
 
-      // Toujours mettre à jour last_sync_at à now après un scan réussi
-      // (même si aucun bulletin trouvé : le scan a bien tourné)
-      if (accountOk) {
+      // Mettre à jour last_sync_at à now après un scan réussi (même si aucun
+      // bulletin trouvé : le scan a bien tourné) — SAUF recherche ciblée par
+      // année (voir garde dans la boucle : ne pas écraser le curseur global).
+      if (accountOk && !scanYear) {
         db.prepare('UPDATE accounts SET last_sync_at = ? WHERE id = ?').run(now.toISOString(), account.id);
+      }
+      if (accountOk) {
         totalNew += accountNew;
-        const msg = accountNew > 0
-          ? `${accountNew} nouveau(x) bulletin(s)`
-          : 'Aucun nouveau bulletin';
+        const msg = scanYear
+          ? (accountNew > 0 ? `${accountNew} nouveau(x) bulletin(s) pour ${scanYear}` : `Aucun nouveau bulletin pour ${scanYear}`)
+          : (accountNew > 0 ? `${accountNew} nouveau(x) bulletin(s)` : 'Aucun nouveau bulletin');
         console.log(`[sync] Account ${account.email}: terminé — ${msg}`);
         db.prepare('INSERT INTO sync_logs (device_id, account_id, status, message, new_bulletins) VALUES (?,?,?,?,?)')
           .run(deviceId, account.id, 'success', msg, accountNew);
