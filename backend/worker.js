@@ -23,7 +23,15 @@ async function processOne() {
   // avec un UPDATE conditionnel par status. Si un autre worker a pris la requête
   // entre les deux (changes === 0), on passe à la suivante. Pas besoin de transaction.
   const row = db.prepare("SELECT id FROM sync_requests WHERE status = 'pending' ORDER BY id LIMIT 1").get();
-  if (!row) return;
+  if (!row) {
+    // Log périodique pour confirmer que le worker tourne
+    const pending = db.prepare("SELECT COUNT(*) as n FROM sync_requests WHERE status = 'pending'").get().n;
+    const running = db.prepare("SELECT COUNT(*) as n FROM sync_requests WHERE status = 'running'").get().n;
+    if (pending > 0 || running > 0) {
+      console.log(`[worker] État: ${pending} pending, ${running} running`);
+    }
+    return;
+  }
 
   const claimed = db.prepare(
     "UPDATE sync_requests SET status = 'running' WHERE id = ? AND status = 'pending'"
@@ -77,6 +85,14 @@ async function main() {
   ).run();
   if (resetCount.changes > 0) {
     console.log(`[worker] ${resetCount.changes} sync(s) relancée(s) après redémarrage`);
+  }
+
+  // Nettoyage des jobs stuck en 'running' depuis > 30 min (timeout blowup)
+  const stuckCount = db.prepare(
+    "UPDATE sync_requests SET status = 'failed', error_message = 'timeout: stuck > 30min' WHERE status = 'running' AND created_at < datetime('now', '-30 minutes')"
+  ).run();
+  if (stuckCount.changes > 0) {
+    console.log(`[worker] ${stuckCount.changes} sync(s) stuck nettoyée(s)`);
   }
 
   console.log(`[worker] Démarré, PID ${process.pid}, intervalle d'interrogation: ${POLL_INTERVAL}ms`);

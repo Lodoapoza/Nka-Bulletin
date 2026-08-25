@@ -178,9 +178,13 @@ async function runSyncForDevice(deviceId, options = {}) {
 
       let accountNew = 0;
       let accountOk = true;
-      for (const chunk of chunks) {
+      console.log(`[sync] Account ${account.email}: scan ${chunks.length} tranche(s) depuis ${sinceDate.toISOString()}`);
+
+      for (let ci = 0; ci < chunks.length; ci++) {
+        const chunk = chunks[ci];
         try {
           const controller = new AbortController();
+          console.log(`[sync]   Tranche ${ci + 1}/${chunks.length}: ${chunk.since.toISOString()} → ${chunk.before ? chunk.before.toISOString() : 'now'}`);
           const found = await withTimeout(fetchPayslipsSince({
             provider: account.provider,
             host: account.imap_host,
@@ -192,24 +196,33 @@ async function runSyncForDevice(deviceId, options = {}) {
             beforeDate: chunk.before,
           }, { signal: controller.signal }), SYNC_TIMEOUT_MS, controller.signal);
 
+          console.log(`[sync]   Tranche ${ci + 1}: ${found.length} candidat(s) trouvé(s)`);
           accountNew += await importFound(device, account, found);
 
-          // Progression : last_sync_at = fin de tranche (jamais dans le futur)
+          // Progression : last_sync_at = fin de tranche ou now
           const progress = chunk.before && chunk.before.getTime() <= Date.now() ? chunk.before : now;
           db.prepare('UPDATE accounts SET last_sync_at = ? WHERE id = ?').run(progress.toISOString(), account.id);
         } catch (err) {
           accountOk = false;
           errors.push(err.message);
+          console.error(`[sync]   Tranche ${ci + 1} échouée:`, err.message);
           db.prepare('INSERT INTO sync_logs (device_id, account_id, status, message) VALUES (?,?,?,?)')
             .run(deviceId, account.id, 'error', err.message);
           break; // tranche suivante reprise au prochain scan (last_sync_at progressif)
         }
       }
 
+      // Toujours mettre à jour last_sync_at à now après un scan réussi
+      // (même si aucun bulletin trouvé : le scan a bien tourné)
       if (accountOk) {
+        db.prepare('UPDATE accounts SET last_sync_at = ? WHERE id = ?').run(now.toISOString(), account.id);
         totalNew += accountNew;
+        const msg = accountNew > 0
+          ? `${accountNew} nouveau(x) bulletin(s)`
+          : 'Aucun nouveau bulletin';
+        console.log(`[sync] Account ${account.email}: terminé — ${msg}`);
         db.prepare('INSERT INTO sync_logs (device_id, account_id, status, message, new_bulletins) VALUES (?,?,?,?,?)')
-          .run(deviceId, account.id, 'success', `${accountNew} nouveau(x) bulletin(s)`, accountNew);
+          .run(deviceId, account.id, 'success', msg, accountNew);
         successCount++;
       }
 
