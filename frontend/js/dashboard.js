@@ -98,7 +98,7 @@ const Dashboard = (() => {
       const accounts = await Api.getAccounts();
       const statusEl = document.getElementById('dash-sync-status');
       if (!accounts.length) {
-        statusEl.textContent = 'Connectez une boîte mail pour démarrer';
+        if (statusEl) statusEl.textContent = 'Connectez une boîte mail pour démarrer';
       } else {
         const lastSync = accounts.map(a => a.last_sync_at).filter(Boolean).sort().pop();
         statusEl.textContent = lastSync
