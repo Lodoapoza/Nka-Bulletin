@@ -143,7 +143,23 @@ function authMiddleware(req, res, next) {
     req.deviceId = payload.deviceId;
     // Multi-appareils : expose le matricule user du device (NULL si non lié à un user).
     // Résolu depuis la DB, PAS dans le JWT — les tokens existants (180j) restent valides.
-    const dev = db.prepare('SELECT user_matricule, owner_matricule FROM devices WHERE id = ?').get(req.deviceId);
+    let dev = db.prepare('SELECT user_matricule, owner_matricule FROM devices WHERE id = ?').get(req.deviceId);
+
+    // Device orphelin : le device a été supprimé (éjection auto, reset) mais le JWT
+    // est encore valide (180j). Les bulletins restent avec leur device_id + user_matricule.
+    // On re-créé le device avec le user_matricule trouvé dans les bulletins pour
+    // restaurer l'accès partagé (au lieu de filtrer par device_id → 5 bulletins au lieu de 25).
+    if (!dev) {
+      const orphan = db.prepare(
+        'SELECT user_matricule FROM bulletins WHERE device_id = ? AND user_matricule IS NOT NULL LIMIT 1'
+      ).get(req.deviceId);
+      if (orphan && orphan.user_matricule) {
+        db.prepare('INSERT OR IGNORE INTO devices (id, user_matricule) VALUES (?, ?)').run(req.deviceId, orphan.user_matricule);
+        dev = { user_matricule: orphan.user_matricule, owner_matricule: null };
+        console.log(`[auth] Device orphelin ${req.deviceId} restauré avec user_matricule=${orphan.user_matricule}`);
+      }
+    }
+
     req.userMatricule = (dev && dev.user_matricule) || (dev && dev.owner_matricule) || null;
     next();
   } catch (e) {

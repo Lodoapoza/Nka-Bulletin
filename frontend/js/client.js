@@ -329,6 +329,14 @@ const Api = (() => {
         continue;
       }
       if (onProgress) { try { onProgress(status); } catch (_) {} }
+      // 'none' : aucune sync_request pour cet appareil (device orphelin, premier lancement).
+      // La synchro s'est terminée trop vite pour être captée ou n'a jamais existé.
+      // On traite comme 'done' pour éviter un spin infini jusqu'au safety cap.
+      if (status.status === 'none') {
+        status.status = 'done';
+        status.new_bulletins = 0;
+        return status;
+      }
       // Rafraîchissement progressif : tant que le scan tourne, on prévient les vues
       // (ex. liste des bulletins) toutes les ~10 s pour montrer l'arrivée des bulletins.
       if (Date.now() - lastTick >= 10000) {

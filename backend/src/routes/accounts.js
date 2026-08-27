@@ -8,11 +8,26 @@ const { resetDeviceData } = require('./device');
 
 const router = express.Router();
 
-// Liste des comptes connectés pour cet appareil
+// Liste des comptes connectés pour cet appareil.
+// Device orphelin (restauré via bulletins) : si aucun compte local mais user_matricule
+// connu, on retourne le dernier last_sync_at des autres appareils du même user pour
+// que le dashboard affiche « À jour au … » au lieu de « Jamais mis à jour ».
 router.get('/', (req, res) => {
-  const rows = db.prepare(
+  let rows = db.prepare(
     'SELECT id, provider, label, email, last_sync_at, created_at FROM accounts WHERE device_id = ?'
   ).all(req.deviceId);
+
+  // Fallback : device sans compte mais avec user_matricule → récupérer le last_sync_at
+  // partagé (sans exposer les emails des autres appareils).
+  if (!rows.length && req.userMatricule) {
+    const shared = db.prepare(
+      'SELECT MAX(last_sync_at) as last_sync_at FROM accounts a JOIN devices d ON d.id = a.device_id WHERE d.user_matricule = ?'
+    ).get(req.userMatricule);
+    if (shared && shared.last_sync_at) {
+      rows = [{ id: null, provider: null, label: null, email: null, last_sync_at: shared.last_sync_at, created_at: null }];
+    }
+  }
+
   res.json(rows);
 });
 
