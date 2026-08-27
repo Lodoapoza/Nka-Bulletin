@@ -145,10 +145,8 @@ function authMiddleware(req, res, next) {
     // Résolu depuis la DB, PAS dans le JWT — les tokens existants (180j) restent valides.
     let dev = db.prepare('SELECT user_matricule, owner_matricule FROM devices WHERE id = ?').get(req.deviceId);
 
-    // Device orphelin : le device a été supprimé (éjection auto, reset) mais le JWT
-    // est encore valide (180j). Les bulletins restent avec leur device_id + user_matricule.
-    // On re-créé le device avec le user_matricule trouvé dans les bulletins pour
-    // restaurer l'accès partagé (au lieu de filtrer par device_id → 5 bulletins au lieu de 25).
+    // Cas orphelin 1 : device supprimé (éjection auto) mais JWT encore valide (180j).
+    // Les bulletins restent avec leur device_id + user_matricule.
     if (!dev) {
       const orphan = db.prepare(
         'SELECT user_matricule FROM bulletins WHERE device_id = ? AND user_matricule IS NOT NULL LIMIT 1'
@@ -156,7 +154,20 @@ function authMiddleware(req, res, next) {
       if (orphan && orphan.user_matricule) {
         db.prepare('INSERT OR IGNORE INTO devices (id, user_matricule) VALUES (?, ?)').run(req.deviceId, orphan.user_matricule);
         dev = { user_matricule: orphan.user_matricule, owner_matricule: null };
-        console.log(`[auth] Device orphelin ${req.deviceId} restauré avec user_matricule=${orphan.user_matricule}`);
+        console.log(`[auth] Device orphelin ${req.deviceId} restauré (créé) avec user_matricule=${orphan.user_matricule}`);
+      }
+    }
+
+    // Cas orphelin 2 : device existe mais sans user_matricule (register-device non rattaché,
+    // ou éjection partielle). On complète depuis les bulletins existants.
+    if (dev && !dev.user_matricule && !dev.owner_matricule) {
+      const orphan = db.prepare(
+        'SELECT user_matricule FROM bulletins WHERE device_id = ? AND user_matricule IS NOT NULL LIMIT 1'
+      ).get(req.deviceId);
+      if (orphan && orphan.user_matricule) {
+        db.prepare('UPDATE devices SET user_matricule = ? WHERE id = ?').run(orphan.user_matricule, req.deviceId);
+        dev.user_matricule = orphan.user_matricule;
+        console.log(`[auth] Device ${req.deviceId} complété avec user_matricule=${orphan.user_matricule}`);
       }
     }
 
