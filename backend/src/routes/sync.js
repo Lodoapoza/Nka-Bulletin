@@ -1,20 +1,24 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const db = require('../db');
+const { requestSync } = require('../syncJobs');
 
 const router = express.Router();
 
-router.post('/run', (req, res) => {
+// Rate limit spécifique pour /sync/run : max 10 requêtes / 10 min par device
+// (clé = device_id depuis authMiddleware, pas l'IP)
+const syncRunLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => req.deviceId || req.ip,
+  message: { error: 'Trop de demandes de synchronisation, réessayez plus tard', code: 'SYNC_RATE_LIMIT' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false, // on compte toutes les tentatives
+});
+
+router.post('/run', syncRunLimiter, (req, res) => {
   try {
-    // Dédoublonnage : on annule uniquement les requêtes encore en attente ('pending').
-    // Une requête 'running' n'est jamais annulée : le nouveau 'pending' sera
-    // traité à sa suite (sûr et acceptable).
-    const existing = db.prepare(
-      "SELECT id FROM sync_requests WHERE device_id = ? AND status = 'pending'"
-    ).get(req.deviceId);
-    if (existing) {
-      db.prepare("UPDATE sync_requests SET status = 'cancelled', completed_at = ? WHERE id = ? AND status = 'pending'")
-        .run(new Date().toISOString(), existing.id);
-    }
     // full_scan : force un scan complet (35 ans) quelle que soit la valeur de
     // last_sync_at. Le flag voyage avec la requête jusqu'au worker, ce qui évite
     // la race condition où un reset (last_sync_at = NULL) est écrasé par une sync
@@ -25,18 +29,25 @@ router.post('/run', (req, res) => {
     const nowYear = new Date().getFullYear();
     const reqYear = req.body ? Number(req.body.year) : NaN;
     const scanYear = Number.isInteger(reqYear) && reqYear >= 1990 && reqYear <= nowYear + 1 ? reqYear : null;
-    const info = db.prepare("INSERT INTO sync_requests (device_id, full_scan, scan_year) VALUES (?, ?, ?)")
-      .run(req.deviceId, scanYear ? 0 : fullScan, scanYear);
-    res.json({ ok: true, queued: true, requestId: info.lastInsertRowid, full_scan: !!fullScan, scan_year: scanYear });
+    const job = requestSync(req.deviceId, { fullScan: !scanYear && !!fullScan });
+    if (scanYear && job.status === 'pending' && !job.reused) {
+      db.prepare('UPDATE sync_requests SET scan_year = ? WHERE id = ?').run(scanYear, job.id);
+    }
+    res.json({ ok: true, queued: job.status !== 'done', requestId: job.id, reused: job.reused, full_scan: job.fullScan, scan_year: scanYear });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
 router.get('/status', (req, res) => {
-  const row = db.prepare(
-    "SELECT id, status, new_bulletins, error_message, completed_at, cursor, phase FROM sync_requests WHERE device_id = ? AND status != 'cancelled' ORDER BY id DESC LIMIT 1"
-  ).get(req.deviceId);
+  const requestedId = Number(req.query.id);
+  const row = Number.isInteger(requestedId) && requestedId > 0
+    ? db.prepare(
+      "SELECT id, status, new_bulletins, error_message, completed_at, cursor, phase FROM sync_requests WHERE device_id = ? AND id = ?"
+    ).get(req.deviceId, requestedId)
+    : db.prepare(
+      "SELECT id, status, new_bulletins, error_message, completed_at, cursor, phase FROM sync_requests WHERE device_id = ? AND status != 'cancelled' ORDER BY id DESC LIMIT 1"
+    ).get(req.deviceId);
   if (row && row.cursor) {
     // cursor contient la progression JSON { chunk, total, year, found } écrite
     // par le worker pendant le scan. On l'expose en objet prêt à l'emploi ;

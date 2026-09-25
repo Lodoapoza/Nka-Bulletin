@@ -7,11 +7,17 @@ const Api = (() => {
   let deviceId = localStorage.getItem('nka_device_id');
   // Mémoïsation single-flight manuelle : une seule requête d'enregistrement
   // concurrente pour tout le boot (les appels simultanés partagent la même
-  // promesse). Remise à `null` dans `finally` : un appel ultérieur sans token
-  // (ex. 401 → token effacé) peut relancer un enregistrement.
-  // NB : singleFlight(fn) n'est pas utilisé ici car ensureDevice a des retries
-  // récursifs — un wrapper global ferait s'attendre la promesse à elle-même.
+  // promesse). La promesse n'est remise à null QU'EN CAS DE SUCCÈS.
+  // En cas d'échec, elle reste en place pour que les appelants concurrents
+  // reçoivent la même erreur. Un appel ultérieur sans token (ex. 401) doit
+  // forcer un nouvel enregistrement → on expose une fonction de reset.
   let ensureDevicePromise = null;
+  let ensureDeviceResolved = false;
+
+  function resetEnsureDevice() {
+    ensureDevicePromise = null;
+    ensureDeviceResolved = false;
+  }
 
   function isOnline() {
     return navigator.onLine !== false;
@@ -51,12 +57,23 @@ const Api = (() => {
       localStorage.setItem('nka_device_id', deviceId);
     }
     if (!isOnline()) return { token: null, deviceId };
-    if (ensureDevicePromise) return ensureDevicePromise;
+    
+    // Si une promesse est en cours et n'a pas encore résolu, on l'attend
+    if (ensureDevicePromise && !ensureDeviceResolved) {
+      return ensureDevicePromise;
+    }
+    
+    // Sinon on crée une nouvelle tentative
     ensureDevicePromise = registerDevice(retries);
+    ensureDeviceResolved = false;
     try {
-      return await ensureDevicePromise;
-    } finally {
-      ensureDevicePromise = null;
+      const result = await ensureDevicePromise;
+      ensureDeviceResolved = true;
+      return result;
+    } catch (e) {
+      // En cas d'échec, on garde la promesse pour les appelants concurrents
+      // mais on permet un reset explicite via resetEnsureDevice()
+      throw e;
     }
   }
 
@@ -86,6 +103,7 @@ const Api = (() => {
     await ensureDevice();
     const url = `${API_BASE}${path}`;
     const isGet = !options.method || options.method.toUpperCase() === 'GET';
+    const isSyncStatus = path.startsWith('/sync/status');
 
     if (!isOnline()) {
       if (isGet) {
@@ -124,7 +142,7 @@ const Api = (() => {
           await new Promise(r => setTimeout(r, delay));
           continue;
         }
-        if (isGet) {
+        if (isGet && !isSyncStatus) {
           const cached = await OfflineCache.getApi(path);
           if (cached) {
             notifyConnection('offline');
@@ -139,6 +157,8 @@ const Api = (() => {
       if (res.status === 401 && !retried) {
         token = null;
         localStorage.removeItem('nka_token');
+        resetEnsureDevice(); // Permet un nouvel enregistrement device au retry
+        Toast.show('Session expirée ou appareil déconnecté — reconnectez-vous.');
         return request(path, options, true);
       }
 
@@ -175,7 +195,8 @@ const Api = (() => {
       }
 
       if (!res.ok) {
-        if (isGet) {
+        // Ne jamais remplacer un statut de synchronisation par une ancienne valeur IndexedDB.
+        if (isGet && !isSyncStatus) {
           const cached = await OfflineCache.getApi(path);
           if (cached) {
             notifyConnection('offline');
@@ -183,7 +204,7 @@ const Api = (() => {
             return cached.data;
           }
         }
-        notifyConnection('offline');
+        notifyConnection('online');
         throw new Error(data.error || `Erreur ${res.status}`);
       }
       notifyConnection('online');
@@ -199,10 +220,13 @@ const Api = (() => {
 
   // ===== Cache hors-ligne (IndexedDB) =====
   const DB_NAME = 'nka-offline-cache';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
 
   const OfflineCache = (() => {
     let dbPromise = null;
+    // TTL par défaut : 7 jours pour les données API, 30 jours pour les PDFs
+    const API_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+    const PDF_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
     function openDb() {
       if (!dbPromise) {
@@ -210,12 +234,13 @@ const Api = (() => {
           const req = indexedDB.open(DB_NAME, DB_VERSION);
           req.onupgradeneeded = () => {
             const db = req.result;
-            if (!db.objectStoreNames.contains('api')) {
-              db.createObjectStore('api', { keyPath: 'key' });
-            }
-            if (!db.objectStoreNames.contains('pdf')) {
-              db.createObjectStore('pdf', { keyPath: 'key' });
-            }
+            // Recréer les stores à chaque changement de version pour purger les caches périmés
+            if (db.objectStoreNames.contains('api')) db.deleteObjectStore('api');
+            if (db.objectStoreNames.contains('pdf')) db.deleteObjectStore('pdf');
+            const store = db.createObjectStore('api', { keyPath: 'key' });
+            store.createIndex('cachedAt', 'cachedAt');
+            const pdfStore = db.createObjectStore('pdf', { keyPath: 'key' });
+            pdfStore.createIndex('cachedAt', 'cachedAt');
           };
           req.onsuccess = () => resolve(req.result);
           req.onerror = () => {
@@ -277,7 +302,22 @@ const Api = (() => {
       async getApi(path) {
         const rec = await withStore('api', 'readonly', (store) => store.get(path));
         if (!rec) return undefined;
+        // Vérifier TTL (7 jours par défaut)
+        if (Date.now() - rec.cachedAt > API_TTL_MS) {
+          // Supprimer l'entrée expirée proprement
+          withStore('api', 'readwrite', (store) => store.delete(path)).catch(() => {});
+          return undefined;
+        }
         return { data: rec.data, cachedAt: rec.cachedAt };
+      },
+      clearApi(path) {
+        return withStore('api', 'readwrite', (store) => store.delete(path));
+      },
+      clearAll() {
+        return Promise.all([
+          withStore('api', 'readwrite', (store) => store.clear()),
+          withStore('pdf', 'readwrite', (store) => store.clear()),
+        ]);
       },
       setPdf(id, blob, filename, meta) {
         return write('pdf', { key: String(id), blob, filename, meta: meta || null, cachedAt: Date.now() });
@@ -285,6 +325,11 @@ const Api = (() => {
       async getPdf(id) {
         const rec = await withStore('pdf', 'readonly', (store) => store.get(String(id)));
         if (!rec) return undefined;
+        // Vérifier TTL (30 jours par défaut)
+        if (Date.now() - rec.cachedAt > PDF_TTL_MS) {
+          withStore('pdf', 'readwrite', (store) => store.delete(String(id))).catch(() => {});
+          return undefined;
+        }
         return { blob: rec.blob, filename: rec.filename, cachedAt: rec.cachedAt };
       },
       async listPdfIds() {
@@ -309,7 +354,9 @@ const Api = (() => {
   // On sonde rapidement au début (1,5 s) puis on espace à 5 s après 2 min,
   // avec une garde de sécurité de 2 h. La synchro continue en arrière-plan
   // même si on atteint la garde — on prévient juste l'utilisateur.
-  async function pollSyncStatus(onProgress) {
+  async function pollSyncStatus(requestId, onProgress) {
+    // Compatibilité avec les anciens appels pollSyncStatus(callback).
+    if (typeof requestId === 'function') { onProgress = requestId; requestId = null; }
     const FAST_INTERVAL = 1500;     // 1,5 s
     const SLOW_INTERVAL = 5000;     // 5 s
     const FAST_DURATION = 120000;  // 2 min en mode rapide
@@ -323,7 +370,7 @@ const Api = (() => {
       const delay = elapsed < FAST_DURATION ? FAST_INTERVAL : SLOW_INTERVAL;
       await new Promise(r => setTimeout(r, delay));
       try {
-        status = await Api.getSyncStatus();
+        status = await Api.getSyncStatus(requestId);
       } catch (e) {
         // Erreur réseau passagère — on continue à sonder ; la synchro backend suit son cours.
         continue;
@@ -359,12 +406,16 @@ const Api = (() => {
       return data;
     },
     setEmail: (email) => request('/auth/set-email', { method: 'POST', body: JSON.stringify({ email }) }),
-    getAccounts: () => request('/accounts'),
+    getAccounts: (opts = {}) => request(`/accounts${opts.nocache ? '?sw-no-cache=' + Date.now() : ''}`),
     addAccount: (payload) => request('/accounts', { method: 'POST', body: JSON.stringify(payload) }),
     deleteAccount: (id) => request(`/accounts/${id}`, { method: 'DELETE' }),
+    clearApiCache: (path) => OfflineCache.clearApi(path),
+    clearAllCache: () => OfflineCache.clearAll(),
 
     runSync: (opts = {}) => request('/sync/run', { method: 'POST', body: JSON.stringify(opts) }),
-    getSyncStatus: () => request('/sync/status'),
+    getSyncStatus: (requestId) => request(
+      `/sync/status${requestId ? '?id=' + encodeURIComponent(requestId) + '&sw-no-cache=' + Date.now() : '?sw-no-cache=' + Date.now()}`
+    ),
     resetSync: () => request('/sync/reset', { method: 'POST' }),
     getSyncLogs: () => request('/sync/logs'),
     pollSyncStatus,
@@ -522,6 +573,23 @@ const Api = (() => {
     subscribePush: (subscription) => request('/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription }) }),
     unsubscribePush: () => request('/push/unsubscribe', { method: 'POST' }),
     sendTestPush: () => request('/push/test', { method: 'POST' }),
+    // Utilitaire pour forcer un ré-enregistrement device (ex. déconnexion, reset)
+    _resetEnsureDevice: resetEnsureDevice,
+    // Enregistrer une synchronisation en arrière-plan (Background Sync API)
+    // À appeler quand l'utilisateur demande une sync hors ligne
+    async registerBackgroundSync() {
+      if ('serviceWorker' in navigator && 'SyncManager' in window) {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          await reg.sync.register('nka-sync');
+          return true;
+        } catch (e) {
+          console.warn('[client] Background Sync registration failed:', e.message);
+          return false;
+        }
+      }
+      return false;
+    },
 
     // ===== Admin (système de licences) =====
     // Appels authentifiés par X-Admin-Token (indépendants de la session device).

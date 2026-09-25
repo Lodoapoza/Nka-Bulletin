@@ -10,11 +10,12 @@ const ResetDevice = (() => {
     overlay.innerHTML = `
       <div class="reset-modal" role="alertdialog" aria-modal="true" aria-labelledby="reset-title">
         <div class="reset-icon">⚠️</div>
-        <h3 id="reset-title">Réinitialiser cet appareil ?</h3>
-        <p>Les données locales de cet appareil seront effacées (PIN, comptes, cache). Les bulletins restent disponibles sur vos autres appareils. Cette action est irréversible.</p>
+        <h3 id="reset-title">Réinitialiser ?</h3>
+        <p>Choisissez ce que vous voulez effacer :</p>
         <div class="reset-actions">
           <button class="btn btn-outline" id="reset-cancel-btn">Annuler</button>
-          <button class="btn btn-danger" id="reset-confirm-btn">Réinitialiser</button>
+          <button class="btn btn-outline" id="reset-soft-btn">Appareil seul<br><small>Garde les bulletins sur le serveur</small></button>
+          <button class="btn btn-danger" id="reset-full-btn">Tout effacer<br><small>Supprime aussi bulletins et PDFs du serveur</small></button>
         </div>
       </div>
     `;
@@ -23,24 +24,39 @@ const ResetDevice = (() => {
     const close = () => overlay.remove();
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
     overlay.querySelector('#reset-cancel-btn').addEventListener('click', close);
-    overlay.querySelector('#reset-confirm-btn').addEventListener('click', async () => {
-      const btn = overlay.querySelector('#reset-confirm-btn');
+    overlay.querySelector('#reset-soft-btn').addEventListener('click', async () => {
+      const btn = overlay.querySelector('#reset-soft-btn');
       btn.disabled = true;
       btn.textContent = 'Réinitialisation...';
-      await resetDevice();
+      await resetDevice(false);
+    });
+    overlay.querySelector('#reset-full-btn').addEventListener('click', async () => {
+      const btn = overlay.querySelector('#reset-full-btn');
+      btn.disabled = true;
+      btn.textContent = 'Suppression...';
+      await resetDevice(true);
     });
   }
 
-  async function resetDevice() {
-    // 1. Purge serveur (best-effort : si hors-ligne, on continue quand même).
+  async function resetDevice(full = false) {
+    // 1. Purge serveur : ne jamais annoncer une purge complète si le serveur
+    // n'a pas confirmé la suppression. Sinon les données réapparaissent au login.
     const token = localStorage.getItem('nka_token');
     if (token) {
       try {
-        await fetch(`${API_BASE}/device`, {
+        const response = await fetch(`${API_BASE}/device${full ? '?full=1' : ''}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` },
         });
-      } catch (e) { /* hors-ligne : on continue */ }
+        if (!response.ok) {
+          let message = `Erreur ${response.status}`;
+          try { message = (await response.json()).error || message; } catch (_) {}
+          throw new Error(message);
+        }
+      } catch (e) {
+        Toast.show(`Purge non confirmée : ${e.message || 'serveur inaccessible'}`);
+        return;
+      }
     }
 
     // 2. Purge locale.
@@ -49,6 +65,10 @@ const ResetDevice = (() => {
       const keys = await caches.keys();
       await Promise.all(keys.map((k) => caches.delete(k)));
     } catch (e) { /* pas de SW */ }
+    try {
+      const registrations = await navigator.serviceWorker?.getRegistrations?.() || [];
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+    } catch (e) { /* pas de service worker */ }
     try {
       await new Promise((resolve) => {
         const req = indexedDB.deleteDatabase('nka-offline-cache');

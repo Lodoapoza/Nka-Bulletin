@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS accounts (
 CREATE TABLE IF NOT EXISTS bulletins (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   device_id TEXT NOT NULL,
-  account_id INTEGER NOT NULL,
+  account_id INTEGER,
   year INTEGER NOT NULL,
   month INTEGER NOT NULL,             -- 1-12 : mois concerné par le bulletin
   filename TEXT NOT NULL,

@@ -59,17 +59,19 @@ const Dashboard = (() => {
           : `Bulletin de ${MONTHS_FR[stats.latest.month - 1]} ${stats.latest.year}`;
         openBtn.style.display = 'inline-flex';
           openBtn.onclick = async () => {
+            let objectUrl = null;
             try {
-              const { blob, filename, objectUrl } = await Api.fetchBulletinBlob(stats.latest.id);
+              const { blob, filename, objectUrl: url } = await Api.fetchBulletinBlob(stats.latest.id);
+              objectUrl = url;
               if (NativeBridge && NativeBridge.isNative) {
                 await NativeBridge.shareFile(blob, filename);
-                URL.revokeObjectURL(objectUrl);
               } else {
                 window.open(objectUrl, '_blank');
-                setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
               }
             } catch (e) {
               Toast.show(ERR.msg(e));
+            } finally {
+              if (objectUrl) setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
             }
           };
       } else {
@@ -188,14 +190,28 @@ const Dashboard = (() => {
     const originalHtml = btn.innerHTML;
     const originalStatus = statusEl ? statusEl.textContent : '';
     let refreshed = false;
+    
+    // Si hors ligne, enregistrer une Background Sync pour relancer automatiquement
+    // quand la connexion revient, et informer l'utilisateur.
+    if (!navigator.onLine) {
+      const registered = await Api.registerBackgroundSync();
+      if (registered) {
+        Toast.show('Hors ligne — la synchronisation se lancera automatiquement à la reconnexion.');
+      } else {
+        Toast.show('Hors ligne — impossible de planifier la synchronisation automatique.');
+      }
+      if (statusEl) statusEl.textContent = 'Hors ligne — sync planifiée';
+      return;
+    }
+    
     btn.disabled = true;
     btn.classList.add('is-busy');
     // Bouton compact : spinner seul ; la progression s'affiche dans le statut de la carte.
     btn.innerHTML = '<span class="btn-spinner"></span>';
     if (statusEl) statusEl.textContent = 'Mise à jour en cours...';
     try {
-      await Api.runSync(opts);
-      const status = await Api.pollSyncStatus((s) => {
+      const queued = await Api.runSync(opts);
+      const status = await Api.pollSyncStatus(queued.requestId, (s) => {
         if (statusEl) statusEl.textContent = syncStatusText(s);
       });
       if (status.status === 'done') {
@@ -205,13 +221,15 @@ const Dashboard = (() => {
       } else if (status.status === 'failed') {
         Toast.show(status.error_message || 'Échec de la mise à jour');
       } else {
-        // Garde de 2 h atteinte — la synchro continue en arrière-plan.
-        Toast.show('La mise à jour prend plus de temps que prévu. Elle continue en arrière-plan.');
+        // Le plafond d'attente ne signifie pas que le job est terminé.
+        Toast.show('La mise à jour est toujours en cours. Vous pouvez revenir plus tard.');
       }
       // Fin de synchro connue : les caches dérivés (ex. années disponibles des
       // bulletins) doivent être invalidés. C'est le signal le plus fiable —
       // émis uniquement par ce flux commun (bouton + boot).
-      window.dispatchEvent(new CustomEvent('nka-sync-completed', { detail: { status } }));
+      if (status.status !== 'running') {
+        window.dispatchEvent(new CustomEvent('nka-sync-completed', { detail: { status } }));
+      }
       // On rafraîchit le tableau de bord ET la liste des bulletins :
       // les bulletins récents apparaissent dès que la synchro les a trouvés.
       await Promise.all([Dashboard.refresh(), Bulletins.refresh()]);
@@ -371,7 +389,12 @@ const Dashboard = (() => {
       openSyncModal(e.currentTarget);
     });
     // Carte guidée : un seul listener pour toutes les actions du parcours.
-    Guided.bind(document.getElementById('guided-status-card'), handleGuidedAction);
+    const guidedCard = document.getElementById('guided-status-card');
+    if (guidedCard) {
+      Guided.bind(guidedCard, handleGuidedAction);
+    } else {
+      console.warn('[Dashboard.bindActions] guided-status-card introuvable dans le DOM');
+    }
   }
 
   // Compte connecté (accounts.js) : la carte guidée doit proposer la première

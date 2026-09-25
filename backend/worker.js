@@ -17,6 +17,15 @@ const db = require('./src/db');
 const { runSyncForDevice } = require('./src/syncService');
 
 const POLL_INTERVAL = Number(process.env.WORKER_POLL_INTERVAL) || 2000;
+const STUCK_AFTER_MS = Number(process.env.SYNC_STUCK_AFTER_MS) || 2 * 60 * 60 * 1000;
+
+function recoverStuckJobs() {
+  const cutoff = new Date(Date.now() - STUCK_AFTER_MS).toISOString();
+  const failed = db.prepare(
+    "UPDATE sync_requests SET status = 'failed', error_message = 'timeout: aucune progression depuis le délai autorisé', completed_at = ? WHERE status = 'running' AND requested_at < ?"
+  ).run(new Date().toISOString(), cutoff);
+  if (failed.changes > 0) console.warn(`[worker] ${failed.changes} job(s) bloqué(s) marqué(s) failed`);
+}
 
 async function processOne() {
   // Claim atomique multi-process : on sélectionne l'id puis on passe en 'running'
@@ -80,28 +89,22 @@ async function processOne() {
 }
 
 async function main() {
-  const resetCount = db.prepare(
-    "UPDATE sync_requests SET status = 'pending', error_message = 'relancé après redémarrage worker' WHERE status = 'running'"
-  ).run();
-  if (resetCount.changes > 0) {
-    console.log(`[worker] ${resetCount.changes} sync(s) relancée(s) après redémarrage`);
-  }
-
-  // Nettoyage des jobs stuck en 'running' depuis > 30 min (timeout blowup).
-  // CRITIQUE : ce cleanup ne doit JAMAIS faire planter le worker — une erreur
-  // ici est loguée et ignorée (leçon du 25/08 : colonne inexistante → crash
-  // au démarrage → 10 relances → plus de worker du tout → scans sans fin).
+  // Au redémarrage, les jobs récents reprennent; seuls les jobs réellement anciens
+  // sont abandonnés. Le nettoyage est aussi exécuté périodiquement.
   try {
-    const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-    const stuckCount = db.prepare(
-      "UPDATE sync_requests SET status = 'failed', error_message = 'timeout: stuck > 30min' WHERE status = 'running' AND requested_at < ?"
+    const cutoff = new Date(Date.now() - STUCK_AFTER_MS).toISOString();
+    const requeued = db.prepare(
+      "UPDATE sync_requests SET status = 'pending', error_message = 'relancé après redémarrage worker' WHERE status = 'running' AND requested_at >= ?"
     ).run(cutoff);
-    if (stuckCount.changes > 0) {
-      console.log(`[worker] ${stuckCount.changes} sync(s) stuck nettoyée(s)`);
-    }
+    if (requeued.changes > 0) console.log(`[worker] ${requeued.changes} sync(s) récente(s) relancée(s)`);
+    recoverStuckJobs();
   } catch (e) {
     console.error('[worker] Cleanup stuck ignoré:', e.message);
   }
+
+  setInterval(() => {
+    try { recoverStuckJobs(); } catch (e) { console.error('[worker] Cleanup périodique ignoré:', e.message); }
+  }, 60 * 1000);
 
   console.log(`[worker] Démarré, PID ${process.pid}, intervalle d'interrogation: ${POLL_INTERVAL}ms`);
   while (true) {

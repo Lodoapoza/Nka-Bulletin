@@ -1,6 +1,7 @@
 const db = require('./db');
 const { decrypt } = require('./crypto');
-const { fetchPayslipsSince, saveAttachment } = require('./imapService');
+const { fetchPayslipsSince: fetchPayslipsImap, saveAttachment } = require('./imapService');
+const { fetchPayslipsSince: fetchPayslipsGmail } = require('./gmailService');
 const { analyzePdf, matchesOwner } = require('./pdfService');
 const { parsePeriodFromPayslip, parsePeriodFromText } = require('./period');
 const { sendNotification, sendToUser } = require('./routes/push');
@@ -9,13 +10,13 @@ const STORAGE_DIR = process.env.STORAGE_DIR || './storage';
 const MONTH_NAMES_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 const SYNC_TIMEOUT_MS = Number(process.env.SYNC_TIMEOUT) || 600000;
 // Fenêtre du premier scan (last_sync_at NULL) : large et paramétrable, pour rattraper
-// les bulletins anciens jamais importés. Défaut 12775 j = 35 ans.
-const INITIAL_SCAN_DAYS = Number(process.env.INITIAL_SCAN_DAYS) || 12775;
+// les bulletins anciens jamais importés. Défaut 1825 j = 5 ans.
+const INITIAL_SCAN_DAYS = Number(process.env.INITIAL_SCAN_DAYS) || 1825;
 
-function withTimeout(promise, ms, signal) {
+function withTimeout(promise, ms, controller) {
   let reject;
   const timer = setTimeout(() => {
-    if (signal) signal.abort();
+    if (controller) controller.abort();
     reject(new Error('Timeout IMAP dépassé'));
   }, ms);
   const timeoutPromise = new Promise((_, rej) => { reject = rej; });
@@ -170,7 +171,20 @@ async function importFound(device, account, items) {
  */
 async function runSyncForDevice(deviceId, options = {}) {
   const device = db.prepare('SELECT * FROM devices WHERE id = ?').get(deviceId);
-  const accounts = db.prepare('SELECT * FROM accounts WHERE device_id = ?').all(deviceId);
+  let accounts = db.prepare('SELECT * FROM accounts WHERE device_id = ?').all(deviceId);
+
+  // Multi-appareils : appareil réinstallé/éjecté sans compte propre mais rattaché
+  // à un user (matricule) → synchroniser les comptes des autres appareils du même
+  // user. Sinon « Rechercher mes bulletins » ne trouve jamais rien sur cet appareil
+  // (0 compte à scanner → done 0 → l'app repropose une recherche en boucle).
+  // La dédup (message_hash + user_matricule) empêche les doublons.
+  if (!accounts.length && device && device.user_matricule) {
+    accounts = db.prepare(`
+      SELECT a.* FROM accounts a
+      JOIN devices d ON d.id = a.device_id
+      WHERE d.user_matricule = ? AND a.device_id != ?
+    `).all(device.user_matricule, deviceId);
+  }
   let totalNew = 0;
   const errors = [];
   let successCount = 0;
@@ -236,16 +250,56 @@ async function runSyncForDevice(deviceId, options = {}) {
         try {
           const controller = new AbortController();
           console.log(`[sync]   Tranche ${ci + 1}/${chunks.length}: ${chunk.since.toISOString()} → ${chunk.before ? chunk.before.toISOString() : 'now'}`);
-          const found = await withTimeout(fetchPayslipsSince({
-            provider: account.provider,
-            host: account.imap_host,
-            port: account.imap_port,
-            secure: !!account.imap_secure,
-            email: account.email,
-            password,
-            sinceDate: chunk.since,
-            beforeDate: chunk.before,
-          }, { signal: controller.signal }), SYNC_TIMEOUT_MS, controller.signal);
+
+          // Gmail OAuth → Gmail API / IMAP classique → IMAP
+          const isGmailOAuth = account.provider === 'gmail' && account.imap_host === 'imap.gmail.com';
+          let found;
+          if (isGmailOAuth) {
+            // Vérifier si credentials contiennent un refresh_token (OAuth) vs un mot de passe (IMAP)
+            try {
+              const creds = JSON.parse(decrypt(account.encrypted_credentials));
+              if (creds.refresh_token) {
+                // Gmail API (OAuth2)
+                console.log(`[sync]   → Gmail API (OAuth2)`);
+                found = await withTimeout(fetchPayslipsGmail(account, chunk.since, chunk.before, controller.signal), SYNC_TIMEOUT_MS, controller);
+              } else {
+                // Mot de passe d'application → IMAP classique
+                const password = decrypt(account.encrypted_credentials);
+                found = await withTimeout(fetchPayslipsImap({
+                  provider: account.provider, host: account.imap_host, port: account.imap_port,
+                  secure: !!account.imap_secure, email: account.email, password,
+                  sinceDate: chunk.since, beforeDate: chunk.before,
+                }, { signal: controller.signal }), SYNC_TIMEOUT_MS, controller);
+              }
+            } catch (e) {
+              if (e.message === 'TOKEN_EXPIRED') throw e;
+              // OAuth → ne JAMAIS fallback IMAP : un token OAuth n'est pas un mot de passe d'application.
+              let isOAuth = false;
+              try {
+                const creds = JSON.parse(decrypt(account.encrypted_credentials));
+                if (creds.refresh_token) isOAuth = true;
+              } catch (_) {}
+              if (isOAuth) {
+                console.error('[sync]   Gmail API OAuth error, pas de fallback IMAP:', e.message);
+                throw e;
+              }
+              // Fallback IMAP (mot de passe d'application)
+                const password = decrypt(account.encrypted_credentials);
+              found = await withTimeout(fetchPayslipsImap({
+                provider: account.provider, host: account.imap_host, port: account.imap_port,
+                secure: !!account.imap_secure, email: account.email, password,
+                sinceDate: chunk.since, beforeDate: chunk.before,
+              }, { signal: controller.signal }), SYNC_TIMEOUT_MS, controller);
+            }
+          } else {
+            // IMAP classique (Outlook, Yahoo, IMAP perso)
+            const password = decrypt(account.encrypted_credentials);
+            found = await withTimeout(fetchPayslipsImap({
+              provider: account.provider, host: account.imap_host, port: account.imap_port,
+              secure: !!account.imap_secure, email: account.email, password,
+              sinceDate: chunk.since, beforeDate: chunk.before,
+            }, { signal: controller.signal }), SYNC_TIMEOUT_MS, controller);
+          }
 
           console.log(`[sync]   Tranche ${ci + 1}: ${found.length} candidat(s) trouvé(s)`);
           accountNew += await importFound(device, account, found);
@@ -271,8 +325,10 @@ async function runSyncForDevice(deviceId, options = {}) {
 
       // Mettre à jour last_sync_at à now après un scan réussi (même si aucun
       // bulletin trouvé : le scan a bien tourné) — SAUF recherche ciblée par
-      // année (voir garde dans la boucle : ne pas écraser le curseur global).
-      if (accountOk && !scanYear) {
+      // année passée (pour ne pas écraser le curseur global et perdre les mois
+      // jamais scannés entre l'année ciblée et aujourd'hui).
+      const nowYear = new Date().getFullYear();
+      if (accountOk && (!scanYear || scanYear === nowYear)) {
         db.prepare('UPDATE accounts SET last_sync_at = ? WHERE id = ?').run(now.toISOString(), account.id);
       }
       if (accountOk) {
@@ -301,4 +357,4 @@ async function runSyncForDevice(deviceId, options = {}) {
   };
 }
 
-module.exports = { runSyncForDevice, importFound };
+module.exports = { runSyncForDevice, importFound, withTimeout };

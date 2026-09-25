@@ -29,6 +29,10 @@ test.beforeEach(() => {
   db.prepare('DELETE FROM sync_requests').run();
 });
 
+test.after(() => {
+  db.close();
+});
+
 /**
  * Helper to count rows in sync_requests.
  */

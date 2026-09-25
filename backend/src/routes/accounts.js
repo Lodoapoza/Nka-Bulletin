@@ -8,24 +8,27 @@ const { resetDeviceData } = require('./device');
 
 const router = express.Router();
 
-// Liste des comptes connectés pour cet appareil.
-// Device orphelin (restauré via bulletins) : si aucun compte local mais user_matricule
-// connu, on retourne le dernier last_sync_at des autres appareils du même user pour
-// que le dashboard affiche « À jour au … » au lieu de « Jamais mis à jour ».
+// Liste des comptes connectés : ceux de cet appareil + ceux des autres appareils
+// du MÊME user_matricule (multi-appareils). Le DELETE autorise déjà la suppression
+// cross-device (sameUser) : lister ces comptes est nécessaire pour pouvoir les
+// déconnecter depuis n'importe quel appareil.
+// (Remplace l'ancienne « ligne fantôme » {id:null} qui produisait un compte vide
+// impossible à supprimer → DELETE /api/accounts/null → 404 en boucle.)
 router.get('/', (req, res) => {
-  let rows = db.prepare(
+  const own = db.prepare(
     'SELECT id, provider, label, email, last_sync_at, created_at FROM accounts WHERE device_id = ?'
-  ).all(req.deviceId);
+  ).all(req.deviceId).map(a => ({ ...a, own_device: 1 }));
 
-  // Fallback : device sans compte mais avec user_matricule → récupérer le last_sync_at
-  // partagé (sans exposer les emails des autres appareils).
-  if (!rows.length && req.userMatricule) {
-    const shared = db.prepare(
-      'SELECT MAX(last_sync_at) as last_sync_at FROM accounts a JOIN devices d ON d.id = a.device_id WHERE d.user_matricule = ?'
-    ).get(req.userMatricule);
-    if (shared && shared.last_sync_at) {
-      rows = [{ id: null, provider: null, label: null, email: null, last_sync_at: shared.last_sync_at, created_at: null }];
-    }
+  let rows = own;
+  if (req.userMatricule) {
+    const shared = db.prepare(`
+      SELECT a.id, a.provider, a.label, a.email, a.last_sync_at, a.created_at, 0 AS own_device
+      FROM accounts a
+      JOIN devices d ON d.id = a.device_id
+      WHERE d.user_matricule = ? AND a.device_id != ?
+      ORDER BY a.created_at ASC
+    `).all(req.userMatricule, req.deviceId);
+    rows = [...own, ...shared];
   }
 
   res.json(rows);
@@ -137,8 +140,31 @@ router.post('/', async (req, res) => {
 });
 
 router.delete('/:id', (req, res) => {
-  const info = db.prepare('DELETE FROM accounts WHERE id = ? AND device_id = ?').run(req.params.id, req.deviceId);
-  if (info.changes === 0) return res.status(404).json({ error: 'Compte introuvable' });
+  console.log(`[accounts] DELETE id=${req.params.id} device_id=${req.deviceId} mat=${req.userMatricule}`);
+  // Premier check : le compte existe-t-il ?
+  const account = db.prepare('SELECT a.id, a.device_id, a.email, d.user_matricule FROM accounts a LEFT JOIN devices d ON d.id = a.device_id WHERE a.id = ?').get(req.params.id);
+  if (!account) {
+    console.log(`[accounts] DELETE not found: no account with id=${req.params.id}`);
+    return res.status(404).json({ error: 'Compte introuvable' });
+  }
+  // Autorisation : le compte peut être supprimé si
+  //   (a) il appartient à cet appareil, OU
+  //   (b) il appartient à un autre appareil du MÊME user_matricule
+  //         (gestion multi-appareils : l'user peut gérer ses comptes depuis n'importe lequel de ses appareils)
+  const sameUser = req.userMatricule && account.user_matricule === req.userMatricule;
+  const sameDevice = account.device_id === req.deviceId;
+  if (!sameUser && !sameDevice) {
+    console.log(`[accounts] DELETE forbidden: account dev=${account.device_id} (mat=${account.user_matricule}) vs request dev=${req.deviceId} (mat=${req.userMatricule})`);
+    return res.status(403).json({ error: 'Vous n\'êtes pas autorisé à supprimer ce compte.' });
+  }
+  // Les bulletins sont des archives indépendantes du compte email. On détache
+  // d'abord la FK pour éviter une violation SQLite, puis on supprime le compte
+  // et ses identifiants chiffrés dans la même transaction.
+  db.transaction(() => {
+    db.prepare('UPDATE bulletins SET account_id = NULL WHERE account_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM accounts WHERE id = ?').run(req.params.id);
+  })();
+  console.log(`[accounts] DELETE ok: id=${req.params.id} email=${account.email}`);
   res.json({ ok: true });
 });
 
