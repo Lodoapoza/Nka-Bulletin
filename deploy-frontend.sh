@@ -44,10 +44,10 @@ node build.mjs || fail "Le build a échoué"
 
 # --- 3. Upload des fichiers --------------------------------------------------
 say "3/6  Upload vers $SSH_USER@$SSH_HOST:$REMOTE_WEBROOT"
-scp "${SSH_OPTS[@]}" -r dist/index.html dist/sworker.js dist/manifest.json \
+scp "${SSH_OPTS[@]}" -r dist/index.html dist/sworker-v2.js dist/manifest.json \
     dist/css dist/js dist/icons "$SSH_USER@$SSH_HOST:$REMOTE_WEBROOT/" \
     || fail "scp des fichiers a échoué"
-ok "index.html, sworker.js, manifest.json, css/, js/, icons/ envoyés"
+ok "index.html, sworker-v2.js, manifest.json, css/, js/, icons/ envoyés"
 
 # --- 3 bis. Sauvegarde du .htaccess distant (garde-fou rollback) --------------
 say "3bis/6  Sauvegarde du .htaccess distant courant"
@@ -65,7 +65,9 @@ ok ".htaccess envoyé"
 # --- 5. Vérification HTTP ----------------------------------------------------
 say "5/6  Vérification des headers HTTP"
 
-CSS_HASH="$(grep -o 'css/app\.css?v=[0-9a-f]\{8\}' dist/index.html | head -1 | cut -d= -f2)"
+# Le CSS est inline dans index.html ; le fichier séparé est référencé par le
+# precache du Service Worker généré.
+CSS_HASH="$(grep -o '/css/app\.css?v=[0-9a-f]\{8\}' dist/sworker-v2.js | head -1 | cut -d= -f2)"
 [ -n "$CSS_HASH" ] || fail "Hash CSS introuvable dans dist/index.html"
 
 check_headers() {
@@ -78,7 +80,7 @@ check_headers() {
 
 check_headers "$BASE_URL/index.html" "index.html"
 check_headers "$BASE_URL/css/app.css?v=$CSS_HASH" "css/app.css (hash $CSS_HASH)"
-check_headers "$BASE_URL/sworker.js" "sworker.js"
+check_headers "$BASE_URL/sworker-v2.js" "sworker-v2.js"
 
 # --- 6. Vérification du backend /api (garde-fou critical) ---------------------
 # Le .htaccess porte le routage Passenger. Si /api/health ne répond plus 200,

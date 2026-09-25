@@ -106,7 +106,7 @@ const Api = (() => {
     const isSyncStatus = path.startsWith('/sync/status');
 
     if (!isOnline()) {
-      if (isGet) {
+      if (isGet && !isSyncStatus) {
         const cached = await OfflineCache.getApi(path);
         if (cached) {
           notifyConnection('offline');
@@ -208,7 +208,7 @@ const Api = (() => {
         throw new Error(data.error || `Erreur ${res.status}`);
       }
       notifyConnection('online');
-      if (isGet && res.ok) {
+      if (isGet && res.ok && !isSyncStatus) {
         OfflineCache.setApi(path, data).catch(() => {});
         if (res.headers.get('X-Cache') === 'hit') {
           dispatchCacheHit(path, Date.now());

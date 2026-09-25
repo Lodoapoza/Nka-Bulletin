@@ -9,7 +9,7 @@
  * 5. Inlining : CSS + JS injectés directement dans dist/index.html
  *    (la source montre 3 lignes au lieu de 200)
  * 6. Les fichiers individuels restent dans dist/ pour le service worker
- * 7. Réécrit dist/sworker.js : hash dans APP_SHELL
+ * 7. Réécrit dist/sworker-v2.js : hash dans APP_SHELL
  * 8. Nettoie dist/ avant chaque build
  *
  * Les fichiers sources (frontend/) ne sont JAMAIS modifiés.
@@ -26,6 +26,13 @@ const DIST = path.join(SRC, 'dist');
 
 const hash8 = (content) =>
   createHash('sha256').update(content).digest('hex').slice(0, 8);
+
+// Génère un nom de cache unique basé sur le hash du contenu de l'app shell
+// Cela force la mise à jour du SW à chaque build où les assets changent
+function generateCacheName(hashes) {
+  const combined = Object.values(hashes).sort().join('|');
+  return 'nka-bulletin-' + createHash('sha256').update(combined).digest('hex').slice(0, 12);
+}
 
 const fmt = (n) => n.toLocaleString('fr-FR') + ' o';
 
@@ -111,21 +118,51 @@ async function main() {
 
   // 5b. Remplacer chaque <script src="js/..."> par <script> inline
   //    (avec ou sans query string ?v=...)
+  //    Collecte les SHA-256 pour la CSP
+  const scriptHashes = [];
   htmlInlined = htmlInlined.replace(
     /<script\s+src="(js\/[^"]+?)(?:\?[^"]*)?"><\/script>/gi,
     (m, assetPath) => {
       const content = minifiedContents[assetPath];
       if (!content) throw new Error(`Asset référencé dans index.html mais absent du build : ${assetPath}`);
+      // SHA-256 base64 pour la CSP
+      const sha = createHash('sha256').update(content).digest('base64');
+      scriptHashes.push(`'sha256-${sha}'`);
       return `<script>${content}</script>`;
     }
   );
 
+  // 5c. Mettre à jour la CSP : ajouter les hashes des scripts inline
+  // La CSP source contient: script-src 'self' (avec guillemets simples)
+  // On doit matcher exactement ce pattern dans l'attribut content
+  if (scriptHashes.length > 0) {
+    const cspHashes = scriptHashes.join(' ');
+    htmlInlined = htmlInlined.replace(
+      /(content="[^"]*script-src\s+'self')/,
+      `$1 ${cspHashes}`
+    );
+    // Fallback: si le pattern ci-dessus ne match pas (CSP minifiée différemment),
+    // on tente une approche plus large sur tout l'attribut content
+    if (htmlInlined.includes("script-src 'self'") && !htmlInlined.includes(cspHashes.split(' ')[0])) {
+      htmlInlined = htmlInlined.replace(
+        /script-src\s+'self'/,
+        `script-src 'self' ${cspHashes}`
+      );
+    }
+  }
+
   await writeFile(path.join(DIST, 'index.html'), htmlInlined);
 
-  // --- 6. Réécriture de dist/sworker.js (non minifié) ----------------------------
+  // --- 6. Réécriture de dist/sworker-v2.js (non minifié) --------------------------
   // Le SW continue de cacher les fichiers individuels pour le cache offline
-  const sw = await mustRead('sworker.js');
-  const swOut = sw.replace(
+  // On met aussi à jour CACHE_NAME pour forcer l'activation du nouveau SW
+  const cacheName = generateCacheName(hashes);
+  const sw = await mustRead('sworker-v2.js');
+  let swOut = sw.replace(
+    /const CACHE_NAME = '[^']+';/,
+    `const CACHE_NAME = '${cacheName}';`
+  );
+  swOut = swOut.replace(
     /((?:\/)?(?:css|js)\/[^'"?]+)((?:\?[^'"]*)?)/g,
     (m, ref, query) => {
       const h = hashes[ref.replace(/^\//, '')];
@@ -133,7 +170,7 @@ async function main() {
       return `${ref}?v=${h}`;
     }
   );
-  await writeFile(path.join(DIST, 'sworker.js'), swOut);
+  await writeFile(path.join(DIST, 'sworker-v2.js'), swOut);
 
   // --- 7. Résumé -----------------------------------------------------------------
   const total = { before: 0, after: 0 };
