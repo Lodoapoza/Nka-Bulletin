@@ -157,11 +157,10 @@ async function fetchPayslipsSince(account, sinceDate, beforeDate, signal) {
     const beforeStr = `${beforeDate.getFullYear()}/${String(beforeDate.getMonth() + 1).padStart(2, '0')}/${String(beforeDate.getDate()).padStart(2, '0')}`;
     query += ` before:${beforeStr}`;
   }
-  // Ne pas limiter  INBOX : les bulletins peuvent tre archivs, classs ou
-  // dplacs dans un libell Gmail. Ne pas filtrer par sujet/nom : certains
-  // employeurs utilisent un objet ou un nom de fichier sans mot-cl.
-  // analyzePdf()/isPayslip reste le filtre mtier final avant import.
-  query += ' has:attachment filename:pdf in:anywhere';
+  // Filtre metier : limiter la recherche aux messages dont le sujet ou le
+  // nom de piece jointe correspond a un bulletin de paie. IN:anywhere conserve
+  // les bulletins archives ou classes dans un libelle Gmail.
+  query += ' has:attachment (subject:(bulletin OR paie OR paye OR salaire OR payslip) OR filename:(bulletin OR paie OR paye OR salaire OR payslip)) in:anywhere larger:10k';
   console.log(`[gmail] ${account.email}: recherche "${query}"`);
 
   // Passe 1 : lister les messages (page par page, max 100 par appel)
