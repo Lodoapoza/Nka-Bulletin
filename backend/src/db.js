@@ -403,6 +403,18 @@ if (!hasColumn('sync_requests', 'scan_year')) {
   db.exec("ALTER TABLE sync_requests ADD COLUMN scan_year INTEGER");
   console.log('[db] colonne sync_requests.scan_year ajoutée');
 }
+for (const [column, definition] of [
+  ['started_at', 'TEXT'],
+  ['finished_at', 'TEXT'],
+  ['attachments_found', 'INTEGER DEFAULT 0'],
+  ['rejected_count', 'INTEGER DEFAULT 0'],
+  ['already_imported', 'INTEGER DEFAULT 0'],
+]) {
+  if (!hasColumn('sync_requests', column)) {
+    db.exec(`ALTER TABLE sync_requests ADD COLUMN ${column} ${definition}`);
+    console.log(`[db] colonne sync_requests.${column} ajoutée`);
+  }
+}
 db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_version', ?)").run('10');
 console.log('[db] Migration v10 terminée (db_version=10)');
 

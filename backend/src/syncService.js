@@ -51,6 +51,7 @@ function buildYearChunks(sinceDate, now) {
  */
 async function importFound(device, account, items) {
   let newCount = 0;
+  const summary = { candidates: items.length, rejected: 0, alreadyImported: 0 };
   for (const item of items) {
     // Dédup multi-appareils : si le device est rattaché à un user (user_matricule),
     // la déduplication se fait au niveau de l'utilisateur — un bulletin déjà importé
@@ -74,7 +75,7 @@ async function importFound(device, account, items) {
           .get(userMat, item.filename, itemYear, itemMonth)
       : db.prepare('SELECT id FROM bulletins WHERE account_id = ? AND filename = ? AND year = ? AND month = ?')
           .get(account.id, item.filename, itemYear, itemMonth);
-    if (alreadyHash || alreadyPeriod) continue;
+    if (alreadyHash || alreadyPeriod) { summary.alreadyImported++; continue; }
 
     if (!item.buffer || item.buffer.length === 0) continue;
 
@@ -125,6 +126,7 @@ async function importFound(device, account, items) {
         db.prepare('INSERT INTO sync_logs (device_id, account_id, status, message) VALUES (?,?,?,?)')
           .run(account.device_id, account.id, 'success', `Ignoré : ${reason} (« ${item.filename} »)`);
       }
+      summary.rejected++;
       continue;
     }
 
@@ -161,6 +163,7 @@ async function importFound(device, account, items) {
       }).catch(() => {});
     }
   }
+  importFound.lastSummary = summary;
   return newCount;
 }
 
@@ -189,6 +192,9 @@ async function runSyncForDevice(deviceId, options = {}) {
     `).all(device.user_matricule, deviceId);
   }
   let totalNew = 0;
+  let totalCandidates = 0;
+  let totalRejected = 0;
+  let totalAlreadyImported = 0;
   const errors = [];
   let successCount = 0;
   const requestId = options.requestId || null;
@@ -200,8 +206,8 @@ async function runSyncForDevice(deviceId, options = {}) {
     if (!requestId) return;
     try {
       db.prepare(
-        "UPDATE sync_requests SET cursor = ?, phase = 'scanning', new_bulletins = ? WHERE id = ? AND status = 'running'"
-      ).run(JSON.stringify(data), data.found || 0, requestId);
+        "UPDATE sync_requests SET cursor = ?, phase = 'scanning', new_bulletins = ?, attachments_found = ? WHERE id = ? AND status = 'running'"
+      ).run(JSON.stringify(data), data.newBulletins || 0, data.found || 0, requestId);
     } catch (_) {}
   };
 
@@ -244,6 +250,8 @@ async function runSyncForDevice(deviceId, options = {}) {
 
       let accountNew = 0;
       let accountOk = true;
+      let historyResumeAt = null;
+      const isHistoryScan = !scanYear && (options.fullScan || !account.last_sync_at);
       console.log(`[sync] Account ${account.email}: scan ${chunks.length} tranche(s) depuis ${sinceDate.toISOString()}`);
       reportProgress({ chunk: 0, total: chunks.length, year: '', found: 0 });
 
@@ -306,18 +314,20 @@ async function runSyncForDevice(deviceId, options = {}) {
 
           console.log(`[sync]   Tranche ${ci + 1}: ${found.length} candidat(s) trouvé(s)`);
           accountNew += await importFound(device, account, found);
-          reportProgress({ chunk: ci + 1, total: chunks.length, year: yearLabel, found: accountNew });
+          totalCandidates += found.length;
+          totalRejected += importFound.lastSummary?.rejected || 0;
+          totalAlreadyImported += importFound.lastSummary?.alreadyImported || 0;
+          reportProgress({ chunk: ci + 1, total: chunks.length, year: yearLabel, found: totalCandidates, newBulletins: totalNew + accountNew });
 
-          // Progression : last_sync_at = fin de tranche ou now.
-          // JAMAIS pour une recherche ciblée par année : avancer le curseur
-          // global à « maintenant » ferait perdre les mois jamais scannés
-          // entre l'année ciblée et aujourd'hui aux prochains scans incrémentaux.
-          if (!scanYear) {
-            const progress = chunk.before && chunk.before.getTime() <= Date.now() ? chunk.before : now;
-            db.prepare('UPDATE accounts SET last_sync_at = ? WHERE id = ?').run(progress.toISOString(), account.id);
+          // L'historique descend du mois rcent vers le plus ancien. Ne pas
+          // avancer le curseur incrmental aprs chaque tranche : une coupure
+          // ancienne ne doit pas faire croire que toute la bo__manus_dte est  jour.
+          if (!scanYear && !isHistoryScan) {
+            db.prepare('UPDATE accounts SET last_sync_at = ? WHERE id = ?').run(now.toISOString(), account.id);
           }
         } catch (err) {
           accountOk = false;
+          if (isHistoryScan) historyResumeAt = chunk.since;
           errors.push(err.message);
           console.error(`[sync]   Tranche ${ci + 1} échouée:`, err.message);
           db.prepare('INSERT INTO sync_logs (device_id, account_id, status, message) VALUES (?,?,?,?)')
@@ -330,9 +340,13 @@ async function runSyncForDevice(deviceId, options = {}) {
       // bulletin trouvé : le scan a bien tourné) — SAUF recherche ciblée par
       // année passée (pour ne pas écraser le curseur global et perdre les mois
       // jamais scannés entre l'année ciblée et aujourd'hui).
-      const nowYear = new Date().getFullYear();
+      const finishedAt = new Date();
+      const nowYear = finishedAt.getFullYear();
       if (accountOk && (!scanYear || scanYear === nowYear)) {
-        db.prepare('UPDATE accounts SET last_sync_at = ? WHERE id = ?').run(now.toISOString(), account.id);
+        db.prepare('UPDATE accounts SET last_sync_at = ? WHERE id = ?').run(finishedAt.toISOString(), account.id);
+      }
+      else if (!accountOk && historyResumeAt) {
+        db.prepare('UPDATE accounts SET last_sync_at = ? WHERE id = ?').run(historyResumeAt.toISOString(), account.id);
       }
       if (accountOk) {
         totalNew += accountNew;
@@ -356,6 +370,9 @@ async function runSyncForDevice(deviceId, options = {}) {
     // Aucun compte configuré : rien n'a échoué, la sync est un succès (comportement historique).
     ok: successCount > 0 || accounts.length === 0,
     totalNew,
+    totalCandidates,
+    totalRejected,
+    totalAlreadyImported,
     errors,
   };
 }

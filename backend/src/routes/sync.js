@@ -42,10 +42,7 @@ router.post('/run', syncRunLimiter, (req, res) => {
     const nowYear = new Date().getFullYear();
     const reqYear = req.body ? Number(req.body.year) : NaN;
     const scanYear = Number.isInteger(reqYear) && reqYear >= 1990 && reqYear <= nowYear + 1 ? reqYear : null;
-    const job = requestSync(req.deviceId, { fullScan: !scanYear && !!fullScan });
-    if (scanYear && job.status === 'pending' && !job.reused) {
-      db.prepare('UPDATE sync_requests SET scan_year = ? WHERE id = ?').run(scanYear, job.id);
-    }
+    const job = requestSync(req.deviceId, { fullScan: !scanYear && !!fullScan, scanYear });
     res.json({ ok: true, queued: job.status !== 'done', requestId: job.id, reused: job.reused, full_scan: job.fullScan, scan_year: scanYear });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -56,10 +53,10 @@ router.get('/status', (req, res) => {
   const requestedId = Number(req.query.id);
   const row = Number.isInteger(requestedId) && requestedId > 0
     ? db.prepare(
-      "SELECT id, status, new_bulletins, error_message, completed_at, cursor, phase FROM sync_requests WHERE device_id = ? AND id = ?"
+      "SELECT id, status, new_bulletins, attachments_found, rejected_count, already_imported, error_message, requested_at, started_at, finished_at, cursor, phase FROM sync_requests WHERE device_id = ? AND id = ?"
     ).get(req.deviceId, requestedId)
     : db.prepare(
-      "SELECT id, status, new_bulletins, error_message, completed_at, cursor, phase FROM sync_requests WHERE device_id = ? AND status != 'cancelled' ORDER BY id DESC LIMIT 1"
+      "SELECT id, status, new_bulletins, attachments_found, rejected_count, already_imported, error_message, requested_at, started_at, finished_at, cursor, phase FROM sync_requests WHERE device_id = ? AND status != 'cancelled' ORDER BY id DESC LIMIT 1"
     ).get(req.deviceId);
   if (row && row.cursor) {
     // cursor contient la progression JSON { chunk, total, year, found } écrite

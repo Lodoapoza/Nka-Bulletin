@@ -222,9 +222,19 @@ const Dashboard = (() => {
         if (statusEl) statusEl.textContent = syncStatusText(s);
       });
       if (status.status === 'done') {
-        Toast.show(status.new_bulletins > 0
-          ? `${status.new_bulletins} nouveau(x) bulletin(s) trouvé(s) !`
-          : 'Aucun nouveau bulletin pour le moment.');
+        const candidates = Number(status.attachments_found) || 0;
+        const already = Number(status.already_imported) || 0;
+        const rejected = Number(status.rejected_count) || 0;
+        let message = status.new_bulletins > 0
+          ? `${status.new_bulletins} nouveau(x) bulletin(s) importé(s).`
+          : 'Aucun nouveau bulletin importé.';
+        if (candidates || already || rejected) {
+          message += ` ${candidates} pièce(s) examinée(s)`;
+          if (already) message += `, ${already} déjà présente(s)`;
+          if (rejected) message += `, ${rejected} document(s) écarté(s)`;
+          message += '.';
+        }
+        Toast.show(message);
       } else if (status.status === 'failed') {
         Toast.show(status.error_message || 'Échec de la mise à jour');
       } else {

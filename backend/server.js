@@ -7,11 +7,6 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 let server;
-let workerProcess = null;
-let workerRestartCount = 0;
-let workerRestartTimer = null;
-const MAX_WORKER_RESTARTS = 10;
-
 process.on('unhandledRejection', (reason) => {
   console.error('[server] UNHANDLED REJECTION:', reason);
 });
@@ -33,7 +28,7 @@ const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const helmet = require('helmet');
 const path = require('path');
-const { fork } = require('child_process');
+const fs = require('fs');
 
 const { router: authRouter, authMiddleware } = require('./src/routes/auth');
 const { router: adminRouter, licenceGate } = require('./src/routes/admin');
@@ -44,7 +39,7 @@ const analyseRouter = require('./src/routes/analyse');
 const { router: pushRouter } = require('./src/routes/push');
 const settingsRouter = require('./src/routes/settings');
 const deviceRouter = require('./src/routes/device');
-const { initScheduler } = require('./src/scheduler');
+const googleAuthRouter = require('./src/routes/googleAuth');
 const { updateHeartbeat } = require('./src/heartbeat');
 
 const app = express();
@@ -57,6 +52,49 @@ app.use(helmet({
 app.use(cors());
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'short'));
 app.use(express.json({ limit: '15mb' }));
+
+const LOG_DIR = path.join(__dirname, 'logs');
+const REQUEST_LOG_FILE = path.join(LOG_DIR, 'requests.log');
+if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
+
+function extractDeviceIdFromAuth(header) {
+  const token = (header || '').startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) return null;
+  try {
+    const payloadB64 = token.split('.')[1];
+    if (!payloadB64) return null;
+    const normalized = payloadB64.replace(/-/g, '+').replace(/_/g, '/').padEnd(payloadB64.length + (4 - payloadB64.length % 4) % 4, '=');
+    const payload = JSON.parse(Buffer.from(normalized, 'base64').toString('utf8'));
+    return payload.deviceId || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    try {
+      const entry = {
+        timestamp: new Date().toISOString(),
+        method: req.method,
+        path: req.path,
+        device_id: req.deviceId || extractDeviceIdFromAuth(req.headers.authorization) || null,
+        status: res.statusCode,
+      };
+      if (req.method === 'DELETE' && req.baseUrl === '/api/accounts' && req.params && req.params.id) {
+        entry.account_id = req.params.id;
+      }
+      if (req.method === 'POST' && req.baseUrl === '/api/accounts' && req.path === '/') {
+        entry.provider = req.body && req.body.provider ? req.body.provider : null;
+        entry.email = req.body && req.body.email ? req.body.email : null;
+      }
+      fs.appendFileSync(REQUEST_LOG_FILE, JSON.stringify(entry) + '\n');
+    } catch (e) {
+      // Ignore logging errors to avoid affecting request handling.
+    }
+  });
+  next();
+});
 
 // Les rponses API contiennent des donnes prives et ne doivent jamais tre
 // rutilises par le navigateur, un proxy ou une ancienne installation PWA.
@@ -90,6 +128,9 @@ const authLimiter = rateLimit({
 });
 
 app.use('/api/auth', authLimiter, authRouter);
+// OAuth2 Google : callback sans authMiddleware (Google redirige avec ?code=...)
+// Le callback utilise son propre middleware d'auth interne (device_id dans le state)
+app.use('/api/auth/google', googleAuthRouter);
 
 // Admin : rate limit ne comptant QUE les échecs (5 tentatives de mot de passe / 10 min / IP).
 const adminLimiter = rateLimit({
@@ -119,7 +160,7 @@ app.get('/api/health', (req, res) => {
     time: new Date().toISOString(),
     uptime: Math.floor(process.uptime()),
     memory: { heapUsed: Math.round(mem.heapUsed / 1024 / 1024), heapTotal: Math.round(mem.heapTotal / 1024 / 1024) },
-    worker: { alive: workerProcess !== null && !!workerProcess.connected, restarts: workerRestartCount },
+        worker: { mode: 'cron', alive: null, restarts: 0 },
   });
 });
 
@@ -128,45 +169,18 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Erreur interne du serveur' });
 });
 
-function startWorker() {
-  if (workerRestartCount >= MAX_WORKER_RESTARTS) {
-    console.error('[server] Trop de redémarrages worker, attente prochain restart Passenger');
-    return;
-  }
-  if (workerRestartTimer) clearTimeout(workerRestartTimer);
-  try {
-    workerProcess = fork(path.join(__dirname, 'worker.js'), [], { stdio: 'inherit' });
-    workerProcess.on('message', (msg) => {
-      if (msg && msg.type === 'heartbeat' && workerRestartCount > 0) {
-        workerRestartCount--;
-      }
-    });
-    workerProcess.on('exit', (code) => {
-      workerProcess = null;
-      const delay = Math.min(60000, 2000 * Math.pow(2, workerRestartCount));
-      workerRestartCount++;
-      console.error(`[server] Worker terminé (code ${code}), redémarrage #${workerRestartCount} dans ${delay}ms`);
-      workerRestartTimer = setTimeout(startWorker, delay);
-    });
-    console.log('[server] Worker démarré, PID', workerProcess.pid);
-  } catch (err) {
-    console.error('[server] Erreur fork worker:', err.message);
-    workerRestartTimer = setTimeout(startWorker, 30000);
-  }
-}
-
 const PORT = process.env.PORT || 4000;
 server = app.listen(PORT, () => {
   console.log(`✅ Nka Bulletin backend démarré sur http://localhost:${PORT}`);
-  initScheduler();
-  startWorker();
+  console.log('[server] Les scans sont exécutés par worker-once.js via cron o2switch');
 
   setInterval(() => {
     const mem = process.memoryUsage();
     updateHeartbeat({
       memory: Math.round(mem.heapUsed / 1024 / 1024),
-      workerAlive: workerProcess !== null && !!workerProcess.connected,
-      workerRestarts: workerRestartCount,
+      workerAlive: null,
+      workerMode: 'cron',
+      workerRestarts: 0,
     });
     if (mem.heapUsed > 400 * 1024 * 1024) {
       console.warn('[server] Mémoire haute:', Math.round(mem.heapUsed / 1024 / 1024), 'MB');
@@ -176,7 +190,6 @@ server = app.listen(PORT, () => {
 
 function shutdown(signal) {
   console.log(`[server] Signal ${signal} reçu, arrêt en cours...`);
-  if (workerProcess) workerProcess.kill(signal);
   server.close(() => {
     console.log('[server] Serveur HTTP arrêté');
     process.exit(0);

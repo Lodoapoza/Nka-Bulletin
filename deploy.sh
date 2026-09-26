@@ -8,7 +8,7 @@
 #   - IP du poste en liste blanche SSH dans cPanel > Autorisation SSH
 #     (outil en self-service, effective en ~20 s)
 #
-# Pipeline :  rsync source -> rebuild better-sqlite3 (gcc-toolset-14) -> restart -> health
+# Pipeline : rsync source -> rebuild better-sqlite3 -> installer cron worker -> restart -> health
 # =============================================================================
 set -euo pipefail
 
@@ -53,6 +53,12 @@ if ! rsync -az --delete -e "ssh ${SSH_OPTS[*]}" \
   fail "rsync en erreur"
 fi
 ok "Upload terminé"
+
+# --- 2b. Worker indépendant --------------------------------------------------
+say "2b/5 Installation du cron worker autonome"
+CRON_LINE="* * * * * $REMOTE_BACKEND/cron-worker.sh"
+ssh "${SSH_OPTS[@]}" "$SSH_USER@$SSH_HOST" "(crontab -l 2>/dev/null | grep -vF '$REMOTE_BACKEND/cron-worker.sh' || true; echo '$CRON_LINE') | crontab -"
+ok "Cron worker installé (chaque minute, avec verrou anti-chevauchement)"
 
 # --- 3. Build distant (module natif better-sqlite3) --------------------------
 say "3/5  Rebuild du module natif (gcc-toolset-14 + python 3.12)"
