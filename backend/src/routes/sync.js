@@ -19,10 +19,16 @@ const syncRunLimiter = rateLimit({
 
 router.post('/run', syncRunLimiter, (req, res) => {
   try {
-    const account = db.prepare('SELECT id FROM accounts WHERE device_id = ? LIMIT 1').get(req.deviceId);
-    if (!account) {
+    const accounts = req.userMatricule
+      ? db.prepare(`
+          SELECT a.id FROM accounts a
+          JOIN devices d ON d.id = a.device_id
+          WHERE a.device_id = ? OR d.user_matricule = ?
+        `).all(req.deviceId, req.userMatricule)
+      : db.prepare('SELECT id FROM accounts WHERE device_id = ?').all(req.deviceId);
+    if (!accounts.length) {
       return res.status(409).json({
-        error: 'Aucun compte e-mail n’est configuré. Connectez une boîte mail dans Réglages avant de lancer une synchronisation.',
+        error: 'Aucun compte e-mail configure. Connectez une boite mail dans Reglages avant de lancer une synchronisation.',
         code: 'NO_MAIL_ACCOUNT',
       });
     }

@@ -302,11 +302,14 @@ const Api = (() => {
           withStore('pdf', 'readwrite', (store) => store.clear()),
         ]);
       },
-      close() {
-        if (dbPromise) {
-          dbPromise.then((db) => { try { db && db.close(); } catch (_) {} }).catch(() => {});
-          dbPromise = null;
-        }
+      async close() {
+        if (!dbPromise) return;
+        const pending = dbPromise;
+        dbPromise = null;
+        try {
+          const db = await pending;
+          if (db) db.close();
+        } catch (_) {}
       },
       setPdf(id, blob, filename, meta) {
         return write('pdf', { key: String(id), blob, filename, meta: meta || null, cachedAt: Date.now() });

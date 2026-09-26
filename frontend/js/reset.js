@@ -45,33 +45,15 @@ const ResetDevice = (() => {
   }
 
   async function resetDevice(full = false) {
-    // 1. Purge serveur : ne jamais annoncer une purge complète si le serveur
-    // n'a pas confirmé la suppression. Sinon les données réapparaissent au login.
     const token = localStorage.getItem('nka_token');
     if (full && !token) {
-      Toast.show('Reconnectez-vous avant de supprimer les données du serveur.');
+      Toast.show('Reconnectez-vous avant de supprimer les donnes du serveur.');
       return false;
     }
-    if (token) {
-      try {
-        const response = await fetch(`${API_BASE}/device${full ? '?full=1' : ''}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP_${response.status}`);
-        }
-      } catch (e) {
-        Toast.show('Impossible de terminer la réinitialisation. Vérifiez la connexion puis réessayez.');
-        return false;
-      }
-    }
-
-    // 2. Purge locale.
-    localStorage.clear();
-    if (typeof Api !== 'undefined' && Api.closeOfflineCache) Api.closeOfflineCache();
+    // Nettoyer ;appareil ;abord et conserver la session tant que ce ;est pas confirmNdl.
     const localErrors = [];
     try {
+      if (typeof Api !== 'undefined' && Api.closeOfflineCache) await Api.closeOfflineCache();
       const keys = await caches.keys();
       const results = await Promise.all(keys.map((k) => caches.delete(k)));
       if (results.some((deleted) => !deleted)) localErrors.push('cache');
@@ -84,19 +66,31 @@ const ResetDevice = (() => {
     try {
       const deleted = await new Promise((resolve) => {
         const req = indexedDB.deleteDatabase('nka-offline-cache');
-        req.onsuccess = () => resolve();
-        req.onerror = () => resolve(false);
-        req.onblocked = () => resolve(false);
+        let settled = false;
+        const finish = (value) => { if (!settled) { settled = true; resolve(value); } };
+        req.onsuccess = () => finish(true);
+        req.onerror = () => finish(false);
+        req.onblocked = () => setTimeout(() => finish(false), 1500);
       });
-      if (deleted === false) localErrors.push('indexeddb');
+      if (!deleted) localErrors.push('indexeddb');
     } catch (e) { localErrors.push('indexeddb'); }
-
     if (localErrors.length) {
-      Toast.show('Certaines données locales sont encore ouvertes. Fermez les autres onglets puis réessayez.');
+      Toast.show('La rinitialisation est bloque. Fermez les autres onglets de Nka Bulletin puis ressayez.');
       return false;
     }
-
-    // 3. Reload : l'app repart comme une installation neuve.
+    if (token) {
+      try {
+        const response = await fetch(`${API_BASE}/device${full ? '?full=1' : ''}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-store' },
+        });
+        if (!response.ok) throw new Error(`HTTP_${response.status}`);
+      } catch (e) {
+        Toast.show('Impossible de terminer la rinitialisation en ligne. Ressayez.');
+        return false;
+      }
+    }
+    localStorage.clear();
     location.reload();
     return true;
   }

@@ -1,11 +1,11 @@
-const CACHE_NAME = 'nka-bulletin-fdadcc853353';
+const CACHE_NAME = 'nka-bulletin-7aba004fe081';
 const APP_SHELL = [
   '/index.html?v=v39',
   '/manifest.json?v=v26',
-  '/css/app.css?v=809348c1',
+  '/css/app.css?v=c4c9eeb8',
   '/js/analyse.js?v=6a6ad8c5',
   '/js/app.js?v=afe4f1eb',
-  '/js/client.js?v=a5b018cb',
+  '/js/client.js?v=ba1a4bd4',
   '/js/dropdown.js?v=53173405',
   '/js/pin.js?v=65c162dc',
   '/js/parcours.js?v=ce1ca92e',
@@ -17,9 +17,9 @@ const APP_SHELL = [
   '/js/bulletins.js?v=36b15fcc',
   '/js/confirm.js?v=e5e6a2ab',
   '/js/settings.js?v=9b63a163',
-  '/js/reset.js?v=0dc10b38',
+  '/js/reset.js?v=ee28ec99',
   '/js/theme.js?v=d8dbba78',
-  '/js/version.js?v=0538afb8',
+  '/js/version.js?v=e1b19841',
   '/icons/logo.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
