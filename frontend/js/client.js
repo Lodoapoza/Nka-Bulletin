@@ -142,14 +142,6 @@ const Api = (() => {
           await new Promise(r => setTimeout(r, delay));
           continue;
         }
-        if (isGet && !isSyncStatus) {
-          const cached = await OfflineCache.getApi(path);
-          if (cached) {
-            notifyConnection('offline');
-            dispatchCacheHit(path, cached.cachedAt);
-            return cached.data;
-          }
-        }
         notifyConnection('offline');
         throw new Error(isTimeout ? 'Le serveur met trop de temps à répondre' : 'Serveur indisponible, réessayez dans un instant');
       }
@@ -195,15 +187,6 @@ const Api = (() => {
       }
 
       if (!res.ok) {
-        // Ne jamais remplacer un statut de synchronisation par une ancienne valeur IndexedDB.
-        if (isGet && !isSyncStatus) {
-          const cached = await OfflineCache.getApi(path);
-          if (cached) {
-            notifyConnection('offline');
-            dispatchCacheHit(path, cached.cachedAt);
-            return cached.data;
-          }
-        }
         notifyConnection('online');
         throw new Error(data.error || `Erreur ${res.status}`);
       }

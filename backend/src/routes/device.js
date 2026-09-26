@@ -12,13 +12,13 @@ const router = express.Router();
 // l'appareil le plus ancien quand la limite de 3 appareils est atteinte (auth.js,
 // accounts.js) — implémentation UNIQUE.
 // Avec full=true : supprime aussi les bulletins et PDFs du user (matricule).
-function resetDeviceData(deviceId, full = false) {
+function resetDeviceData(deviceId, full = false, userMatricule = null) {
   const warnings = [];
   const tx = db.transaction(() => {
     if (full) {
       // Suppression définitive de toutes les données synchronisées du compte.
       const device = db.prepare('SELECT user_matricule FROM devices WHERE id = ?').get(deviceId);
-      const mat = device?.user_matricule;
+      const mat = device?.user_matricule || userMatricule;
       const rows = mat
         ? db.prepare('SELECT id, filepath FROM bulletins WHERE user_matricule = ?').all(mat)
         : db.prepare('SELECT id, filepath FROM bulletins WHERE device_id = ?').all(deviceId);
@@ -60,7 +60,7 @@ function resetDeviceData(deviceId, full = false) {
 router.delete('/', (req, res) => {
   const full = req.query.full === '1' || req.query.full === 'true';
   try {
-    const warnings = resetDeviceData(req.deviceId, full);
+    const warnings = resetDeviceData(req.deviceId, full, req.userMatricule);
     res.json({ ok: true, full, warnings });
   } catch (e) {
     console.error('[device] Réinitialisation impossible:', e);
