@@ -134,14 +134,14 @@ function isPayslipText(text) {
 function matchesOwner(analysis, ownerMatricule) {
   if (!ownerMatricule) return true;
   if (!analysis || !analysis.matricule) return false;
-  const digits = s => String(s || '').toUpperCase().replace(/\D/g, '');
+  const canonical = s => String(s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const expected = String(ownerMatricule)
     .split(/[;,]/)
     .map(s => s.trim())
     .filter(Boolean);
   if (expected.length === 0) return true;
-  const target = digits(analysis.matricule);
-  return expected.some(m => digits(m) === target);
+  const target = canonical(analysis.matricule);
+  return expected.some(m => canonical(m) === target);
 }
 
 function isDeniedFilename(filename) {

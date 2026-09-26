@@ -34,15 +34,16 @@ function buildYearChunks(sinceDate, now) {
   const chunks = [];
   let chunkStart = new Date(sinceDate);
   while (chunkStart < now) {
-    const chunkEnd = new Date(chunkStart.getFullYear() + 1, 0, 1);
-    if (chunkEnd <= chunkStart) chunkEnd.setTime(chunkStart.getTime() + 366 * 24 * 60 * 60 * 1000);
+    const nextMonth = new Date(chunkStart.getFullYear(), chunkStart.getMonth() + 1, 1);
+    const chunkEnd = nextMonth < now ? nextMonth : null;
     chunks.push({ since: new Date(chunkStart), before: chunkEnd });
+    if (!chunkEnd) break;
     chunkStart = chunkEnd;
   }
-  // Inverser : année la plus récente en premier
   chunks.reverse();
   return chunks;
 }
+
 
 /**
  * Déduplique et enregistre une liste d'attachments (fichiers trouvés par IMAP).
@@ -109,7 +110,9 @@ async function importFound(device, account, items) {
           : (filePeriod ? filePeriod.month : item.receivedAt.getMonth() + 1)));
     const periodLabel = contentPeriod ? contentPeriod.label : null;
 
-    const ownerMatricule = device && device.owner_matricule ? device.owner_matricule : null;
+    const ownerMatricule = device && (device.owner_matricule || device.user_matricule)
+      ? (device.owner_matricule || device.user_matricule)
+      : null;
     const isOwned = matchesOwner(analysis, ownerMatricule);
     if (!analysis || !analysis.isPayslip || !isOwned) {
       if (!analysis) {
@@ -357,4 +360,4 @@ async function runSyncForDevice(deviceId, options = {}) {
   };
 }
 
-module.exports = { runSyncForDevice, importFound, withTimeout };
+module.exports = { runSyncForDevice, importFound, withTimeout, buildYearChunks };
