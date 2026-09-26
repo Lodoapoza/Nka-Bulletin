@@ -210,6 +210,13 @@ const Dashboard = (() => {
     btn.innerHTML = '<span class="btn-spinner"></span>';
     if (statusEl) statusEl.textContent = 'Mise à jour en cours...';
     try {
+      const accounts = await Api.getAccounts({ nocache: true });
+      if (!accounts || accounts.length === 0) {
+        const message = 'Aucun compte e-mail configuré. Ouvrez Réglages pour connecter une boîte mail.';
+        if (statusEl) statusEl.textContent = 'Aucun compte e-mail configuré';
+        Toast.show(message);
+        return;
+      }
       const queued = await Api.runSync(opts);
       const status = await Api.pollSyncStatus(queued.requestId, (s) => {
         if (statusEl) statusEl.textContent = syncStatusText(s);

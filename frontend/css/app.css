@@ -340,7 +340,8 @@ a { color: inherit; }
 .btn-outline { background: transparent; border: 1.5px solid var(--md-outline); color: var(--md-on-surface); }
 .btn-text { background: transparent; color: var(--md-primary); padding: 10px 12px; }
 .btn-full { width: 100%; }
-.btn-danger { background: transparent; color: var(--md-error); }
+.btn-danger { background: var(--md-error); color: #fff; border: 1px solid var(--md-error); }
+.btn-danger:hover { filter: brightness(0.94); box-shadow: var(--shadow-soft); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-sm { padding: 9px 14px; font-size: 0.85rem; }
 
@@ -546,7 +547,7 @@ a { color: inherit; }
   pointer-events: none; white-space: nowrap;
 }
 .conn-badge.visible { opacity: 1; transform: scale(1); }
-[data-theme="dark"] .conn-badge { background: #E84545; }
+[data-theme="dark"] .conn-badge { background: #B3261E; }
 
 /* ===== PIN lock screen ===== */
 .pin-screen {
@@ -700,11 +701,13 @@ a { color: inherit; }
   text-align: center;
   box-shadow: var(--glass-shadow-lg);
 }
-.reset-icon { font-size: 2rem; margin-bottom: 8px; }
+.reset-icon { width: 34px; height: 34px; display: grid; place-items: center; margin: 0 auto 10px; border-radius: 50%; background: color-mix(in srgb, var(--md-error) 14%, transparent); color: var(--md-error); font-weight: 800; font-size: 1.1rem; }
 .reset-modal h3 { margin: 0 0 8px; color: var(--md-on-surface); }
 .reset-modal p { font-size: .9rem; line-height: 1.5; opacity: .85; margin: 0 0 16px; color: var(--md-on-surface-variant); }
-.reset-actions { display: flex; gap: 10px; }
-.reset-actions .btn { flex: 1; }
+.reset-actions { display: grid; gap: 10px; }
+.reset-actions .btn { width: 100%; border-radius: var(--radius-sm); text-align: left; justify-content: flex-start; line-height: 1.25; }
+.reset-actions #reset-cancel-btn { justify-content: center; text-align: center; }
+.reset-actions small { display: block; font-size: .72rem; font-weight: 400; opacity: .78; }
 .reset-actions .btn-danger { background: var(--md-error); color: #fff; border: none; }
 .reset-actions .btn-danger:disabled { opacity: .6; }
 

@@ -4,8 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Nka Bulletin</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; font-src 'self' https://fonts.gstatic.com; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; script-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://nka-backend.louissamake.com; manifest-src 'self'; frame-ancestors 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; font-src 'self' https://fonts.gstatic.com; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; script-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://nka-backend.louissamake.com; manifest-src 'self'; form-action 'none'">
 <script src="js/theme.js"></script>
+<!-- Les versions ?v= sont injectées par le build (build.mjs) via le Service Worker.
+     Ne pas mettre de query string en dur ici : le SW gère les hashes de contenu. -->
 <meta name="theme-color" content="#1B6E5C">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -16,7 +18,7 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/plusjakartasans/v12/LDIoaomQNQcsA88c7O9yZ4KMCoOg4Ko20yygg_vb.woff2">
 <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/robotomono/v31/L0x5DF4xlVMF-BfR8bXMIjhLq3-cXbKD.woff2">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@500;600&display=optional">
-<link rel="stylesheet" href="css/app.css?v=v41">
+<link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 
@@ -216,12 +218,28 @@
 
         <div style="margin-bottom:14px;">
           <div style="display:flex;gap:8px;margin-bottom:12px;">
-            <button class="provider-mode active" data-mode="apppwd" style="flex:1;">Mot de passe app.</button>
-            <button class="provider-mode" data-mode="oauth" disabled style="flex:1;opacity:0.5;" title="Bientôt disponible">OAuth 2.0</button>
+            <button class="provider-mode active" data-mode="oauth" style="flex:1;">OAuth 2.0</button>
+            <button class="provider-mode" data-mode="apppwd" style="flex:1;">Mot de passe app.</button>
           </div>
         </div>
 
-        <div id="apppwd-fields">
+        <!-- OAuth 2.0 : juste Gmail -->
+        <div id="oauth-fields">
+          <div class="field">
+            <label>Connexion via Google</label>
+            <div style="display:grid;grid-template-columns:1fr;gap:8px;">
+              <button class="provider-card active" data-provider="gmail" data-mode-target="oauth" style="background:#EA4335;color:#fff;padding:14px;font-size:1rem;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#fff"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#fff"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff"/></svg>
+                Connecter avec Gmail
+              </button>
+            </div>
+          </div>
+          <div class="hint" style="margin-top:8px;">Autorise l'accès en lecture seule à votre boîte Gmail. Aucun mot de passe requis.</div>
+          <div id="oauth-form-error" role="alert"></div>
+        </div>
+
+        <!-- Mot de passe app : Gmail, Yahoo, Outlook, IMAP -->
+        <div id="apppwd-fields" class="hidden">
           <div class="field">
             <label>Fournisseur</label>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
@@ -259,7 +277,7 @@
               </button>
             </div>
           </div>
-          <div id="account-form-error" role="alert"></div>
+          <div id="apppwd-form-error" role="alert"></div>
         </div>
 
         <button class="btn btn-primary btn-full" id="submit-account-btn">Connecter</button>
@@ -275,7 +293,7 @@
           <div style="font-weight:600;">Thème sombre</div>
           <div class="hint">Suit le système par défaut</div>
         </div>
-        <label class="switch"><input type="checkbox" id="dark-mode-switch"><span class="track"><span class="thumb"></span></span></label>
+        <label class="switch"><input type="checkbox" id="dark-mode-switch" aria-label="Activer le thème sombre"><span class="track"><span class="thumb"></span></span></label>
       </div>
       <div style="margin-top:14px;">
         <div style="font-size:0.8rem;color:var(--md-on-surface-variant);margin-bottom:10px;">Couleur d'accent</div>
@@ -294,7 +312,7 @@
           <div style="font-weight:600;">Analyse des montants PDF</div>
           <div class="hint">Extrait le salaire net de chaque bulletin</div>
         </div>
-        <label class="switch"><input type="checkbox" id="amounts-switch"><span class="track"><span class="thumb"></span></span></label>
+        <label class="switch"><input type="checkbox" id="amounts-switch" aria-label="Activer l’analyse des montants PDF"><span class="track"><span class="thumb"></span></span></label>
       </div>
       <div class="field" style="margin-top:14px;">
         <label for="owner-matricule">Matricules (filtre des bulletins)</label>
@@ -331,7 +349,7 @@
           <div style="font-weight:600;">Notifications</div>
           <div class="hint">Alerte dès qu'un bulletin est détecté</div>
         </div>
-        <label class="switch"><input type="checkbox" id="push-switch"><span class="track"><span class="thumb"></span></span></label>
+        <label class="switch"><input type="checkbox" id="push-switch" aria-label="Activer les notifications"><span class="track"><span class="thumb"></span></span></label>
       </div>
       <button class="btn btn-outline btn-full" id="push-test-btn" style="margin-top:12px;">Envoyer une notification test</button>
     </div>
@@ -342,7 +360,7 @@
 
     <div class="card" style="border-color:var(--danger,#c0392b);">
       <button class="btn btn-danger btn-full" id="reset-device-btn">Réinitialiser l'appareil</button>
-      <div class="hint" style="margin-top:6px;">Efface les données de cet appareil (PIN, comptes, cache) et repart de zéro. Les bulletins restent disponibles sur vos autres appareils.</div>
+      <div class="hint" style="margin-top:6px;">Réinitialise cet appareil. Un choix séparé permet ensuite de supprimer les données du compte et des appareils associés.</div>
     </div>
 
     <div class="card">
@@ -497,21 +515,29 @@
   </div>
 </div>
 
-<script src="js/capacitor.js?v=v41"></script>
-<script src="js/client.js?v=v41"></script>
-<script src="js/dropdown.js?v=v41"></script>
-<script src="js/pin.js?v=v41"></script>
-<script src="js/parcours.js?v=v41"></script>
-<script src="js/guided.js?v=v41"></script>
-<script src="js/dashboard.js?v=v41"></script>
-<script src="js/accounts.js?v=v41"></script>
-<script src="js/bulletins.js?v=v41"></script>
-<script src="js/confirm.js?v=v41"></script>
-<script src="js/settings.js?v=v41"></script>
-<script src="js/reset.js?v=v41"></script>
-<script src="js/version.js?v=v41"></script>
-<script src="js/admin.js?v=v41"></script>
-<script src="js/analyse.js?v=v41"></script>
-<script src="js/app.js?v=v41"></script>
+<!-- Ordre critique : version.js D'ABORD — app.js ligne 1 fait `const VERSION = APP_VERSION || ...`,
+     et APP_VERSION est un const (TDZ) : si app.js est chargé avant version.js, ReferenceError
+     et TOUTE la chaîne d'initialisation meurt (Toast, ERR, Router, bootApp, pull-to-refresh). -->
+<script src="js/version.js"></script>
+<!-- app.js ensuite : définit Toast, ERR, Router, bootApp -->
+<script src="js/app.js"></script>
+<!-- Dépendances de base -->
+<script src="js/client.js"></script>
+<script src="js/capacitor.js"></script>
+<script src="js/pin.js"></script>
+<!-- Utilitaires -->
+<script src="js/dropdown.js"></script>
+<script src="js/parcours.js"></script>
+<script src="js/guided.js"></script>
+<script src="js/confirm.js"></script>
+<!-- Modules fonctionnels (ordre de dépendance) -->
+<script src="js/accounts.js"></script>
+<script src="js/bulletins.js"></script>
+<script src="js/analyse.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/reset.js"></script>
+<script src="js/admin.js"></script>
+<!-- Point d'entrée UI : dashboard en DERNIER (dépend de Accounts, Settings, Bulletins, Analyse) -->
+<script src="js/dashboard.js"></script>
 </body>
 </html>

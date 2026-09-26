@@ -19,6 +19,13 @@ const syncRunLimiter = rateLimit({
 
 router.post('/run', syncRunLimiter, (req, res) => {
   try {
+    const account = db.prepare('SELECT id FROM accounts WHERE device_id = ? LIMIT 1').get(req.deviceId);
+    if (!account) {
+      return res.status(409).json({
+        error: 'Aucun compte e-mail n’est configuré. Connectez une boîte mail dans Réglages avant de lancer une synchronisation.',
+        code: 'NO_MAIL_ACCOUNT',
+      });
+    }
     // full_scan : force un scan complet (35 ans) quelle que soit la valeur de
     // last_sync_at. Le flag voyage avec la requête jusqu'au worker, ce qui évite
     // la race condition où un reset (last_sync_at = NULL) est écrasé par une sync

@@ -1,5 +1,20 @@
 const VERSION = APP_VERSION || '2.0.0';
 
+// ===== Auto-reset sur changement de version =====
+// Si la version stockée diffère, on purge tout (localStorage, IndexedDB, caches SW, SW)
+// puis on recharge une fois. Cela empêche les vieux clients de rester bloqués sur du cache.
+(async () => {
+  if (!navigator.onLine) return; // Ne pas purger hors ligne
+  const stored = localStorage.getItem('nka_app_version');
+  if (stored === APP_VERSION) return;
+  try { localStorage.clear(); } catch (_) {}
+  try { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); } catch (_) {}
+  try { await new Promise(res => { const r = indexedDB.deleteDatabase('nka-offline-cache'); r.onsuccess = r.onerror = r.onblocked = () => res(); }); } catch (_) {}
+  try { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r => r.unregister())); } catch (_) {}
+  try { localStorage.setItem('nka_app_version', APP_VERSION); } catch (_) {}
+  location.reload();
+})();
+
 const Toast = (() => {
   let queue = [];
   let timer;
@@ -36,6 +51,7 @@ const ERR = (() => {
     const code = m.match(/\((\d+)\)$/)?.[1];
     if (code && map[code]) return map[code];
     if (/Failed to fetch|NetworkError|network|navigator\.onLine/.test(m)) return 'Pas de connexion';
+    if (/Aucun compte e-mail|NO_MAIL_ACCOUNT/i.test(m)) return 'Aucun compte e-mail configuré. Ouvrez Réglages pour connecter une boîte mail.';
     if (/injoignable|Backend/.test(m)) return 'Serveur indisponible';
     if (/timeout/.test(m)) return 'Serveur trop lent';
     if (/expiré|invalide|Token/.test(m)) return 'Session expirée';
@@ -79,8 +95,72 @@ const Router = (() => {
 
 async function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
-    try { await navigator.serviceWorker.register('/sworker.js'); }
-    catch (e) { console.warn('Service worker non enregistré :', e); }
+    try {
+      const reg = await navigator.serviceWorker.register('/sworker-v2.js', { updateViaCache: 'none' });
+
+      // Periodic Background Sync : enregistrer pour sync auto quotidienne
+      if ('periodicSync' in reg) {
+        try {
+          const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
+          if (status.state === 'granted') {
+            await reg.periodicSync.register('nka-periodic-sync', {
+              minInterval: 24 * 60 * 60 * 1000, // 24h
+            });
+            console.log('[app] Periodic background sync enregistrée (24h)');
+          }
+        } catch (e) {
+          console.warn('[app] Periodic Sync registration:', e.message);
+        }
+      }
+
+      // 1. Détecter mise à jour SW en attente (reg.onupdatefound)
+      let refreshing = false;
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            // Nouveau SW installé et en attente (si skipWaiting pas immédiat)
+            console.log('[app] Nouveau SW installé, en attente d\'activation');
+            Toast.show('Nouvelle version disponible — rechargement...');
+            setTimeout(() => window.location.reload(), 1500);
+          }
+        });
+      });
+
+      // 2. Écouter le changement de controller (nouveau SW actif) -> recharger
+      let controllerChangeHandled = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (controllerChangeHandled) return;
+        controllerChangeHandled = true;
+        console.log('[app] Controller changé, rechargement pour nouvelle version');
+        window.location.reload();
+      });
+
+      // 3. Écouter les messages du SW (fallback iOS + background sync + notification mise à jour)
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (!event.data || !event.data.type) return;
+        if (event.data.type === 'nka-notification-click' && event.data.url) {
+          const hashIndex = event.data.url.indexOf('#');
+          const view = hashIndex > -1 ? event.data.url.substring(hashIndex + 1) : 'dashboard';
+          Router.goTo(view);
+          window.focus();
+        } else if (event.data.type === 'nka-background-sync') {
+          console.log('[app] Background sync déclenchée, lancement de la sync...');
+          Api.getAccounts().then(accounts => {
+            if (accounts.length > 0) {
+              const btn = document.getElementById('dash-sync-now');
+              if (btn && Dashboard.runSyncFlow) Dashboard.runSyncFlow(btn);
+            }
+          }).catch(e => console.warn('[app] Background sync check failed:', e.message || e));
+        } else if (event.data.type === 'nka-sw-updated') {
+          // Nouveau SW activé (via activate event) -> recharger
+          console.log('[app] SW mis à jour reçu, rechargement');
+          Toast.show('Mise à jour appliquée — rechargement...');
+          setTimeout(() => window.location.reload(), 1000);
+        }
+      });
+    } catch (e) { console.warn('Service worker non enregistré :', e); }
   }
 }
 
@@ -103,6 +183,9 @@ async function bootApp() {
   safe('Dashboard.refresh', () => Dashboard.refresh());
   safe('Bulletins.refresh', () => Bulletins.refresh());
   safe('Accounts.refresh',  () => Accounts.refresh());
+
+  // Pull-to-refresh
+  initPullToRefresh();
 
   // État serveur : options + liaison multi-appareils.
   // En cas d'échec (hors ligne), on garde l'accès au mode cache.
@@ -235,6 +318,206 @@ window.addEventListener('nka-amounts-changed', (e) => {
   applyAnalyseNav(!!(e.detail && e.detail.enabled));
 });
 
+/* ===== Pull-to-refresh PWA =====
+   Sur mobile : tirer vers le bas pour rafraîchir la vue courante.
+   Ne s'active que si on est au sommet de la page (scrollY === 0). */
+function initPullToRefresh() {
+  let startY = 0;
+  let currentY = 0;
+  let pulling = false;
+  let triggered = false;
+
+  const indicator = document.createElement('div');
+  indicator.id = 'ptr-indicator';
+  indicator.style.cssText = [
+    'position: fixed',
+    'top: 0',
+    'left: 50%',
+    'transform: translateX(-50%) translateY(-120%)',
+    'width: 40px',
+    'height: 40px',
+    'border-radius: 50%',
+    'border: 2px solid var(--md-primary)',
+    'border-top-color: transparent',
+    'opacity: 0',
+    'pointer-events: none',
+    'z-index: 1000',
+    'transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s',
+    'animation: ptr-spin 0.8s linear infinite',
+  ].join(';');
+
+  // Keyframes pour le spinner
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes ptr-spin { to { transform: translateX(-50%) translateY(-120%) rotate(360deg); } }
+  `;
+  document.head.appendChild(style);
+  document.body.appendChild(indicator);
+
+  function showIndicator(progress) {
+    const maxPull = 80;
+    const y = Math.min(progress, maxPull);
+    indicator.style.opacity = y / maxPull;
+    indicator.style.transform = `translateX(-50%) translateY(calc(-120% + ${y}px))`;
+  }
+
+  function hideIndicator() {
+    indicator.style.opacity = '0';
+    indicator.style.transform = 'translateX(-50%) translateY(-120%)';
+  }
+
+  function triggerRefresh() {
+    if (triggered) return;
+    triggered = true;
+    hideIndicator();
+    Toast.show('Actualisation…');
+    // Déclencher le refresh de la vue active
+    const activeView = document.querySelector('.view:not(.hidden)');
+    if (activeView) {
+      const viewId = activeView.id.replace('view-', '');
+      const refreshMap = {
+        dashboard: () => Dashboard.refresh(),
+        bulletins: () => Bulletins.refresh(),
+        analyse: () => Analyse.refresh(),
+        settings: () => Accounts.refresh(),
+      };
+      if (refreshMap[viewId]) refreshMap[viewId]();
+    }
+    setTimeout(() => { triggered = false; }, 1000);
+  }
+
+  window.addEventListener('touchstart', (e) => {
+    if (window.scrollY === 0 && !pulling) {
+      startY = e.touches[0].clientY;
+      pulling = true;
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    if (!pulling) return;
+    currentY = e.touches[0].clientY;
+    const delta = currentY - startY;
+    if (delta > 0) {
+      e.preventDefault();
+      showIndicator(delta * 0.5);
+      if (delta > 60) {
+        indicator.style.borderColor = 'var(--md-primary)';
+        indicator.style.borderTopColor = 'var(--md-primary)';
+      }
+    }
+  }, { passive: false });
+
+  window.addEventListener('touchend', () => {
+    if (!pulling) return;
+    pulling = false;
+    const delta = currentY - startY;
+    if (delta > 60) {
+      triggerRefresh();
+    } else {
+      hideIndicator();
+    }
+  }, { passive: true });
+}
+
+/* ===== Pull-to-refresh PWA =====
+   Sur mobile : tirer vers le bas pour rafraîchir la vue courante.
+   Ne s'active que si on est au sommet de la page (scrollY === 0). */
+function initPullToRefresh() {
+  let startY = 0;
+  let currentY = 0;
+  let pulling = false;
+  let triggered = false;
+
+  const indicator = document.createElement('div');
+  indicator.id = 'ptr-indicator';
+  indicator.style.cssText = [
+    'position: fixed',
+    'top: 0',
+    'left: 50%',
+    'transform: translateX(-50%) translateY(-120%)',
+    'width: 40px',
+    'height: 40px',
+    'border-radius: 50%',
+    'border: 2px solid var(--md-primary)',
+    'border-top-color: transparent',
+    'opacity: 0',
+    'pointer-events: none',
+    'z-index: 1000',
+    'transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s',
+    'animation: ptr-spin 0.8s linear infinite',
+  ].join(';');
+
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes ptr-spin { to { transform: translateX(-50%) translateY(-120%) rotate(360deg); } }
+  `;
+  document.head.appendChild(style);
+  document.body.appendChild(indicator);
+
+  function showIndicator(progress) {
+    const maxPull = 80;
+    const y = Math.min(progress, maxPull);
+    indicator.style.opacity = y / maxPull;
+    indicator.style.transform = `translateX(-50%) translateY(calc(-120% + ${y}px))`;
+  }
+
+  function hideIndicator() {
+    indicator.style.opacity = '0';
+    indicator.style.transform = 'translateX(-50%) translateY(-120%)';
+  }
+
+  function triggerRefresh() {
+    if (triggered) return;
+    triggered = true;
+    hideIndicator();
+    Toast.show('Actualisation…');
+    const activeView = document.querySelector('.view:not(.hidden)');
+    if (activeView) {
+      const viewId = activeView.id.replace('view-', '');
+      const refreshMap = {
+        dashboard: () => Dashboard.refresh(),
+        bulletins: () => Bulletins.refresh(),
+        analyse: () => Analyse.refresh(),
+        settings: () => Accounts.refresh(),
+      };
+      if (refreshMap[viewId]) refreshMap[viewId]();
+    }
+    setTimeout(() => { triggered = false; }, 1000);
+  }
+
+  window.addEventListener('touchstart', (e) => {
+    if (window.scrollY === 0 && !pulling) {
+      startY = e.touches[0].clientY;
+      pulling = true;
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    if (!pulling) return;
+    currentY = e.touches[0].clientY;
+    const delta = currentY - startY;
+    if (delta > 0) {
+      e.preventDefault();
+      showIndicator(delta * 0.5);
+      if (delta > 60) {
+        indicator.style.borderColor = 'var(--md-primary)';
+        indicator.style.borderTopColor = 'var(--md-primary)';
+      }
+    }
+  }, { passive: false });
+
+  window.addEventListener('touchend', () => {
+    if (!pulling) return;
+    pulling = false;
+    const delta = currentY - startY;
+    if (delta > 60) {
+      triggerRefresh();
+    } else {
+      hideIndicator();
+    }
+  }, { passive: true });
+}
+
 /* ===== Bandeau « données en cache » =====
    Affiché quand le service worker ou le client sert des données
    depuis un cache (événement nka-cache-hit), retiré au retour du réseau.
@@ -254,7 +537,6 @@ function showOfflineCacheBanner(e) {
     }
     return;
   }
-
   const banner = document.createElement('div');
   banner.id = 'offline-cache-banner';
   banner.setAttribute('role', 'status');

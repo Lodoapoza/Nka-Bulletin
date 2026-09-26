@@ -319,6 +319,12 @@ const Api = (() => {
           withStore('pdf', 'readwrite', (store) => store.clear()),
         ]);
       },
+      close() {
+        if (dbPromise) {
+          dbPromise.then((db) => { try { db && db.close(); } catch (_) {} }).catch(() => {});
+          dbPromise = null;
+        }
+      },
       setPdf(id, blob, filename, meta) {
         return write('pdf', { key: String(id), blob, filename, meta: meta || null, cachedAt: Date.now() });
       },
@@ -411,6 +417,7 @@ const Api = (() => {
     deleteAccount: (id) => request(`/accounts/${id}`, { method: 'DELETE' }),
     clearApiCache: (path) => OfflineCache.clearApi(path),
     clearAllCache: () => OfflineCache.clearAll(),
+    closeOfflineCache: () => OfflineCache.close(),
 
     runSync: (opts = {}) => request('/sync/run', { method: 'POST', body: JSON.stringify(opts) }),
     getSyncStatus: (requestId) => request(

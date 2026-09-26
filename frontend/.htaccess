@@ -22,6 +22,13 @@ PassengerStartupFile server.js
 # --- Sécurité passive ---------------------------------------------------------
 Options -Indexes
 
+# Une PWA doit toujours être chargée dans un contexte sécurisé.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</IfModule>
+
 # Bloque l'accès aux fichiers cachés (.htaccess, .env, .git, etc.)
 <FilesMatch "^\.">
   Require all denied
@@ -64,11 +71,21 @@ Options -Indexes
   ExpiresByType application/javascript "access plus 1 year"
   ExpiresByType image/png "access plus 1 year"
   ExpiresByType image/svg+xml "access plus 1 year"
-  ExpiresByType application/json "access plus 1 year"
   ExpiresByType image/x-icon "access plus 1 year"
 
-  # index.html : jamais mis en cache — revalidation systématique
-  <FilesMatch "^(index\.html|sworker\.js|manifest\.json)$">
+  # API JSON : PAS de cache long — revalidation à chaque requête
+  # (le service worker gère son propre cache offline via IndexedDB/Cache API)
+  <FilesMatch "\.(json)$">
+    ExpiresDefault "access plus 0 seconds"
+    <IfModule mod_headers.c>
+      Header set Cache-Control "no-cache, no-store, must-revalidate"
+      Header set Pragma "no-cache"
+      Header set Expires "0"
+    </IfModule>
+  </FilesMatch>
+
+  # index.html, sworker-v2.js, manifest.json : jamais mis en cache — revalidation systématique
+  <FilesMatch "^(index\.html|sworker-v2\.js|manifest\.json)$">
     ExpiresDefault "access plus 0 seconds"
     <IfModule mod_headers.c>
       Header set Cache-Control "no-cache, must-revalidate"
