@@ -1,20 +1,16 @@
 const VERSION = APP_VERSION || '2.0.0';
 
-// ===== Auto-reset sur changement de version =====
-// Si la version stockée diffère, on purge tout (localStorage, IndexedDB, caches SW, SW)
-// puis on recharge une fois. Cela empêche les vieux clients de rester bloqués sur du cache.
-(async () => {
-  if (!navigator.onLine) return; // Ne pas purger hors ligne
-  const stored = localStorage.getItem('nka_app_version');
-  if (stored === APP_VERSION) return;
-  try { localStorage.clear(); } catch (_) {}
-  try { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); } catch (_) {}
-  try { await new Promise(res => { const r = indexedDB.deleteDatabase('nka-offline-cache'); r.onsuccess = r.onerror = r.onblocked = () => res(); }); } catch (_) {}
-  try { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r => r.unregister())); } catch (_) {}
-  try { localStorage.setItem('nka_app_version', APP_VERSION); } catch (_) {}
-  location.reload();
+// ===== Migration de version non destructive =====
+// Un changement de version ne doit jamais supprimer le compte, les bulletins
+// ou la session de l'utilisateur. Les caches sont invalides par le Service
+// Worker et les URLs versionnees ; on conserve donc les donnees privees.
+(() => {
+  try {
+    if (localStorage.getItem('nka_app_version') !== APP_VERSION) {
+      localStorage.setItem('nka_app_version', APP_VERSION);
+    }
+  } catch (_) {}
 })();
-
 const Toast = (() => {
   let queue = [];
   let timer;

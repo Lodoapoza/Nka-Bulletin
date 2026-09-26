@@ -1,10 +1,10 @@
-const CACHE_NAME = 'nka-bulletin-644d9dd6c35b';
+const CACHE_NAME = 'nka-bulletin-fd3092e36cdb';
 const APP_SHELL = [
   '/index.html?v=v39',
   '/manifest.json?v=v26',
   '/css/app.css?v=e798885a',
   '/js/analyse.js?v=4ace36f6',
-  '/js/app.js?v=afe4f1eb',
+  '/js/app.js?v=2e9eb30a',
   '/js/client.js?v=68137114',
   '/js/dropdown.js?v=53173405',
   '/js/pin.js?v=65c162dc',
@@ -19,7 +19,7 @@ const APP_SHELL = [
   '/js/settings.js?v=9b63a163',
   '/js/reset.js?v=ee28ec99',
   '/js/theme.js?v=d8dbba78',
-  '/js/version.js?v=08e3b5e3',
+  '/js/version.js?v=10cf7275',
   '/icons/logo.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
