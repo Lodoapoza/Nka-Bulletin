@@ -171,7 +171,29 @@ function authMiddleware(req, res, next) {
       }
     }
 
+    // Diagnostic : signale les comptes orphelins (device_id référencé par un compte
+    // mais dont l'appareil n'existe plus dans `devices`). Cela arrive quand un
+    // appareil a été éjecté/réinitialisé mais que ses comptes n'ont pas été
+    // rattachés au nouvel appareil — un DELETE venant d'un autre appareil
+    // ciblant ces comptes échouera avec 404.
+    if (req.userMatricule) {
+      const orphaned = db.prepare(`
+        SELECT a.id FROM accounts a
+        LEFT JOIN devices d ON d.id = a.device_id
+        WHERE d.id IS NULL AND a.email IN (
+          SELECT DISTINCT a2.email FROM accounts a2
+          JOIN devices d2 ON d2.id = a2.device_id
+          WHERE d2.user_matricule = ?
+        )
+      `).all(req.userMatricule);
+      if (orphaned.length) {
+        console.warn(`[auth] Device ${req.deviceId} (mat:${req.userMatricule}) a ${orphaned.length} comptes orphelins avec des device_id disparus`);
+      }
+    }
+
     req.userMatricule = (dev && dev.user_matricule) || (dev && dev.owner_matricule) || null;
+    req.ownerMatricule = (dev && dev.owner_matricule) || req.userMatricule || null;
+    console.log(`[auth] resolved device_id=${req.deviceId} user_matricule=${req.userMatricule}`);
     next();
   } catch (e) {
     return res.status(401).json({ error: 'Token invalide ou expiré' });

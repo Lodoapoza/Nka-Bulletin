@@ -8,6 +8,7 @@
  */
 const { decrypt } = require('./crypto');
 const { analyzePdf, isDeniedFilename } = require('./pdfService');
+const db = require('./db');
 
 const KEYWORDS = [
   'bulletin de paie', 'bulletin de salaire', 'fiche de paie', 'fiche de paye',
@@ -40,12 +41,13 @@ async function withRefreshMutex(accountId, fn) {
  * Récupère un access_token valide (refresh si expiré).
  * Utilise un mutex par compte pour éviter les refresh concurrents.
  */
-async function getValidToken(account) {
-  const creds = JSON.parse(decrypt(account.encrypted_credentials));
+async function getValidToken(account, forceRefresh = false) {
+  const stored = db.prepare('SELECT encrypted_credentials FROM accounts WHERE id = ?').get(account.id);
+  const creds = JSON.parse(decrypt(stored ? stored.encrypted_credentials : account.encrypted_credentials));
   if (!creds.access_token) throw new Error('Pas d\'access_token');
 
   // Vérifier si expiré (marge 5 min)
-  if (creds.expiry_date && new Date(creds.expiry_date).getTime() > Date.now() + 5 * 60 * 1000) {
+  if (!forceRefresh && creds.expiry_date && new Date(creds.expiry_date).getTime() > Date.now() + 5 * 60 * 1000) {
     return creds.access_token;
   }
 
@@ -54,8 +56,9 @@ async function getValidToken(account) {
 
   return withRefreshMutex(account.id, async () => {
     // Re-vérifier après attente du mutex (un autre appel a pu rafraîchir)
-    const currentCreds = JSON.parse(decrypt(account.encrypted_credentials));
-    if (currentCreds.expiry_date && new Date(currentCreds.expiry_date).getTime() > Date.now() + 5 * 60 * 1000) {
+    const latest = db.prepare('SELECT encrypted_credentials FROM accounts WHERE id = ?').get(account.id);
+    const currentCreds = JSON.parse(decrypt(latest ? latest.encrypted_credentials : account.encrypted_credentials));
+    if (!forceRefresh && currentCreds.expiry_date && new Date(currentCreds.expiry_date).getTime() > Date.now() + 5 * 60 * 1000) {
       return currentCreds.access_token;
     }
     if (!currentCreds.refresh_token) throw new Error('Pas de refresh_token — réautorisez le compte');
@@ -91,7 +94,6 @@ async function getValidToken(account) {
     }
 
     // Mettre à jour en DB
-    const db = require('./db');
     const { encrypt } = require('./crypto');
     db.prepare('UPDATE accounts SET encrypted_credentials = ? WHERE id = ?')
       .run(encrypt(JSON.stringify(newCreds)), account.id);
@@ -157,10 +159,9 @@ async function fetchPayslipsSince(account, sinceDate, beforeDate, signal) {
     const beforeStr = `${beforeDate.getFullYear()}/${String(beforeDate.getMonth() + 1).padStart(2, '0')}/${String(beforeDate.getDate()).padStart(2, '0')}`;
     query += ` before:${beforeStr}`;
   }
-  // Filtre metier : limiter la recherche aux messages dont le sujet ou le
-  // nom de piece jointe correspond a un bulletin de paie. IN:anywhere conserve
-  // les bulletins archives ou classes dans un libelle Gmail.
-  query += ' has:attachment (subject:(bulletin OR paie OR paye OR salaire OR payslip) OR filename:(bulletin OR paie OR paye OR salaire OR payslip)) in:anywhere larger:10k';
+  // Recherche large : le filtrage strict est réalisé sur le contenu PDF et le
+  // matricule propriétaire dans importFound(), jamais par le nom du fichier.
+  query += ' has:attachment filename:pdf in:anywhere';
   console.log(`[gmail] ${account.email}: recherche "${query}"`);
 
   // Passe 1 : lister les messages (page par page, max 100 par appel)
@@ -177,7 +178,7 @@ async function fetchPayslipsSince(account, sinceDate, beforeDate, signal) {
       pageToken = list.nextPageToken || null;
     } catch (e) {
       if (e.message === 'TOKEN_EXPIRED') {
-        token = await getValidToken(account);
+        token = await getValidToken(account, true);
         continue; // retry
       }
       throw e;
@@ -235,7 +236,7 @@ async function fetchPayslipsSince(account, sinceDate, beforeDate, signal) {
       }
     } catch (e) {
       if (e.message === 'TOKEN_EXPIRED') {
-        token = await getValidToken(account);
+        token = await getValidToken(account, true);
         continue; // retry
       }
       console.warn(`[gmail] Message ${msgId} ignoré:`, e.message);

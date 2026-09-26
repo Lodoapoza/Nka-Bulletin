@@ -184,10 +184,12 @@ const Bulletins = (() => {
     });
     listEl.querySelectorAll('[data-download]').forEach(btn => {
       btn.addEventListener('click', async () => {
+        let objectUrl = null;
         try {
           let meta = null;
           try { meta = JSON.parse(btn.dataset.meta || 'null'); } catch (_) {}
-          const { blob, filename, objectUrl } = await Api.fetchBulletinBlob(btn.dataset.download, meta);
+          const { blob, filename, objectUrl: url } = await Api.fetchBulletinBlob(btn.dataset.download, meta);
+          objectUrl = url;
           const cachedId = String(btn.dataset.download);
           if (!cachedSet.has(cachedId)) {
             cachedSet.add(cachedId);
@@ -196,13 +198,14 @@ const Bulletins = (() => {
           if (NativeBridge && NativeBridge.isNative) {
             const opened = await NativeBridge.previewFile(blob, filename);
             if (!opened) await NativeBridge.shareFile(blob, filename);
-            URL.revokeObjectURL(objectUrl);
           } else {
             window.open(objectUrl, '_blank');
-            setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
           }
         } catch (e) {
           Toast.show(ERR.msg(e));
+        } finally {
+          // Nettoyage garanti de l'ObjectURL (court délai pour laisser le navigateur démarrer le téléchargement)
+          if (objectUrl) setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
         }
       });
     });
@@ -224,12 +227,16 @@ const Bulletins = (() => {
         if (!opened) await NativeBridge.shareFile(blob, filename);
         return;
       }
-      // Web : affiche l'aperçu PDF dans un nouvel onglet (l'utilisateur peut alors
-      // l'imprimer/le télécharger/le partager depuis le visionneur du navigateur).
+      // Web : affiche l'aperçu PDF dans un nouvel onglet.
+      // Nettoyage garanti de l'ObjectURL même si window.open est bloqué.
       const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
-      Toast.show('Aperçu ouvert — choisissez votre action depuis l\'aperçu');
+      try {
+        window.open(url, '_blank');
+        Toast.show('Aperçu ouvert — choisissez votre action depuis l\'aperçu');
+      } finally {
+        // Revocation après un court délai pour laisser le navigateur charger le PDF
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      }
     } catch (e) {
       Toast.show(ERR.msg(e));
     }
@@ -279,7 +286,7 @@ const Bulletins = (() => {
         .map(b => ({ ...b, cachedOnly: true }))
         .filter(b => matchesFilters(b, params));
       // Anciens caches sans métadonnées : affichés seulement sans filtre année/mois
-      const noMetaRecs = !params.year && !params.month
+      const noMetaRecs = !params.year && !params.month && !params.q
         ? cachedRecs.filter(r => !r.meta && !serverIds.has(String(r.key)))
             .map(r => ({ id: Number(r.key), filename: r.filename, cachedOnly: true, noMeta: true }))
         : [];
@@ -295,14 +302,16 @@ const Bulletins = (() => {
       if (availableYearsCache === null && !progressive) {
         let all = [];
         try {
-          // N'envoyer q que s'il est défini : sinon URLSearchParams produit
-          // « q=undefined » et le serveur filtre filename LIKE '%undefined%' → liste vide.
+          const periodIndex = await Api.getBulletinYears();
           all = await Api.getBulletins(params.q ? { q: params.q } : {});
+          availableYearsCache = Array.isArray(periodIndex?.years) ? periodIndex.years : null;
         } catch (_) {
           all = serverList;
         }
-        const source = [...(all.length ? all : serverList), ...cachedAll];
-        availableYearsCache = [...new Set(source.map(b => b.year))].sort((a, b) => b - a);
+        if (availableYearsCache === null) {
+          const source = [...(all.length ? all : serverList), ...cachedAll];
+          availableYearsCache = [...new Set(source.map(b => b.year))].sort((a, b) => b - a);
+        }
       }
       // Refresh progressif avec cache invalidé : availableYears garde les
       // années déjà affichées (pas de re-remplissage pré-fin-de-scan).
@@ -323,7 +332,8 @@ const Bulletins = (() => {
       // les lignes connues.
       listEl.setAttribute('aria-busy', 'false');
       if (!cache.length) {
-        listEl.innerHTML = '<div class="empty-state"><div class="glyph">🗂️</div><div>Aucun bulletin</div></div>';
+        listEl.innerHTML = '<div class="empty-state error-state"><div class="glyph">!</div><div>Impossible de charger les bulletins</div><button type="button" class="btn btn-outline" id="bulletins-retry">Réessayer</button></div>';
+        document.getElementById('bulletins-retry')?.addEventListener('click', () => refresh());
       }
       showListError(ERR.msg(e));
       Toast.show(ERR.msg(e));

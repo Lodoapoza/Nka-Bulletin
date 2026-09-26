@@ -211,6 +211,10 @@ const Api = (() => {
     const API_TTL_MS = 7 * 24 * 60 * 60 * 1000;
     const PDF_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
+    function cacheKey(path) {
+      return String(path).replace(/([?&])sw-no-cache=[^&]*/g, '$1').replace(/[?&]$/, '');
+    }
+
     function openDb() {
       if (!dbPromise) {
         dbPromise = new Promise((resolve) => {
@@ -280,21 +284,22 @@ const Api = (() => {
 
     return {
       setApi(path, data) {
-        return write('api', { key: path, data, cachedAt: Date.now() });
+        return write('api', { key: cacheKey(path), data, cachedAt: Date.now() });
       },
       async getApi(path) {
-        const rec = await withStore('api', 'readonly', (store) => store.get(path));
+        const key = cacheKey(path);
+        const rec = await withStore('api', 'readonly', (store) => store.get(key));
         if (!rec) return undefined;
         // Vérifier TTL (7 jours par défaut)
         if (Date.now() - rec.cachedAt > API_TTL_MS) {
           // Supprimer l'entrée expirée proprement
-          withStore('api', 'readwrite', (store) => store.delete(path)).catch(() => {});
+          withStore('api', 'readwrite', (store) => store.delete(key)).catch(() => {});
           return undefined;
         }
         return { data: rec.data, cachedAt: rec.cachedAt };
       },
       clearApi(path) {
-        return withStore('api', 'readwrite', (store) => store.delete(path));
+        return withStore('api', 'readwrite', (store) => store.delete(cacheKey(path)));
       },
       clearAll() {
         return Promise.all([
@@ -417,6 +422,7 @@ const Api = (() => {
       const qs = new URLSearchParams({ ...params, 'sw-no-cache': String(Date.now()) }).toString();
       return request(`/bulletins${qs ? '?' + qs : ''}`);
     },
+    getBulletinYears: () => request(`/bulletins/years?sw-no-cache=${Date.now()}`),
     getStats: () => request(`/bulletins/stats?sw-no-cache=${Date.now()}`),
     getAnalyseSalary: (year) => request(`/analyse/salary?${year ? 'year=' + encodeURIComponent(year) + '&' : ''}sw-no-cache=${Date.now()}`),
     downloadBulletin: (id) => `${API_BASE}/bulletins/${id}/download`,
