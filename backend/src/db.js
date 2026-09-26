@@ -431,6 +431,10 @@ console.log('[db] Migration v10 terminée (db_version=10)');
 //    - unicité hash PAR PROPRIÉTAIRE (IFNULL(user_matricule, device_id))
 //    - unicité période PAR PROPRIÉTAIRE (filename, year, month, type)
 try {
+  // Une version précédente pouvait avoir créé les index puis échoué pendant
+  // le backfill. Les supprimer d’abord rend la migration idempotente et permet
+  // de rattacher les lignes avant de refaire la déduplication.
+  db.exec('DROP INDEX IF EXISTS idx_bulletins_owner_hash; DROP INDEX IF EXISTS idx_bulletins_owner_period;');
   const backfill = db.prepare(`
     UPDATE bulletins SET user_matricule =
       (SELECT d.user_matricule FROM devices d WHERE d.id = bulletins.device_id)
