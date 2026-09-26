@@ -243,6 +243,9 @@ if (!hasColumn('bulletins', 'user_matricule')) {
 // Idempotent : INSERT OR IGNORE, UPDATE à valeur identique, dédup sans effet après
 // le premier passage (l'index unique est créé APRÈS la dédup, sinon UNIQUE constraint
 // failed).
+// Une ancienne exécution peut avoir laissé les index v11 avant de s'interrompre.
+// Ils doivent être retirés avant le rattachement des bulletins aux utilisateurs.
+db.exec('DROP INDEX IF EXISTS idx_bulletins_owner_hash; DROP INDEX IF EXISTS idx_bulletins_owner_period;');
 const deletedFilepaths = [];
 const backfill = db.transaction(() => {
   // a. Grandfathering : un user par device possédant un owner_matricule.
