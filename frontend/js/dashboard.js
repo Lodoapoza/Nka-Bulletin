@@ -372,6 +372,18 @@ const Dashboard = (() => {
     overlay.querySelector('[data-role="recent"]').focus();
   }
 
+  let lastDashboardTick = 0;
+  window.addEventListener('nka-sync-tick', () => {
+    const view = document.getElementById('view-dashboard');
+    if (!view || view.classList.contains('hidden')) return;
+    if (Date.now() - lastDashboardTick < 10000) return;
+    lastDashboardTick = Date.now();
+    refresh();
+  });
+  window.addEventListener('nka-sync-completed', () => {
+    const view = document.getElementById('view-dashboard');
+    if (view && !view.classList.contains('hidden')) refresh();
+  });
   function bindActions() {
     const eye = document.getElementById('amounts-eye');
     if (eye) {

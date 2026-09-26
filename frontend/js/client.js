@@ -398,7 +398,7 @@ const Api = (() => {
       return data;
     },
     setEmail: (email) => request('/auth/set-email', { method: 'POST', body: JSON.stringify({ email }) }),
-    getAccounts: (opts = {}) => request(`/accounts${opts.nocache ? '?sw-no-cache=' + Date.now() : ''}`),
+    getAccounts: (opts = {}) => request(`/accounts?sw-no-cache=${Date.now()}`),
     addAccount: (payload) => request('/accounts', { method: 'POST', body: JSON.stringify(payload) }),
     deleteAccount: (id) => request(`/accounts/${id}`, { method: 'DELETE' }),
     clearApiCache: (path) => OfflineCache.clearApi(path),
@@ -414,11 +414,11 @@ const Api = (() => {
     pollSyncStatus,
 
     getBulletins: (params = {}) => {
-      const qs = new URLSearchParams(params).toString();
+      const qs = new URLSearchParams({ ...params, 'sw-no-cache': String(Date.now()) }).toString();
       return request(`/bulletins${qs ? '?' + qs : ''}`);
     },
-    getStats: () => request('/bulletins/stats'),
-    getAnalyseSalary: (year) => request(`/analyse/salary${year ? '?year=' + encodeURIComponent(year) : ''}`),
+    getStats: () => request(`/bulletins/stats?sw-no-cache=${Date.now()}`),
+    getAnalyseSalary: (year) => request(`/analyse/salary?${year ? 'year=' + encodeURIComponent(year) + '&' : ''}sw-no-cache=${Date.now()}`),
     downloadBulletin: (id) => `${API_BASE}/bulletins/${id}/download`,
     getCachedBulletinIds: () => OfflineCache.listPdfIds(),
     listCachedBulletins: () => OfflineCache.listPdfRecords(),

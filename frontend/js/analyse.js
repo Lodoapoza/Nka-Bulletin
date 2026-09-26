@@ -251,6 +251,18 @@ const Analyse = (() => {
     }
   }
 
+  let lastAnalyseTick = 0;
+  window.addEventListener('nka-sync-tick', () => {
+    const view = document.getElementById('view-analyse');
+    if (!view || view.classList.contains('hidden')) return;
+    if (Date.now() - lastAnalyseTick < 10000) return;
+    lastAnalyseTick = Date.now();
+    refresh();
+  });
+  window.addEventListener('nka-sync-completed', () => {
+    const view = document.getElementById('view-analyse');
+    if (view && !view.classList.contains('hidden')) refresh();
+  });
   function bindActions() {
     // Le sélecteur d'année est géré par AppDropdown (voir renderYearDropdown).
   }
