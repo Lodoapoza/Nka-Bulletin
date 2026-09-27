@@ -106,6 +106,8 @@
   --md-on-surface: #E7EEE9;
   --md-on-surface-variant: #B8C4BB;
   --md-outline: #33453B;
+  --md-error: #FFB4AB;
+  --md-on-error: #690005;
   --shadow-soft: 0 2px 10px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-elevated: 0 10px 30px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
   /* ===== Glassmorphism — fond & tokens sombres (spec refonte glass §3) ===== */
@@ -183,7 +185,7 @@ body {
 
 /* ===== Animations (spec refonte glass §5) — transform/opacity uniquement ===== */
 /* view-enter : re-joué par le Router à chaque navigation (display none→block, zéro JS) */
-.view:not(.hidden) { animation: view-enter 260ms var(--ease-out) both; }
+.view:not(.hidden) { animation: none; }
 @keyframes view-enter { from { opacity: 0; transform: translateY(10px); } }
 
 /* blob-drift : dérive permanente des blobs (délais négatifs = phases décalées) */
@@ -287,6 +289,9 @@ a { color: inherit; }
 /* Compacité des cartes stats du tableau de bord (hauteur −30 %) */
 #dash-total { font-size: 1.7rem; }        /* nombre de bulletins de l'année (2rem → 1.7rem) */
 #amounts-eye { width: 34px; height: 34px; } /* icône œil de la carte salaire (40px → 34px) */
+.archive-stat-line { display: flex; align-items: center; gap: 9px; min-height: 31px; }
+.new-bulletin-badge { display: inline-flex; align-items: center; min-height: 21px; padding: 3px 8px; border-radius: 999px; background: #FDE8E7; color: #A5343A; font-size: 0.68rem; font-weight: 800; letter-spacing: .02em; white-space: nowrap; }
+[data-theme="dark"] .new-bulletin-badge { background: #6E2025; color: #FFD9DA; }
 
 /* Élément signature : pile de bulletins archivés (hero du tableau de bord)
    Cartes 1-2 : verre léger + blur 16 (opacités conservées) ; carte 3 : dégradé accent glass (risque 8) */
@@ -832,12 +837,5 @@ a { color: inherit; }
 .reset-overlay .reset-actions{display:flex!important;flex-direction:column!important;align-items:stretch;width:100%;gap:10px}
 .reset-overlay .reset-actions .btn{display:flex;flex:0 0 auto;flex-direction:column;align-items:center;justify-content:center;box-sizing:border-box;width:100%;min-width:0;min-height:56px;white-space:normal;overflow-wrap:anywhere;text-align:center;line-height:1.2;padding:12px 16px}
 .reset-overlay .reset-actions .btn span{display:block;max-width:100%;font-weight:700}
-.reset-overlay .reset-actions .btn small{display:block;max-width:100%;margin-top:4px;font-size:.76rem;line-height:1.25;white-space:normal}
-@media (max-width:380px){.reset-overlay{padding:12px}.reset-overlay .reset-modal{padding:20px 16px}.reset-overlay .reset-actions .btn{min-height:52px;padding:10px 12px}}
-
-/* Modale reset : composition verticale robuste, y compris sur les petits Android. */
-.reset-overlay .reset-modal.reset-overlay .reset-modal.reset-overlay .reset-modal.reset-overlay .reset-modal.reset-overlay .reset-muto;padding:24px 20px}
-.reset-overlay .reset-actions{display:flex!important;flex-direction:column!important;align-items:stretch;width:100%;gap:10px}
-.reset-overlay .reset-actions .btn{display:flex;flex:0 0 auto;flex-direction:column;align-items:center;justify-content:center;box-sizing:border-box;width:100%;min-width:0;min-height:56px;white-space:normal;overflow-wrap:anywhere;text-align:center;line-height:1.2;padding:12px 16px}
 .reset-overlay .reset-actions .btn small{display:block;max-width:100%;margin-top:4px;font-size:.76rem;line-height:1.25;white-space:normal}
 @media (max-width:380px){.reset-overlay{padding:12px}.reset-overlay .reset-modal{padding:20px 16px}.reset-overlay .reset-actions .btn{min-height:52px;padding:10px 12px}}

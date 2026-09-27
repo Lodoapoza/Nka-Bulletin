@@ -15,6 +15,7 @@ const Bulletins = (() => {
   let availableYearsCache = null;
   let yearDropdown = null;
   let monthDropdown = null;
+  let refreshSequence = 0;
 
   // ===== Erreur réseau sous la liste (keep-list) =====
   // Élément dédié, créé une fois hors de #bulletins-list pour survivre aux
@@ -189,6 +190,8 @@ const Bulletins = (() => {
           let meta = null;
           try { meta = JSON.parse(btn.dataset.meta || 'null'); } catch (_) {}
           const { blob, filename, objectUrl: url } = await Api.fetchBulletinBlob(btn.dataset.download, meta);
+          localStorage.removeItem('nka_new_bulletins_pending');
+          document.getElementById('dash-new-badge')?.classList.add('hidden');
           objectUrl = url;
           const cachedId = String(btn.dataset.download);
           if (!cachedSet.has(cachedId)) {
@@ -257,6 +260,7 @@ const Bulletins = (() => {
   // il vient d'être invalidé (null) : le refresh final, après
   // nka-sync-completed, fera le GET de remplissage sur des données complètes.
   async function refresh(progressive = false) {
+    const sequence = ++refreshSequence;
     const q = document.getElementById('search-input').value.trim();
     const params = {};
     if (currentYear) params.year = currentYear;
@@ -274,6 +278,7 @@ const Bulletins = (() => {
 
     try {
       const serverList = await Api.getBulletins(params);
+      if (sequence !== refreshSequence) return;
 
       // Fusion avec le cache local : un bulletin téléchargé (PDF en cache)
       // doit rester visible même si le serveur ne le retourne pas encore
@@ -292,7 +297,14 @@ const Bulletins = (() => {
         : [];
 
       cache = [...serverList, ...cachedBullets, ...noMetaRecs]
-        .sort((a, b) => (b.year - a.year) || (b.month - a.month));
+        .sort((a, b) => {
+          const yearDiff = (Number(b.year) || 0) - (Number(a.year) || 0);
+          if (yearDiff) return yearDiff;
+          const monthDiff = (Number(b.month) || 0) - (Number(a.month) || 0);
+          if (monthDiff) return monthDiff;
+          const dateDiff = String(b.received_at || '').localeCompare(String(a.received_at || ''));
+          return dateDiff || (Number(b.id) || 0) - (Number(a.id) || 0);
+        });
 
       // Années disponibles : serveur (sans filtre) + cache local, mémoïsées
       // en mémoire. Le premier chargement alimente le cache ; les changements
@@ -320,6 +332,7 @@ const Bulletins = (() => {
       }
 
       const ids = await Api.getCachedBulletinIds();
+      if (sequence !== refreshSequence) return;
       cachedSet = new Set((ids || []).map(String));
       renderYearDropdown();
       renderMonthDropdown();

@@ -45,6 +45,12 @@ const Dashboard = (() => {
 
   async function doRefresh() {
     const syncStatus = document.getElementById('dash-sync-status');
+    const newBadge = document.getElementById('dash-new-badge');
+    if (newBadge) {
+      const pending = Number(localStorage.getItem('nka_new_bulletins_pending') || 0);
+      newBadge.classList.toggle('hidden', pending < 1);
+      newBadge.textContent = pending > 1 ? `${pending} nouveaux` : 'Nouveau';
+    }
     if (syncStatus) syncStatus.textContent = 'Chargement...';
     try {
       const stats = await Api.getStats();
@@ -61,6 +67,8 @@ const Dashboard = (() => {
           openBtn.onclick = async () => {
             let objectUrl = null;
             try {
+              localStorage.removeItem('nka_new_bulletins_pending');
+              document.getElementById('dash-new-badge')?.classList.add('hidden');
               const { blob, filename, objectUrl: url } = await Api.fetchBulletinBlob(stats.latest.id);
               objectUrl = url;
               if (NativeBridge && NativeBridge.isNative) {
@@ -107,8 +115,7 @@ const Dashboard = (() => {
           ? `À jour au ${new Date(lastSync).toLocaleString('fr-FR')}`
           : 'Jamais mis à jour';
       }
-      // Carte guidée : snapshot alimenté en arrière-plan (ne bloque pas le refresh).
-      updateGuided(accounts);
+      // L’accueil reste volontairement fixe : aucune carte de statut dynamique.
     } catch (_) {
       if (syncStatus) syncStatus.textContent = 'Erreur de chargement';
     }
@@ -222,6 +229,9 @@ const Dashboard = (() => {
         if (statusEl) statusEl.textContent = syncStatusText(s);
       });
       if (status.status === 'done') {
+        if (Number(status.new_bulletins) > 0) {
+          localStorage.setItem('nka_new_bulletins_pending', String(Number(status.new_bulletins)));
+        }
         const candidates = Number(status.attachments_found) || 0;
         const already = Number(status.already_imported) || 0;
         const rejected = Number(status.rejected_count) || 0;

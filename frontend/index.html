@@ -59,18 +59,15 @@
 
   <!-- ===== Vue : Tableau de bord ===== -->
   <section class="view" id="view-dashboard">
-    <section id="guided-status-card" class="card guided-card hidden" aria-live="polite" aria-busy="false">
-      <div class="eyebrow" id="guided-status-title"></div>
-      <p class="hint" id="guided-status-body"></p>
-      <button class="btn btn-primary" id="guided-status-action" type="button"></button>
-    </section>
-
     <div class="stack-hero">
       <div class="stack-card"></div>
       <div class="stack-card"></div>
       <div class="stack-card">
         <div class="eyebrow" id="dash-year-label">2026</div>
-        <div class="stat-value" id="dash-total">0</div>
+        <div class="archive-stat-line">
+          <div class="stat-value" id="dash-total">0</div>
+          <span id="dash-new-badge" class="new-bulletin-badge hidden" aria-label="Nouveaux bulletins">Nouveau</span>
+        </div>
         <div class="stat-label">bulletins archivés cette année</div>
       </div>
     </div>
