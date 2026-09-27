@@ -73,11 +73,24 @@ const Router = (() => {
     });
     const titleEl = document.getElementById('topbar-title');
     if (titleEl) titleEl.textContent = TITLES[viewName];
+    updateLiquidNav(viewName);
 
     if (viewName === 'dashboard') Dashboard.refresh();
     if (viewName === 'bulletins') Bulletins.refresh();
     if (viewName === 'analyse') Analyse.refresh();
     if (viewName === 'settings') Accounts.refresh();
+  }
+
+  function updateLiquidNav(viewName) {
+    const nav = document.getElementById('bottom-nav');
+    const active = nav && nav.querySelector(`.nav-item[data-view="${viewName}"]`);
+    if (!nav || !active) return;
+    const navRect = nav.getBoundingClientRect();
+    const itemRect = active.getBoundingClientRect();
+    nav.style.setProperty('--active-nav-x', `${itemRect.left + itemRect.width / 2 - navRect.left}px`);
+    active.classList.remove('nav-pulse');
+    void active.offsetWidth;
+    active.classList.add('nav-pulse');
   }
 
   function bind() {
