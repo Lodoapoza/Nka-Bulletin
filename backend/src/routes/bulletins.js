@@ -108,28 +108,28 @@ router.delete('/:id', (req, res) => {
  */
 router.post('/export/merge', async (req, res) => {
   const { ids, year, lastNMonths } = req.body;
-  const mat = req.userMatricule;
-  const where = mat ? 'user_matricule = ?' : 'device_id = ?';
+  const scope = identityScope(req);
+  const where = scope.where;
   let rows;
 
   if (Array.isArray(ids) && ids.length) {
     const placeholders = ids.map(() => '?').join(',');
     rows = db.prepare(
-      `SELECT * FROM bulletins WHERE ${where} AND id IN (${placeholders}) ORDER BY year, month`
-    ).all(mat || req.deviceId, ...ids);
+      `SELECT b.* FROM bulletins b WHERE ${where} AND b.id IN (${placeholders}) ORDER BY b.year, b.month`
+    ).all(...scope.params, ...ids);
   } else if (year) {
     rows = db.prepare(
-      `SELECT * FROM bulletins WHERE ${where} AND year = ? ORDER BY month`
-    ).all(mat || req.deviceId, Number(year));
+      `SELECT b.* FROM bulletins b WHERE ${where} AND b.year = ? ORDER BY b.month`
+    ).all(...scope.params, Number(year));
   } else if (lastNMonths) {
     const n = Number(lastNMonths);
     const now = new Date();
-    // Mois 1-indexé du mois courant + fenêtre de n mois (ex: août 2026, n=3 → mai).
-    // Attention : ne PAS ajouter +1 ici — le seuil doit être le premier mois inclus.
-    const threshold = now.getFullYear() * 12 + now.getMonth() + 1 - n;
+    // Mois 1-indexé : n=3 en septembre inclut septembre, août et juillet.
+    // Le mois courant est inclus, donc le seuil recule de n - 1 mois.
+    const threshold = now.getFullYear() * 12 + now.getMonth() + 1 - (n - 1);
     rows = db.prepare(
-      `SELECT * FROM bulletins WHERE ${where} AND (year * 12 + month) >= ? ORDER BY year, month`
-    ).all(mat || req.deviceId, threshold);
+      `SELECT b.* FROM bulletins b WHERE ${where} AND (b.year * 12 + b.month) >= ? ORDER BY b.year, b.month`
+    ).all(...scope.params, threshold);
   } else {
     return res.status(400).json({ error: 'Fournir ids, year ou lastNMonths' });
   }
