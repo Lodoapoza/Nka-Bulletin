@@ -205,8 +205,8 @@ body {
 .pin-dot.filled { animation: dot-pop 140ms var(--ease-out); }
 @keyframes dot-pop { from { transform: scale(0.6); opacity: 0.5; } }
 
-/* hero-float : carte 3 de la pile du tableau de bord (subtil, permanent) */
-.stack-card:nth-child(3) { animation: hero-float 7s ease-in-out infinite alternate; }
+/* Accueil stable : aucune animation de déplacement sur la carte principale. */
+.stack-card:nth-child(3) { animation: none; }
 @keyframes hero-float { from { transform: translateY(0); } to { transform: translateY(-2px); } }
 
 /* nav-icon : icône de l'onglet actif — pop à l'activation, maintenue agrandie */
