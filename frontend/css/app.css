@@ -797,6 +797,27 @@ a { color: inherit; }
 #analyse-chart polyline { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--md-primary) 55%, transparent)); }
 #analyse-chart circle[stroke="var(--md-primary)"] { filter: drop-shadow(0 0 2.5px color-mix(in srgb, var(--md-primary) 55%, transparent)); }
 
+/* Conteneur du tableau : largeur intrinsèque du tableau (cellules en
+   white-space:nowrap : « septembre 2026 » + montant + badge) ≈ 311px. Au-delà
+   de ~351px de viewport — ou avec une échelle de police système ≥ 1,1 — le
+   tableau déborde du DOCUMENT : une barre de défilement horizontale racine
+   apparaît, ce qui réduit la hauteur utile (window.innerHeight >
+   documentElement.clientHeight) et décale la bottom-nav de cette vue
+   uniquement. Conteneur à défilement horizontal interne : le document ne
+   déborde jamais, le tableau reste consultable par défilement dans la carte.
+   Géométrie préservée au pixel : la zone de contenu démarre au même point
+   (marge/padding gauches égaux, idem en vertical), la hauteur totale est
+   conservée (paddings annulés par les marges négatives), la boîte de clip
+   s'étend de 16px autour du tableau → l'ombre (blur 10px, offset 2px) reste
+   entière sur les 4 côtés, et la boîte de contenu (carte + 3px) reste
+   ≥ à la largeur minimale du tableau (311px) → aucun défilement parasite à
+   ≥ 390px. */
+#analyse-table {
+  overflow-x: auto;
+  padding: 16px 13px 16px 16px;
+  margin: -16px -16px;
+}
+
 /* Tableau des variations : panneau tint solide (PAS de blur — spec §2, listes haute fréquence) */
 .analyse-table {
   width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.86rem;
