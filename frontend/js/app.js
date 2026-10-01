@@ -596,3 +596,120 @@ document.addEventListener('DOMContentLoaded', () => {
   registerServiceWorker();
   Pin.start(bootApp);
 });
+
+/* ======================================================================
+   INSTRUMENTATION DIAGNOSTIQUE — ancrage de la barre bottom-nav.
+   Build temporaire : affiche à l'écran (pas seulement console) les valeurs
+   nécessaires au diagnostic du déplacement de la barre. Aucun effet de
+   design, aucune modification du comportement de navigation.
+   Auto-portant : tout est dans ce bloc, entièrement protégé en try/catch.
+   ====================================================================== */
+(() => {
+  try {
+    let box = null;
+    let pending = false;
+    let last = '';
+    const log = [];
+    window.__navLog = log;
+
+    const r = (n) => Math.round(n);
+
+    const render = () => {
+      if (!box) return;
+      try {
+        const nav = document.querySelector('.bottom-nav');
+        const vv = window.visualViewport;
+        const active = document.querySelector('.view:not(.hidden)');
+        const vals = {
+          t: Date.now(),
+          view: active ? active.id.replace('view-', '') : '?',
+          scrollY: r(window.scrollY),
+          docH: document.documentElement.scrollHeight,
+          innerH: r(window.innerHeight),
+          navBottom: nav ? r(nav.getBoundingClientRect().bottom) : -1,
+          vvH: vv ? r(vv.height) : -1,
+          vvOffsetTop: vv ? r(vv.offsetTop) : -1,
+          cH: r(document.documentElement.clientHeight),
+        };
+        const line =
+          'view=' + vals.view +
+          ' scrollY=' + vals.scrollY +
+          ' docH=' + vals.docH +
+          ' innerH=' + vals.innerH +
+          ' navBottom=' + vals.navBottom +
+          ' vvH=' + vals.vvH +
+          ' vvOffsetTop=' + vals.vvOffsetTop +
+          ' cH=' + vals.cH;
+        box.textContent = line;
+        const key = line;
+        if (key !== last) {
+          last = key;
+          log.push(vals);
+          if (log.length > 500) log.shift();
+        }
+      } catch (_) {}
+    };
+
+    const schedule = () => {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => { pending = false; render(); });
+    };
+
+    const mount = () => {
+      if (box || !document.body) return;
+      box = document.createElement('div');
+      box.id = 'nav-debug';
+      box.setAttribute('aria-hidden', 'true');
+      box.style.cssText =
+        'position:fixed;top:calc(env(safe-area-inset-top,0px) + 2px);left:4px;right:4px;' +
+        'z-index:3000;pointer-events:none;background:rgba(0,0,0,.78);color:#8CFFB0;' +
+        'border:1px solid rgba(140,255,176,.35);border-radius:8px;' +
+        'font:600 10px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;' +
+        'padding:3px 6px;white-space:pre-wrap;word-break:break-all;letter-spacing:.02em';
+      document.body.appendChild(box);
+      render();
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', mount, { once: true });
+    } else {
+      mount();
+    }
+
+    // Mise à jour à chaque scroll / resize de fenêtre / resize de viewport visuel
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', schedule);
+      window.visualViewport.addEventListener('scroll', schedule);
+    }
+
+    // Mise à jour à chaque goTo : on enveloppe Router.goTo sans le modifier
+    try {
+      const orig = Router.goTo;
+      if (typeof orig === 'function') {
+        Router.goTo = function (view) {
+          const out = orig.apply(this, arguments);
+          schedule();
+          [60, 250, 700, 1500].forEach((ms) => setTimeout(schedule, ms));
+          return out;
+        };
+      }
+    } catch (_) {}
+
+    // Mise à jour quand le contenu injecté après fetch change la hauteur du doc
+    try {
+      const mo = new MutationObserver((muts) => {
+        if (box && muts.some((m) => m.target === box || box.contains(m.target))) return;
+        schedule();
+      });
+      mo.observe(document.documentElement, {
+        subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'],
+      });
+    } catch (_) {}
+
+    // Filet de sécurité : rafraîchit au moins 1× par seconde
+    setInterval(render, 1000);
+  } catch (_) {}
+})();
