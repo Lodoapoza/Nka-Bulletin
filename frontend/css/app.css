@@ -173,7 +173,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-#app { max-width: 480px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; padding: 0 0 calc(104px + env(safe-area-inset-bottom, 0px)); position: relative; }
+/* 100svh et non 100dvh : `dvh` suit la hauteur du viewport dynamique, qui varie pendant
+   l'animation de la barre d'adresse sur iOS Safari et Android Chrome. Chaque variation de
+   hauteur du document est une occasion pour le navigateur de recalculer l'ancre des
+   éléments `position: fixed`, donc des sauts visibles de la barre basse.
+   `svh` (small viewport height) est une valeur constante qui ne suit pas cette animation :
+   on réduit le reflux, sans que ce soit à lui seul une correction du décalage.
+   Sans impact visuel : #app n'a ni fond, ni bordure, ni ombre. */
+#app { max-width: 480px; margin: 0 auto; min-height: 100svh; display: flex; flex-direction: column; padding: 0 0 calc(104px + env(safe-area-inset-bottom, 0px)); position: relative; }
 
 /* ===== Fond de scène : blobs ambiants dérivés de l'accent (spec §4) ===== */
 .bg-scene { position: fixed; inset: 0 auto 0 50%; transform: translateX(-50%); width: 100%; max-width: 480px; overflow: hidden; pointer-events: none; z-index: 0; }

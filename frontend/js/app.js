@@ -74,6 +74,12 @@ const Router = (() => {
     const titleEl = document.getElementById('topbar-title');
     if (titleEl) titleEl.textContent = TITLES[viewName];
 
+    // Remise à zéro du scroll avant d'afficher la nouvelle vue.
+    // Sans ça, la nouvelle vue s'ouvrait à la position de scroll de la précédente et le
+    // navigateur réajustait la hauteur du document au changement de vue : saut visible.
+    // Aucune vue ne conserve son propre scroll : le reset est toujours le bon comportement.
+    window.scrollTo(0, 0);
+
     if (viewName === 'dashboard') Dashboard.refresh();
     if (viewName === 'bulletins') Bulletins.refresh();
     if (viewName === 'analyse') Analyse.refresh();
