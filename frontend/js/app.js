@@ -567,6 +567,7 @@ function showOfflineCacheBanner(e) {
   close.setAttribute('aria-label', 'Fermer');
   close.textContent = '×';
   close.style.cssText = [
+    'font-family: var(--font-body)',
     'background: transparent',
     'border: none',
     'color: inherit',
