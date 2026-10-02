@@ -249,6 +249,20 @@ a { color: inherit; }
 .icon-btn:hover { background: var(--md-surface-container-high); }
 .icon-btn:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
 
+/* Barre supérieure étroite : en dessous de 390px, la somme (logo 140 + titre +
+   badge « Hors connexion » + bouton thème 44px) peut dépasser la largeur du
+   document → scrollWidth > clientWidth → la barre basse se décale. Même
+   mécanique que #analyse-table : on absorbe l'excédent dans l'élément flexible
+   (le titre, seul à pouvoir se tronquer), JAMAIS dans le logo ni dans les
+   utilitaires (badge de connexion, bouton thème) qui restent intacts.
+   La requête s'arrête à 389px : au-delà, le contenu tient toujours (pire cas
+   mesuré hors-ligne = 377,7px) et aucune règle existante n'est touchée. */
+@media (max-width: 389px) {
+  .topbar .brand { min-width: 0; }
+  .topbar-title { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .brand-logo { flex-shrink: 0; }
+}
+
 /* ===== Views ===== */
 .view { padding: 0 20px 20px; }
 .view.hidden { display: none; }
