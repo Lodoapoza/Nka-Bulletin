@@ -174,6 +174,21 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Les contrôles de formulaire n'héritent pas de la typographie du document :
+   par défaut le navigateur impose sa police système (SF Pro / Roboto /
+   Segoe UI) et sa taille ≈ 13,3px — c'est la source des « typos intruses »
+   (barre du bas, recherche, champs, boutons).
+   Reprise d'héritage globale : ces éléments reprennent toute la chaîne de
+   composition de leur parent (famille Inter ici).
+   Vérification : chaque contrôle porteur de texte déclare sa propre
+   font-size / font-weight dans une règle par classe (.btn, .nav-item,
+   .field input, .dropdown-trigger, .pin-key…) dont la spécificité est
+   supérieure à ce sélecteur d'élément → taille, graisse et interlignage
+   existants sont inchangés. Les seuls contrôles sans font-size propre
+   (.icon-btn, .accent-swatch, cases à cocher) n'affichent que des SVG ou
+   sont masqués → aucun impact visuel. */
+button, input, select, textarea { font: inherit; }
+
 /* 100svh et non 100dvh : `dvh` suit la hauteur du viewport dynamique, qui varie pendant
    l'animation de la barre d'adresse sur iOS Safari et Android Chrome. Chaque variation de
    hauteur du document est une occasion pour le navigateur de recalculer l'ancre des
@@ -239,7 +254,7 @@ a { color: inherit; }
 /* ===== Top bar ===== */
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: calc(20px + env(safe-area-inset-top, 0px)) 20px 8px; position: sticky; top: 0; z-index: 50; background: var(--glass-surface-strong); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); border-bottom: 1px solid var(--glass-border); }
 .topbar .brand { display: flex; align-items: center; gap: 10px; }
-.topbar-title { font-family: var(--font-display); font-weight: 700; font-size: 1.02rem; letter-spacing: -0.01em; }
+.topbar-title { font-family: var(--font-display); font-weight: 700; font-size: 1rem; letter-spacing: -0.01em; }
 .topbar-actions { display: flex; align-items: center; gap: 6px; }
 .brand-mark { width: 36px; height: 36px; border-radius: 11px; background: linear-gradient(135deg, var(--md-primary), var(--md-primary-deep)); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-soft); }
 [data-theme="dark"] .brand-mark { background: linear-gradient(135deg, var(--md-primary), var(--md-primary-deep)); }
@@ -330,6 +345,13 @@ a { color: inherit; }
 
 .stat-block { display: flex; flex-direction: column; gap: 2px; }
 .stat-value { font-family: var(--font-display); font-size: 2rem; font-weight: 800; color: var(--md-on-primary-container); }
+/* Conflit de cascade : .mono et .stat-value ont la même spécificité (0,1,0)
+   et .stat-value est postérieur → il gagnait sur font-family : les tuiles de
+   la vue Analyse sortaient en Plus Jakarta Sans alors que les cartes montants
+   du tableau de bord sortaient en Roboto Mono. Sélecteur combiné (0,2,0) :
+   .stat-value.mono est désormais déterministe quel que soit l'ordre des
+   règles, et .stat-value seul garde sa police display. font-size inchangée. */
+.stat-value.mono { font-family: var(--font-mono); }
 .stat-label { font-size: 0.8rem; color: var(--md-on-surface-variant); }
 
 /* ===== Carte Salaire net : dernier net + cumul sur une ligne ===== */
@@ -338,8 +360,8 @@ a { color: inherit; }
 .amounts-right { text-align: right; }
 .amounts-divider { width: 1px; align-self: stretch; background: var(--md-outline); opacity: 0.7; flex-shrink: 0; }
 .amounts-last, .amounts-cumul { font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-top: 2px; white-space: nowrap; }
-.amounts-last { font-size: 1.1rem; font-weight: 800; }
-.amounts-cumul { font-size: 0.95rem; opacity: 0.85; }
+.amounts-last { font-size: 1.15rem; font-weight: 800; }
+.amounts-cumul { font-size: 0.9rem; opacity: 0.85; }
 @media (max-width: 360px) {
   .amounts-last { font-size: 0.95rem; }
   .amounts-cumul { font-size: 0.85rem; }
@@ -351,7 +373,7 @@ a { color: inherit; }
 
 /* ===== Buttons ===== */
 .btn {
-  font-family: var(--font-body); font-weight: 600; font-size: 0.92rem;
+  font-family: var(--font-body); font-weight: 600; font-size: 0.9rem;
   border: none; border-radius: 100px; padding: 13px 22px; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-height: 44px; /* touch target ≥ 44px (a11y) */
@@ -369,7 +391,7 @@ a { color: inherit; }
 .btn-danger { background: var(--md-error); color: var(--md-on-error, #fff); border: 1px solid var(--md-error); }
 .btn-danger:hover { filter: brightness(0.94); box-shadow: var(--shadow-soft); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-sm { padding: 9px 14px; font-size: 0.85rem; }
+.btn-sm { padding: 9px 14px; font-size: 0.8rem; }
 
 /* ===== Bouton « occupé » (synchro en cours) =====
    Le bouton reste visiblement actif (pas estompé) pendant le sondage ;
@@ -388,12 +410,12 @@ a { color: inherit; }
 
 /* ===== Inputs ===== */
 .field { margin-bottom: 14px; }
-.field label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 6px; color: var(--md-on-surface-variant); }
+.field label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 6px; color: var(--md-on-surface-variant); }
 /* Tint glass, PAS de blur (spec §2 : flou invisible = coût pur) + focus ring accent */
 .field input, .field select {
   width: 100%; padding: 13px 14px; border-radius: var(--radius-sm);
   border: 1px solid var(--glass-border-subtle); background: var(--glass-surface-soft);
-  color: var(--md-on-surface); font-family: var(--font-body); font-size: 0.95rem;
+  color: var(--md-on-surface); font-family: var(--font-body); font-size: 0.9rem;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .field input:focus, .field select:focus {
@@ -401,7 +423,7 @@ a { color: inherit; }
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-primary) 20%, transparent);
   outline: none;
 }
-.hint { font-size: 0.78rem; color: var(--md-on-surface-variant); margin-top: 6px; }
+.hint { font-size: 0.8rem; color: var(--md-on-surface-variant); margin-top: 6px; }
 
 /* ===== Filtre Bulletins (selects) ===== */
 .filter-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -498,7 +520,7 @@ a { color: inherit; }
 .chip-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; scrollbar-width: none; }
 .chip-row::-webkit-scrollbar { display: none; }
 .chip {
-  flex: 0 0 auto; padding: 8px 16px; border-radius: 100px; font-size: 0.82rem; font-weight: 600;
+  flex: 0 0 auto; padding: 8px 16px; border-radius: 100px; font-size: 0.8rem; font-weight: 600;
   background: var(--md-surface-container-high); color: var(--md-on-surface-variant); border: none; cursor: pointer;
   min-height: 44px; display: inline-flex; align-items: center; /* touch target ≥ 44px */
 }
@@ -519,8 +541,8 @@ a { color: inherit; }
   color: var(--md-on-primary-container); display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 .bulletin-meta { flex: 1; min-width: 0; }
-.bulletin-meta .title { font-weight: 600; font-size: 0.92rem; }
-.bulletin-meta .sub { font-size: 0.78rem; color: var(--md-on-surface-variant); }
+.bulletin-meta .title { font-weight: 600; font-size: 0.9rem; }
+.bulletin-meta .sub { font-size: 0.8rem; color: var(--md-on-surface-variant); }
 .bulletin-actions { display: flex; gap: 6px; }
 
 /* ===== Search bar ===== */
@@ -533,7 +555,7 @@ a { color: inherit; }
   border-radius: 100px; padding: 10px 16px; margin-bottom: 14px; box-shadow: var(--shadow-soft);
 }
 .search-bar svg { color: var(--md-primary); }
-.search-bar input { flex: 1; border: none; background: transparent; font-size: 0.95rem; color: var(--md-on-surface); }
+.search-bar input { flex: 1; border: none; background: transparent; font-size: 0.9rem; color: var(--md-on-surface); }
 .search-bar input:focus { outline: none; }
 /* Focus visible : anneau autour de la pilule (l'input lui-même est sans bordure) */
 .search-bar:focus-within { outline: 2px solid var(--md-primary); outline-offset: 2px; }
@@ -580,13 +602,13 @@ a { color: inherit; }
 }
 
 .app-version {
-  position: fixed; bottom: 92px; right: 12px; font-size: 0.6rem;
+  position: fixed; bottom: 92px; right: 12px; font-size: 0.68rem;
   color: var(--md-outline); z-index: 1; pointer-events: none;
 }
 
 /* ===== Connection badge ===== */
 .conn-badge {
-  font-size: 0.62rem; font-weight: 700; line-height: 1;
+  font-size: 0.68rem; font-weight: 700; line-height: 1;
   background: var(--md-error); color: #fff; padding: 4px 8px; border-radius: 100px;
   opacity: 0; transform: scale(0.85); transition: opacity 0.3s ease, transform 0.3s ease;
   pointer-events: none; white-space: nowrap;
@@ -621,7 +643,7 @@ a { color: inherit; }
   font-family: var(--font-display); font-size: 1.4rem; font-weight: 700; color: var(--md-on-surface); cursor: pointer;
 }
 .pin-key:active { background: var(--md-surface-container-high); }
-.pin-error { color: var(--md-error); font-size: 0.85rem; height: 18px; margin-top: 4px; }
+.pin-error { color: var(--md-error); font-size: 0.8rem; height: 18px; margin-top: 4px; }
 
 /* ===== Empty state ===== */
 .empty-state { text-align: center; padding: 40px 16px; color: var(--md-on-surface-variant); }
@@ -638,7 +660,7 @@ a { color: inherit; }
 #toast {
   position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%) translateY(20px);
   background: var(--md-on-surface); color: var(--md-surface); padding: 14px 24px; border-radius: 100px;
-  font-size: 0.85rem; font-weight: 600; opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 200;
+  font-size: 0.8rem; font-weight: 600; opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 200;
   max-width: 90%; text-align: center; box-shadow: var(--shadow-elevated);
   line-height: 1.4;
 }
@@ -649,10 +671,10 @@ a { color: inherit; }
 
 #add-account-form { transition: opacity 0.2s ease, max-height 0.3s ease; overflow: hidden; }
 #add-account-form.hidden { display: none; }
-#account-form-error { color: var(--md-error); font-size: 0.82rem; margin: 4px 0 10px; }
+#account-form-error { color: var(--md-error); font-size: 0.8rem; margin: 4px 0 10px; }
 
 .provider-card {
-  padding: 10px; border-radius: var(--radius-sm); border: none; font-weight: 700; font-size: 0.85rem;
+  padding: 10px; border-radius: var(--radius-sm); border: none; font-weight: 700; font-size: 0.8rem;
   cursor: pointer; text-align: center; transition: transform 0.12s, box-shadow 0.12s, opacity 0.15s;
   font-family: var(--font-body);
 }
@@ -662,7 +684,7 @@ a { color: inherit; }
 
 .provider-mode {
   padding: 10px; border-radius: 100px; border: 1.5px solid var(--md-outline); background: transparent;
-  font-weight: 600; font-size: 0.82rem; cursor: pointer; text-align: center; color: var(--md-on-surface-variant);
+  font-weight: 600; font-size: 0.8rem; cursor: pointer; text-align: center; color: var(--md-on-surface-variant);
   font-family: var(--font-body); transition: all 0.15s;
 }
 .provider-mode.active { background: var(--md-primary); color: var(--md-surface); border-color: var(--md-primary); }
@@ -746,13 +768,13 @@ a { color: inherit; }
   text-align: center;
   box-shadow: var(--glass-shadow-lg);
 }
-.reset-icon { width: 34px; height: 34px; display: grid; place-items: center; margin: 0 auto 10px; border-radius: 50%; background: color-mix(in srgb, var(--md-error) 14%, transparent); color: var(--md-error); font-weight: 800; font-size: 1.1rem; }
+.reset-icon { width: 34px; height: 34px; display: grid; place-items: center; margin: 0 auto 10px; border-radius: 50%; background: color-mix(in srgb, var(--md-error) 14%, transparent); color: var(--md-error); font-weight: 800; font-size: 1.15rem; }
 .reset-modal h3 { margin: 0 0 8px; color: var(--md-on-surface); }
-.reset-modal p { font-size: .9rem; line-height: 1.5; opacity: .85; margin: 0 0 16px; color: var(--md-on-surface-variant); }
+.reset-modal p { font-size: 0.9rem; line-height: 1.5; opacity: .85; margin: 0 0 16px; color: var(--md-on-surface-variant); }
 .reset-actions { display: grid; gap: 10px; }
 .reset-actions .btn { width: 100%; border-radius: var(--radius-sm); text-align: left; justify-content: flex-start; line-height: 1.25; }
 .reset-actions #reset-cancel-btn { justify-content: center; text-align: center; }
-.reset-actions small { display: block; font-size: .72rem; font-weight: 400; opacity: .78; }
+.reset-actions small { display: block; font-size: 0.72rem; font-weight: 400; opacity: .78; }
 .reset-actions .btn-danger { background: var(--md-error); color: var(--md-on-error, #fff); border: none; }
 .reset-actions .btn-danger:disabled { opacity: .6; }
 
@@ -798,8 +820,8 @@ a { color: inherit; }
 }
 .license-row:last-child { border-bottom: none; }
 .license-main { min-width: 0; }
-.license-matricule { font-weight: 700; font-size: 0.95rem; }
-.license-sub { font-size: 0.76rem; color: var(--md-on-surface-variant); margin-top: 2px; }
+.license-matricule { font-weight: 700; font-size: 0.9rem; }
+.license-sub { font-size: 0.72rem; color: var(--md-on-surface-variant); margin-top: 2px; }
 .license-side { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .license-state {
   display: inline-flex; align-items: center; gap: 6px;
@@ -816,8 +838,8 @@ a { color: inherit; }
 /* ===== Analyse (évolution des salaires) ===== */
 .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
 .stats-grid .card { margin-bottom: 0; } /* grille : les .card n'ajoutent pas leur marge basse */
-.stat-tile .stat-value { font-size: 1.05rem; margin: 2px 0; }
-.stat-tile .hint { font-size: 0.74rem; line-height: 1.35; }
+.stat-tile .stat-value { font-size: 1rem; margin: 2px 0; }
+.stat-tile .hint { font-size: 0.72rem; line-height: 1.35; }
 
 /* Panneau du graphique : fond glass tinté (inset dans la carte) + glow accent subtil
    sur la courbe et les points primaires (le point min/erreur est exclu via l'attribut) */
@@ -853,7 +875,7 @@ a { color: inherit; }
 
 /* Tableau des variations : panneau tint solide (PAS de blur — spec §2, listes haute fréquence) */
 .analyse-table {
-  width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.86rem;
+  width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem;
   background: var(--glass-surface-solid);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
@@ -898,5 +920,5 @@ a { color: inherit; }
 .reset-overlay .reset-actions{display:flex!important;flex-direction:column!important;align-items:stretch;width:100%;gap:10px}
 .reset-overlay .reset-actions .btn{display:flex;flex:0 0 auto;flex-direction:column;align-items:center;justify-content:center;box-sizing:border-box;width:100%;min-width:0;min-height:56px;white-space:normal;overflow-wrap:anywhere;text-align:center;line-height:1.2;padding:12px 16px}
 .reset-overlay .reset-actions .btn span{display:block;max-width:100%;font-weight:700}
-.reset-overlay .reset-actions .btn small{display:block;max-width:100%;margin-top:4px;font-size:.76rem;line-height:1.25;white-space:normal}
+.reset-overlay .reset-actions .btn small{display:block;max-width:100%;margin-top:4px;font-size:0.72rem;line-height:1.25;white-space:normal}
 @media (max-width:380px){.reset-overlay{padding:12px}.reset-overlay .reset-modal{padding:20px 16px}.reset-overlay .reset-actions .btn{min-height:52px;padding:10px 12px}}
