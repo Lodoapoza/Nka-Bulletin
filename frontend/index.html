@@ -43,6 +43,11 @@
     </div>
   </div>
 
+  <!-- Rendu initial de l'écran PIN : doit tourner pendant le parsing, sinon l'utilisateur
+       voit l'état par défaut « création » jusqu'à DOMContentLoaded. Inliné par le build,
+       qui calcule le hash CSP correspondant — ne pas écrire de balise script en dur ici. -->
+  <script src="js/boot.js"></script>
+
   <!-- ===== Barre supérieure ===== -->
   <div class="topbar">
     <div class="brand">
