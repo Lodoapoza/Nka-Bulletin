@@ -18,7 +18,7 @@ const Confirm = (() => {
         <div class="reset-modal" role="alertdialog" aria-modal="true" aria-label="${title.replace(/"/g, '&quot;')}">
           <div class="reset-icon">
             ${danger
-              ? '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 9v4m0 4h.01M10.3 3.9L2.4 17a2 2 0 001.7 3h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="#B3261E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+              ? '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 9v4m0 4h.01M10.3 3.9L2.4 17a2 2 0 001.7 3h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
               : '<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v5m0-8v.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'}
           </div>
           <h3>${title}</h3>
