@@ -111,8 +111,18 @@ async function main() {
   const html = await mustRead('index.html');
 
   // 5a. Remplacer le <link rel="stylesheet"> par <style> inline
+  // Le ?v= est OPTIONNEL : index.html référence `css/app.css` sans query string.
+  // Exiger le ? rendait ce remplacement silencieusement inopérant — la CSS
+  // restait en fichier externe avec un max-age d'un an, si bien qu'un correctif
+  // CSS déployé n'atteignait jamais le navigateur du client.
+  const cssLinkPattern = /<link\s+rel="stylesheet"\s+href="css\/app\.css(?:\?[^"]*)?"\s*\/?>/i;
+  if (!cssLinkPattern.test(html)) {
+    throw new Error(
+      "Inlining CSS impossible : aucun <link rel=\"stylesheet\" href=\"css/app.css…\"> trouvé dans index.html"
+    );
+  }
   let htmlInlined = html.replace(
-    /<link\s+rel="stylesheet"\s+href="css\/app\.css\?[^"]*"\s*\/?>/i,
+    cssLinkPattern,
     `<style>${minifiedContents['css/app.css']}</style>`
   );
 
