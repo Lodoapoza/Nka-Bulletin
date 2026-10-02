@@ -546,6 +546,24 @@ a { color: inherit; }
 .nav-item.active svg { color: var(--md-primary); }
 .nav-item svg { width: 22px; height: 22px; }
 
+/* Verrouillage PIN : la barre est masquée ET non interactive (affichage + clics)
+   tant que l'écran PIN est actif. Sélecteur frère général pur CSS — aucun JS,
+   aucun timing : le PIN est visible par défaut dans le HTML, la règle s'applique
+   donc dès le premier rendu → zéro flash de la barre au démarrage à froid.
+   Disparition instantanée au verrouillage (aucun fantôme de la barre peint
+   au-dessus du cadenas : même z-index, la nav vient après dans le DOM) ;
+   retour en fondu court au déverrouillage. prefers-reduced-motion neutralise
+   déjà toute transition sur .bottom-nav (règle globale) → retour instantané. */
+#pin-screen:not(.hidden) ~ .bottom-nav {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: none;
+}
+#pin-screen.hidden ~ .bottom-nav {
+  transition: opacity 0.16s var(--ease-out);
+}
+
 .app-version {
   position: fixed; bottom: 92px; right: 12px; font-size: 0.6rem;
   color: var(--md-outline); z-index: 1; pointer-events: none;
