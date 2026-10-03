@@ -1,10 +1,10 @@
-const CACHE_NAME = 'nka-bulletin-505e311356cc';
+const CACHE_NAME = 'nka-bulletin-1a2af039cace';
 const APP_SHELL = [
   '/index.html?v=v39',
   '/manifest.json?v=v26',
   '/css/app.css?v=794d9a91',
   '/js/analyse.js?v=3a6534ff',
-  '/js/app.js?v=71e7811d',
+  '/js/app.js?v=0ca4c334',
   '/js/client.js?v=735512b4',
   '/js/dropdown.js?v=53173405',
   '/js/pin.js?v=5ae6b246',
