@@ -95,6 +95,66 @@ const Router = (() => {
   return { bind, goTo };
 })();
 
+// ===== Rechargement de version deferé =====
+// Une mise à jour du service worker ne doit jamais couper l'utilisateur en
+// pleine saisie de son code PIN. On mémorise la demande et on ne recharge
+// qu'une fois #pin-screen masqué, avec un court délai de grâce pour laisser
+// le tableau de bord s'afficher.
+const VersionReload = (() => {
+  const GRACE_MS = 3000;
+  const POLL_MS = 500;
+  const SCREEN_ID = 'pin-screen';
+
+  let pending = false;
+  let scheduled = false;
+  let pollTimer = null;
+  let graceTimer = null;
+
+  function pinScreenGone() {
+    const el = document.getElementById(SCREEN_ID);
+    // Fail-open : si l'écran n'existe plus (HTML inattendu), on ne bloque
+    // jamais indéfiniment une mise à jour.
+    return !el || el.classList.contains('hidden');
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  function apply() {
+    if (scheduled || !pending) return;
+    if (!pinScreenGone()) return; // l'intervalle réessaiera
+    scheduled = true;
+    stopPolling();
+    // Le toast n'est émis qu'ici : jamais pendant la saisie du code PIN.
+    Toast.show('Mise à jour en cours d\'application...', GRACE_MS);
+    graceTimer = setTimeout(() => {
+      // L'utilisateur peut être revenu sur l'écran PIN pendant la grâce
+      // (« Changer le code PIN » depuis Réglages). Dans ce cas on ne recharge
+      // pas : on repart en attente plutôt que de couper la saisie.
+      if (pinScreenGone()) {
+        window.location.reload();
+        return;
+      }
+      scheduled = false;
+      pollTimer = setInterval(apply, POLL_MS);
+    }, GRACE_MS);
+  }
+
+  function request() {
+    if (pending) return; // demande déjà en attente : une seule programmation
+    pending = true;
+    // L'intervalle n'existe que tant qu'une mise à jour attend.
+    pollTimer = setInterval(apply, POLL_MS);
+    apply();
+  }
+
+  return { request };
+})();
+
 async function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     try {
@@ -124,19 +184,19 @@ async function registerServiceWorker() {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
             // Nouveau SW installé et en attente (si skipWaiting pas immédiat)
             console.log('[app] Nouveau SW installé, en attente d\'activation');
-            Toast.show('Nouvelle version disponible — rechargement...');
-            setTimeout(() => window.location.reload(), 1500);
+            VersionReload.request();
           }
         });
       });
 
-      // 2. Écouter le changement de controller (nouveau SW actif) -> recharger
+      // 2. Écouter le changement de controller (nouveau SW actif) -> demander
+      // le rechargement, qui sera différé hors écran PIN par VersionReload.
       let controllerChangeHandled = false;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (controllerChangeHandled) return;
         controllerChangeHandled = true;
-        console.log('[app] Controller changé, rechargement pour nouvelle version');
-        window.location.reload();
+        console.log('[app] Controller changé, mise à jour demandée');
+        VersionReload.request();
       });
 
       // 3. Écouter les messages du SW (fallback iOS + background sync + notification mise à jour)
@@ -156,10 +216,10 @@ async function registerServiceWorker() {
             }
           }).catch(e => console.warn('[app] Background sync check failed:', e.message || e));
         } else if (event.data.type === 'nka-sw-updated') {
-          // Nouveau SW activé (via activate event) -> recharger
-          console.log('[app] SW mis à jour reçu, rechargement');
-          Toast.show('Mise à jour appliquée — rechargement...');
-          setTimeout(() => window.location.reload(), 1000);
+          // Nouveau SW activé (via activate event) -> demander le rechargement,
+          // différé hors écran PIN par VersionReload.
+          console.log('[app] SW mis à jour reçu, demande de rechargement');
+          VersionReload.request();
         }
       });
     } catch (e) { console.warn('Service worker non enregistré :', e); }
