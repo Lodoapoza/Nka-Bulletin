@@ -450,13 +450,13 @@ try {
   // il porte un mois explicite qui contredit la ligne stockée (décalage
   // « mois de paiement » vs « période » observé sur les PDFs réels).
   // GRATIFICATION dans le nom → type gratification, mois 0.
-  const { parsePeriodFromPayslip } = require('./period');
+  const { parsePeriodFromPayslip, parseYearFromText } = require('./period');
   const fixStmt = db.prepare('UPDATE bulletins SET year = ?, month = ?, type = ? WHERE id = ?');
   let repaired = 0;
   for (const r of db.prepare('SELECT id, filename, year, month, type FROM bulletins').all()) {
     if (/gratification/i.test(r.filename)) {
       const fp = parsePeriodFromPayslip(r.filename);
-      const gy = fp && fp.year ? fp.year : r.year;
+      const gy = fp && fp.year ? fp.year : (parseYearFromText(r.filename) || r.year);
       if (r.type !== 'gratification' || r.month !== 0 || r.year !== gy) {
         fixStmt.run(gy, 0, 'gratification', r.id);
         repaired++;

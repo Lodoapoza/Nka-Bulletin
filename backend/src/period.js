@@ -157,4 +157,23 @@ function parsePeriodFromText(text) {
   return null;
 }
 
-module.exports = { parsePeriodFromPayslip, parsePeriodFromText, monthFromName };
+/**
+ * Année seule extraite du nom de fichier, pour les fichiers sans mois
+ * déchiffrable (ex. GRATIFICATION_2025_F2558.Pdf). Dernier recours avant la
+ * date de réception.
+ * @param {string} text
+ * @returns {number|null}
+ */
+function parseYearFromText(text) {
+  const s = norm(text);
+  if (!s) return null;
+  const years = s.match(/(?:1[89]\d{2}|20\d{2})/g);
+  if (!years) return null;
+  for (const y of years) {
+    const year = clampYear(parseInt(y, 10));
+    if (year) return year;
+  }
+  return null;
+}
+
+module.exports = { parsePeriodFromPayslip, parsePeriodFromText, monthFromName, parseYearFromText };

@@ -3,7 +3,7 @@ const { decrypt } = require('./crypto');
 const { fetchPayslipsSince: fetchPayslipsImap, saveAttachment } = require('./imapService');
 const { fetchPayslipsSince: fetchPayslipsGmail } = require('./gmailService');
 const { analyzePdf, matchesOwner } = require('./pdfService');
-const { parsePeriodFromPayslip, parsePeriodFromText } = require('./period');
+const { parsePeriodFromPayslip, parsePeriodFromText, parseYearFromText } = require('./period');
 const { sendNotification, sendToUser } = require('./routes/push');
 
 const STORAGE_DIR = process.env.STORAGE_DIR || './storage';
@@ -103,7 +103,7 @@ async function importFound(device, account, items) {
     const year = useFilePeriod && filePeriod.year
       ? filePeriod.year
       : (contentPeriod && contentPeriod.year ? contentPeriod.year
-        : (filePeriod ? filePeriod.year : item.receivedAt.getFullYear()));
+        : (filePeriod ? filePeriod.year : parseYearFromText(item.filename) || item.receivedAt.getFullYear()));
     const month = isGratification
       ? 0
       : (useFilePeriod ? filePeriod.month
