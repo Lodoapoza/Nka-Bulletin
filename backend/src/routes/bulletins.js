@@ -123,10 +123,14 @@ router.post('/export/merge', async (req, res) => {
     ).all(...scope.params, Number(year));
   } else if (lastNMonths) {
     const n = Number(lastNMonths);
-    const now = new Date();
-    // Mois 1-indexé : n=3 en septembre inclut septembre, août et juillet.
-    // Le mois courant est inclus, donc le seuil recule de n - 1 mois.
-    const threshold = now.getFullYear() * 12 + now.getMonth() + 1 - (n - 1);
+    // Ancre = mois le plus récent portant au moins un bulletin (même périmètre
+    // d'identité que la requête principale), puis on remonte n mois consécutifs.
+    // n=3 en octobre avec un dernier bulletin en septembre → juillet-août-septembre.
+    const anchor = db.prepare(
+      `SELECT MAX(b.year * 12 + b.month) AS m FROM bulletins b WHERE ${where}`
+    ).get(...scope.params)?.m;
+    if (anchor == null) return res.status(404).json({ error: 'Aucun bulletin trouvé pour cette sélection' });
+    const threshold = anchor - (n - 1);
     rows = db.prepare(
       `SELECT b.* FROM bulletins b WHERE ${where} AND (b.year * 12 + b.month) >= ? ORDER BY b.year, b.month`
     ).all(...scope.params, threshold);
