@@ -14,6 +14,7 @@ const VERSION = APP_VERSION || '2.0.0';
 const Toast = (() => {
   let queue = [];
   let timer;
+  let chainTimer;
   let showing = false;
 
   function show(message, duration = 3200) {
@@ -27,10 +28,18 @@ const Toast = (() => {
     timer = setTimeout(() => {
       el.classList.remove('show');
       showing = false;
-      if (queue.length) { const n = queue.shift(); setTimeout(() => show(n.message, n.duration), 100); }
+      if (queue.length) { const n = queue.shift(); chainTimer = setTimeout(() => show(n.message, n.duration), 100); }
     }, duration);
   }
-  return { show };
+  function hide() {
+    clearTimeout(timer);
+    clearTimeout(chainTimer);
+    const el = document.getElementById('toast');
+    if (el) el.classList.remove('show');
+    showing = false;
+    queue = [];
+  }
+  return { show, hide };
 })();
 
 const ERR = (() => {
@@ -140,6 +149,7 @@ const VersionReload = (() => {
         return;
       }
       scheduled = false;
+      Toast.hide();
       pollTimer = setInterval(apply, POLL_MS);
     }, GRACE_MS);
   }
@@ -434,105 +444,6 @@ function initPullToRefresh() {
     hideIndicator();
     Toast.show('Actualisation…');
     // Déclencher le refresh de la vue active
-    const activeView = document.querySelector('.view:not(.hidden)');
-    if (activeView) {
-      const viewId = activeView.id.replace('view-', '');
-      const refreshMap = {
-        dashboard: () => Dashboard.refresh(),
-        bulletins: () => Bulletins.refresh(),
-        analyse: () => Analyse.refresh(),
-        settings: () => Accounts.refresh(),
-      };
-      if (refreshMap[viewId]) refreshMap[viewId]();
-    }
-    setTimeout(() => { triggered = false; }, 1000);
-  }
-
-  window.addEventListener('touchstart', (e) => {
-    if (window.scrollY === 0 && !pulling) {
-      startY = e.touches[0].clientY;
-      pulling = true;
-    }
-  }, { passive: true });
-
-  window.addEventListener('touchmove', (e) => {
-    if (!pulling) return;
-    currentY = e.touches[0].clientY;
-    const delta = currentY - startY;
-    if (delta > 0) {
-      e.preventDefault();
-      showIndicator(delta * 0.5);
-      if (delta > 60) {
-        indicator.style.borderColor = 'var(--md-primary)';
-        indicator.style.borderTopColor = 'var(--md-primary)';
-      }
-    }
-  }, { passive: false });
-
-  window.addEventListener('touchend', () => {
-    if (!pulling) return;
-    pulling = false;
-    const delta = currentY - startY;
-    if (delta > 60) {
-      triggerRefresh();
-    } else {
-      hideIndicator();
-    }
-  }, { passive: true });
-}
-
-/* ===== Pull-to-refresh PWA =====
-   Sur mobile : tirer vers le bas pour rafraîchir la vue courante.
-   Ne s'active que si on est au sommet de la page (scrollY === 0). */
-function initPullToRefresh() {
-  let startY = 0;
-  let currentY = 0;
-  let pulling = false;
-  let triggered = false;
-
-  const indicator = document.createElement('div');
-  indicator.id = 'ptr-indicator';
-  indicator.style.cssText = [
-    'position: fixed',
-    'top: 0',
-    'left: 50%',
-    'transform: translateX(-50%) translateY(-120%)',
-    'width: 40px',
-    'height: 40px',
-    'border-radius: 50%',
-    'border: 2px solid var(--md-primary)',
-    'border-top-color: transparent',
-    'opacity: 0',
-    'pointer-events: none',
-    'z-index: 1000',
-    'transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s',
-    'animation: ptr-spin 0.8s linear infinite',
-  ].join(';');
-
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes ptr-spin { to { transform: translateX(-50%) translateY(-120%) rotate(360deg); } }
-  `;
-  document.head.appendChild(style);
-  document.body.appendChild(indicator);
-
-  function showIndicator(progress) {
-    const maxPull = 80;
-    const y = Math.min(progress, maxPull);
-    indicator.style.opacity = y / maxPull;
-    indicator.style.transform = `translateX(-50%) translateY(calc(-120% + ${y}px))`;
-  }
-
-  function hideIndicator() {
-    indicator.style.opacity = '0';
-    indicator.style.transform = 'translateX(-50%) translateY(-120%)';
-  }
-
-  function triggerRefresh() {
-    if (triggered) return;
-    triggered = true;
-    hideIndicator();
-    Toast.show('Actualisation…');
     const activeView = document.querySelector('.view:not(.hidden)');
     if (activeView) {
       const viewId = activeView.id.replace('view-', '');
