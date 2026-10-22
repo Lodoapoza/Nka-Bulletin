@@ -1,9 +1,9 @@
-const CACHE_NAME = 'nka-bulletin-fb29672dc550';
+const CACHE_NAME = 'nka-bulletin-b5ffeeed2867';
 const APP_SHELL = [
   '/index.html?v=v39',
   '/manifest.json?v=v26',
-  '/css/app.css?v=dbc54a3e',
-  '/js/analyse.js?v=3a6534ff',
+  '/css/app.css?v=5cc7680c',
+  '/js/analyse.js?v=4ace36f6',
   '/js/app.js?v=296de0e1',
   '/js/client.js?v=735512b4',
   '/js/dropdown.js?v=53173405',
