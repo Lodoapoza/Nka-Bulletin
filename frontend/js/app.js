@@ -170,11 +170,16 @@ const VersionReload = (() => {
   }
 
   function request() {
-    if (pending) return; // demande déjà en attente : une seule programmation
+    // AUCUN rechargement automatique. Le rechargement surprise coupait
+    // l'utilisateur en pleine navigation : la page revenait au tableau de
+    // bord, les requêtes en cours étaient interrompues (badge « hors
+    // connexion »), et le changement de vue paraissait cassé.
+    // La nouvelle version est prise au prochain rechargement naturel de la
+    // page ; on se contente de l'annoncer.
+    if (pending) return;
     pending = true;
-    // L'intervalle n'existe que tant qu'une mise à jour attend.
-    pollTimer = setInterval(apply, POLL_MS);
-    apply();
+    console.log('[app] Mise à jour du service worker disponible — rechargement manuel.');
+    Toast.show('Nouvelle version disponible — rechargez la page', 4000);
   }
 
   return { request };

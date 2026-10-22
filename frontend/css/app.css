@@ -165,7 +165,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+html, body { height: 100%; }
 body {
   margin: 0;
   font-family: var(--font-body);
@@ -196,7 +196,7 @@ button, input, select, textarea { font: inherit; }
    `svh` (small viewport height) est une valeur constante qui ne suit pas cette animation :
    on réduit le reflux, sans que ce soit à lui seul une correction du décalage.
    Sans impact visuel : #app n'a ni fond, ni bordure, ni ombre. */
-#app { max-width: 480px; margin: 0 auto; min-height: 100svh; display: flex; flex-direction: column; padding: 0 0 calc(104px + env(safe-area-inset-bottom, 0px)); position: relative; overscroll-behavior: none; }
+#app { max-width: 480px; margin: 0 auto; min-height: 100svh; display: flex; flex-direction: column; padding: 0 0 calc(104px + env(safe-area-inset-bottom, 0px)); position: relative; }
 
 /* ===== Fond de scène : blobs ambiants dérivés de l'accent (spec §4) ===== */
 .bg-scene { position: fixed; inset: 0 auto 0 50%; transform: translateX(-50%); width: 100%; max-width: 480px; overflow: hidden; pointer-events: none; z-index: 0; }
@@ -278,132 +278,38 @@ a { color: inherit; }
   .brand-logo { flex-shrink: 0; }
 }
 
-/* ==========================================================================
-   VIEWS — Layout natif (Zéro scroll global, zones fixes, scroll interne)
-   ========================================================================== */
-
-.view {
-  padding: 0 20px 20px;
-  flex: 1 1 0;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
+/* ===== Views ===== */
+.view { padding: 0 20px 20px; }
 .view.hidden { display: none; }
 
-/* Settings & About : défilement au niveau PAGE (document), pas vue.
-   Ces vues ont un contenu long et variable — le document défile naturellement. */
-#view-settings,
-#view-about {
-  overflow: visible;
-  /* Pas de padding top/bottom fixe — le document gère le scroll complet */
-  padding-top: 20px;
-  padding-bottom: calc(20px + 76px + env(safe-area-inset-bottom, 0px));
-}
+/* ===== Défilement : document maître =====
+   Le document reste le conteneur de défilement (html/body SANS overflow
+   caché) : le défilement natif du navigateur fonctionne sur toutes les
+   vues, au doigt comme à la molette.
 
-/* -------- 1. DASHBOARD (Accueil) — ZÉRO SCROLL GLOBAL --------
-   Tout tient dans le viewport : topbar + bottom-nav fixes.
-   Contenu = stack-hero + cartes, toutes flex:0 0 auto, pas de défilement.
-   Padding pour compenser topbar (haut) et bottom-nav (bas). */
+   - Accueil : le contenu est plafonné à la hauteur réellement disponible
+     (viewport moins topbar 72px moins le_padding bas 104px), donc la page
+     d'accueil ne défile JAMAIS.
+   - Barre de filtres (Bulletins / Analyse) : SEULE barre fixe, collée
+     sous la topbar. Tout le reste (cartes statistiques, graphique,
+     tableau, liste) défile avec la page. */
 #view-dashboard {
-  gap: 14px;
-  /* Padding haut pour la topbar + padding bas pour la bottom-nav */
-  padding-top: calc(72px + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
-}
-#view-dashboard .stack-hero { flex: 0 0 auto; }
-#view-dashboard > .card,
-#view-dashboard > .export-card { flex: 0 0 auto; overflow: hidden; }
-
-/* -------- 2. BULLETINS — HEADER STICKY TOP, LISTE SCROLL, MERGE-BAR STICKY BOTTOM --------
-   #view-bulletins EST le conteneur de défilement (overflow-y: auto).
-   .bulletin-header et #merge-bar sont des enfants sticky de CE conteneur.
-   #bulletins-list est un enfant flex normal (pas de overflow). */
-#view-bulletins {
+  max-height: calc(100svh - 176px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
-  overscroll-behavior: contain;
-  /* Padding haut pour compenser la topbar (sticky top:0, z-index:50) :
-     padding-top ≈ 72px (20+44+8) + safe-area-inset-top */
-  padding-top: calc(72px + env(safe-area-inset-top, 0px));
 }
 
-/* Header sticky SOUS la topbar */
-#view-bulletins > .bulletin-header {
-  flex: 0 0 auto;
-  position: sticky;
-  top: calc(72px + env(safe-area-inset-top, 0px));
-  z-index: 10;
-  background: var(--bg-base);
-  padding-top: 8px;
-  padding-bottom: 4px;
-  /* Hairline pour séparation visuelle lors du scroll */
-  border-bottom: 1px solid var(--glass-border-subtle);
-  margin: 0 -20px; /* Compense le padding horizontal de .view */
-  padding-left: 20px;
-  padding-right: 20px;
-}
-
-/* Liste des bulletins : enfant flex normal, PAS de overflow */
-#view-bulletins > #bulletins-list {
-  flex: 1 1 0;
-  min-height: 0;
-}
-
-/* Merge-bar sticky en bas de la vue (au-dessus de la bottom-nav) */
-#view-bulletins > #merge-bar {
-  flex: 0 0 auto;
-  position: sticky;
-  bottom: calc(76px + env(safe-area-inset-bottom, 0px)); /* Hauteur bottom-nav + safe area */
-  z-index: 10;
-  margin: 0 -20px; /* Compense le padding horizontal de .view */
-  padding-left: 20px;
-  padding-right: 20px;
-  /* Fond glass pour effet "flottant" au-dessus de la liste */
-  background: var(--glass-surface-strong);
-  backdrop-filter: blur(16px) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(16px) saturate(var(--glass-saturate));
-  box-shadow: var(--glass-shadow-lg);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  border: 1px solid var(--glass-border);
-  border-bottom: none;
-}
-
-/* -------- 3. ANALYSE — FILTRE ANNÉE STICKY TOP, TOUT LE RESTE SCROLLE ENSEMBLE --------
-   #view-analyse EST le conteneur de défilement (overflow-y: auto).
-   .filter-row est un enfant sticky de CE conteneur (sous la topbar).
-   .stats-grid et #analyse-content sont des enfants flex normaux. */
-#view-analyse {
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  /* Padding haut pour compenser la topbar + padding bas pour la bottom-nav */
-  padding-top: calc(72px + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
-}
-
-/* Filtre année : sticky SOUS la topbar */
+#view-bulletins > .filter-row,
 #view-analyse > .filter-row {
-  flex: 0 0 auto;
   position: sticky;
   top: calc(72px + env(safe-area-inset-top, 0px));
   z-index: 10;
-  background: var(--bg-base);
-  padding-top: 8px;
-  padding-bottom: 8px;
-  /* Hairline pour séparation visuelle */
-  border-bottom: 1px solid var(--glass-border-subtle);
-  margin: 0 -20px; /* Compense le padding horizontal de .view */
-  padding-left: 20px;
-  padding-right: 20px;
+  margin-left: -20px;
+  margin-right: -20px;
+  padding: 6px 20px;
+  background: var(--glass-surface-strong);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
-
-/* Stats-grid et contenu : enfants flex normaux qui défilent avec le parent */
-#view-analyse > .stats-grid,
-#view-analyse > #analyse-content {
-  flex: 0 0 auto;
-}
-
-/* #view-analyse gère son propre padding-bottom pour la bottom-nav via la règle .view */
 
 /* ===== Cards (verre dépoli — spec refonte glass §3.4) ===== */
 .card {
@@ -416,22 +322,6 @@ a { color: inherit; }
   padding: 20px;
   margin-bottom: 14px;
   backface-visibility: hidden;
-}
-
-/* Dashboard : pas de margin-bottom (gap géré par le flex container) */
-#view-dashboard > .card,
-#view-dashboard > .export-card {
-  margin-bottom: 0;
-}
-
-/* Bulletins : merge-bar n'est pas une .card standard, pas de margin-bottom */
-#view-bulletins > #merge-bar {
-  margin-bottom: 0;
-}
-
-/* Analyse : pas de margin-bottom (scroll natif de la vue) */
-#view-analyse > .card {
-  margin-bottom: 0;
 }
 .card.elevated { background: var(--glass-surface-strong); box-shadow: var(--glass-shadow-lg); }
 .card-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -450,12 +340,15 @@ a { color: inherit; }
 /* Risque 4 : CONSERVER `contain: layout style` + `display` piloté par JS (dashboard.js) ;
    gradient adapté en glass via color-mix (spec §10.4) */
 #dash-amounts-card { min-height: 0; contain: layout style; border: 1px solid var(--glass-border); background: linear-gradient(160deg, color-mix(in srgb, var(--md-primary-container) 55%, transparent), var(--glass-surface)); padding: 10px 16px; }
-/* Merge-bar : styles de base (le positionnement sticky est géré dans #view-bulletins > #merge-bar) */
+/* Risque 3 : sticky déplacé du style inline vers CSS (valeurs identiques + safe-area) */
 #merge-bar {
   contain: layout style;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  border: 1px solid var(--glass-border);
-  border-bottom: none;
+  position: sticky;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  background: var(--glass-surface-strong);
+  backdrop-filter: blur(16px) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(16px) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-shadow-lg);
 }
 
 /* Compacité des cartes stats du tableau de bord (hauteur −30 %) */
@@ -562,11 +455,7 @@ a { color: inherit; }
 .hint { font-size: 0.8rem; color: var(--md-on-surface-variant); margin-top: 6px; }
 
 /* ===== Filtre Bulletins (selects) ===== */
-.filter-row { display: flex; gap: 10px; margin-bottom: 8px; flex-wrap: nowrap; align-items: center; }
-@media (max-width: 360px) {
-  .filter-row { flex-wrap: wrap; }
-  .dropdown-trigger { flex: 1 1 100%; }
-}
+.filter-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
 .filter-select {
   flex: 1; min-width: 140px; max-width: 180px;
   padding: 12px 40px 12px 16px;
@@ -602,7 +491,7 @@ a { color: inherit; }
 
 /* ===== Dropdown Trigger (custom dropdowns) ===== */
 .dropdown-trigger {
-  flex: 1 1 0; min-width: 0;
+  flex: 1; min-width: 140px; max-width: 180px;
   padding: 12px 40px 12px 16px;
   border-radius: 100px;
   border: 1px solid var(--glass-border-subtle);
@@ -692,10 +581,10 @@ a { color: inherit; }
   backdrop-filter: blur(var(--glass-blur-sm));
   -webkit-backdrop-filter: blur(var(--glass-blur-sm));
   border: 1px solid var(--glass-border-subtle);
-  border-radius: 100px; padding: 12px 16px; margin-bottom: 0; box-shadow: var(--shadow-soft);
+  border-radius: 100px; padding: 10px 16px; margin-bottom: 14px; box-shadow: var(--shadow-soft);
 }
 .search-bar svg { color: var(--md-primary); }
-.search-bar input { flex: 1; border: none; background: transparent; font-size: 0.95rem; color: var(--md-on-surface); }
+.search-bar input { flex: 1; border: none; background: transparent; font-size: 0.9rem; color: var(--md-on-surface); }
 .search-bar input:focus { outline: none; }
 /* Focus visible : anneau autour de la pilule (l'input lui-même est sans bordure) */
 .search-bar:focus-within { outline: 2px solid var(--md-primary); outline-offset: 2px; }
