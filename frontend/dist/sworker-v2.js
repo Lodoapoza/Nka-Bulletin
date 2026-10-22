@@ -1,11 +1,11 @@
-const CACHE_NAME = 'nka-bulletin-52b6ea02f644';
+const CACHE_NAME = 'nka-bulletin-47cc0a6be990';
 const APP_SHELL = [
   '/index.html?v=v39',
   '/manifest.json?v=v26',
   '/css/app.css?v=557ecde3',
   '/js/analyse.js?v=4ace36f6',
   '/js/app.js?v=296de0e1',
-  '/js/client.js?v=735512b4',
+  '/js/client.js?v=3fab4b82',
   '/js/dropdown.js?v=53173405',
   '/js/pin.js?v=d27b23d6',
   '/js/parcours.js?v=ce1ca92e',
@@ -107,12 +107,12 @@ self.addEventListener('fetch', (event) => {
   // API privée (/api/* GET) : jamais de Cache Storage. Les bulletins offline
   // sont gérés explicitement par IndexedDB et peuvent donc être purgés.
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(event.request).catch(() => new Response(JSON.stringify({ error: 'Hors ligne' }), {
-          status: 503,
-          headers: { 'Content-Type': 'application/json' },
-        }))
-    );
+    // API privée : passe-plat natif. Ni interception, ni Cache Storage.
+    // Ne surtout pas FABRIQUER une réponse 503 « Hors ligne » ici : le client
+    // interprète un 503 comme une panne serveur et affiche « Serveur
+    // indisponible » alors que le serveur est parfaitement sain (simple
+    // coupure réseau). Sans respondWith, le navigateur propage l'erreur
+    // réseau nativement → le client bascule en mode « Hors connexion ».
     return;
   }
 
