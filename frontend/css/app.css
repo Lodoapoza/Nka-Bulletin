@@ -165,7 +165,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; overflow: hidden; }
+html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 body {
   margin: 0;
   font-family: var(--font-body);
@@ -322,6 +322,7 @@ a { color: inherit; }
    #bulletins-list est un enfant flex normal (pas de overflow). */
 #view-bulletins {
   overflow-y: auto;
+  overscroll-behavior: contain;
   /* Padding haut pour compenser la topbar (sticky top:0, z-index:50) :
      padding-top ≈ 72px (20+44+8) + safe-area-inset-top */
   padding-top: calc(72px + env(safe-area-inset-top, 0px));
@@ -374,6 +375,7 @@ a { color: inherit; }
    .stats-grid et #analyse-content sont des enfants flex normaux. */
 #view-analyse {
   overflow-y: auto;
+  overscroll-behavior: contain;
   /* Padding haut pour compenser la topbar + padding bas pour la bottom-nav */
   padding-top: calc(72px + env(safe-area-inset-top, 0px));
   padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));

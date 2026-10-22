@@ -392,9 +392,12 @@ window.addEventListener('nka-amounts-changed', (e) => {
 
 /* ===== Pull-to-refresh PWA =====
    Sur mobile : tirer vers le bas pour rafraîchir la vue courante.
-   Ne s'active que si on est au sommet de la page (scrollY === 0). */
+   Ne s'active que si le conteneur réellement défilant sous le doigt est
+   déjà à scrollTop 0 (les vues défilent dans des conteneurs internes :
+   window.scrollY n'est plus un critère valide). */
 function initPullToRefresh() {
   let startY = 0;
+  let startX = 0;
   let currentY = 0;
   let pulling = false;
   let triggered = false;
@@ -458,24 +461,67 @@ function initPullToRefresh() {
     setTimeout(() => { triggered = false; }, 1000);
   }
 
-  window.addEventListener('touchstart', (e) => {
-    if (window.scrollY === 0 && !pulling) {
-      startY = e.touches[0].clientY;
-      pulling = true;
+  /* ===== Conteneur réellement défilant sous le doigt =====
+     L'app défile dans des conteneurs INTERNES (#bulletins-list,
+     #analyse-content, #view-dashboard) et `html, body` est verrouillé
+     (overflow: hidden). `window.scrollY` reste donc TOUJOURS à 0 : le test
+     d'armement based sur `window.scrollY === 0` était donc toujours vrai,
+     et chaque geste vers le bas annulait le défilement natif et
+     supprimait le clic sur les boutons.
+     On remonte l'arbre DOM depuis la cible du geste pour identifier le
+     VRAI conteneur de défilement et ne s'armer que s'il est déjà en haut. */
+  function findScrollContainer(node) {
+    let el = node;
+    while (el && el !== document.body) {
+      if (el.nodeType === 1) {
+        const oy = getComputedStyle(el).overflowY;
+        if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) {
+          return el;
+        }
+      }
+      el = el.parentElement;
     }
+    return document.scrollingElement || document.documentElement;
+  }
+
+  window.addEventListener('touchstart', (e) => {
+    if (pulling || !e.touches.length) return;
+    const t = e.touches[0];
+    // Armement uniquement si le conteneur réel est déjà en haut.
+    if (findScrollContainer(e.target).scrollTop > 0) return;
+    startY = t.clientY;
+    startX = t.clientX;
+    currentY = startY;
+    pulling = true;
+    triggered = false;
   }, { passive: true });
 
   window.addEventListener('touchmove', (e) => {
-    if (!pulling) return;
-    currentY = e.touches[0].clientY;
+    if (!pulling || !e.touches.length) return;
+    const t = e.touches[0];
+    currentY = t.clientY;
     const delta = currentY - startY;
-    if (delta > 0) {
+    const dx = t.clientX - startX;
+    // Geste diagonal (navigation latérale) : on renonce au pull-to-refresh.
+    if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(delta)) {
+      pulling = false;
+      hideIndicator();
+      return;
+    }
+    // Remontée vers le haut : on relâche le geste.
+    if (delta <= 0) {
+      pulling = false;
+      hideIndicator();
+      return;
+    }
+    // Le défilement natif n'est annulé qu'APRÈS le seuil de déclenchement.
+    // En dessous de 60 px, le contenu doit pouvoir défiler normalement et les
+    // boutons rester cliquables.
+    if (delta > 60) {
       e.preventDefault();
+      indicator.style.borderColor = 'var(--md-primary)';
+      indicator.style.borderTopColor = 'var(--md-primary)';
       showIndicator(delta * 0.5);
-      if (delta > 60) {
-        indicator.style.borderColor = 'var(--md-primary)';
-        indicator.style.borderTopColor = 'var(--md-primary)';
-      }
     }
   }, { passive: false });
 
@@ -488,6 +534,11 @@ function initPullToRefresh() {
     } else {
       hideIndicator();
     }
+  }, { passive: true });
+
+  window.addEventListener('touchcancel', () => {
+    pulling = false;
+    hideIndicator();
   }, { passive: true });
 }
 
