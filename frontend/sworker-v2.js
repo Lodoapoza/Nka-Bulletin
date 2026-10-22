@@ -107,12 +107,12 @@ self.addEventListener('fetch', (event) => {
   // API privée (/api/* GET) : jamais de Cache Storage. Les bulletins offline
   // sont gérés explicitement par IndexedDB et peuvent donc être purgés.
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(event.request).catch(() => new Response(JSON.stringify({ error: 'Hors ligne' }), {
-          status: 503,
-          headers: { 'Content-Type': 'application/json' },
-        }))
-    );
+    // API privée : passe-plat natif. Ni interception, ni Cache Storage.
+    // Ne surtout pas FABRIQUER une réponse 503 « Hors ligne » ici : le client
+    // interprète un 503 comme une panne serveur et affiche « Serveur
+    // indisponible » alors que le serveur est parfaitement sain (simple
+    // coupure réseau). Sans respondWith, le navigateur propage l'erreur
+    // réseau nativement → le client bascule en mode « Hors connexion ».
     return;
   }
 

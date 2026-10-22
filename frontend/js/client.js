@@ -143,7 +143,7 @@ const Api = (() => {
           continue;
         }
         notifyConnection('offline');
-        throw new Error(isTimeout ? 'Le serveur met trop de temps à répondre' : 'Serveur indisponible, réessayez dans un instant');
+        throw new Error(isTimeout ? 'Le serveur met trop de temps à répondre' : 'Connexion réseau interrompue — réessayez dans un instant');
       }
 
       if (res.status === 401 && !retried) {
@@ -169,6 +169,22 @@ const Api = (() => {
         }
         notifyConnection('offline');
         throw new Error(`Serveur indisponible (${res.status})`);
+      }
+
+      // Ancien service-worker encore actif sur le poste : il interceptait les
+      // appels /api/* et substituait un faux 503 « Hors ligne » dès que le
+      // réseau coupait. Ce n'est PAS une panne serveur : on bascule en mode
+      // hors-ligne (badge « Hors connexion ») et on sert le cache local.
+      if (res.status === 503 && data && typeof data.error === 'string' && /hors ligne/i.test(data.error)) {
+        notifyConnection('offline');
+        if (isGet) {
+          const cached = await OfflineCache.getApi(path);
+          if (cached) {
+            dispatchCacheHit(path, cached.cachedAt);
+            return cached.data;
+          }
+        }
+        throw new Error('Hors ligne — données non disponibles en cache');
       }
 
       if (RETRYABLE_STATUS.has(res.status) && attempt < MAX_RETRIES) {
@@ -455,7 +471,7 @@ const Api = (() => {
             continue;
           }
           notifyConnection('offline');
-          throw new Error('Serveur indisponible, réessayez dans un instant');
+          throw new Error('Connexion réseau interrompue — réessayez dans un instant');
         }
         if (res.status === 401 && !retried) {
           token = null; localStorage.removeItem('nka_token');
@@ -527,7 +543,7 @@ const Api = (() => {
             return { blob: cachedPdf.blob, filename: cachedPdf.filename, objectUrl: URL.createObjectURL(cachedPdf.blob) };
           }
           notifyConnection('offline');
-          throw new Error('Serveur indisponible, réessayez dans un instant');
+          throw new Error('Connexion réseau interrompue — réessayez dans un instant');
         }
         if (res.status === 401 && !retried) {
           token = null; localStorage.removeItem('nka_token');
