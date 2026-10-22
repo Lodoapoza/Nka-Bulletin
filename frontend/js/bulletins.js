@@ -169,9 +169,33 @@ const Bulletins = (() => {
         dlBtn.setAttribute('aria-label', 'Télécharger');
         dlBtn.innerHTML = ICON_DOWNLOAD;
       }
+
       actionsDiv.appendChild(dlBtn);
 
       row.appendChild(actionsDiv);
+
+      // Long-press sur la ligne : suppression, uniquement si le bulletin est
+      // déjà en cache local. Sans cache, un message indique de télécharger
+      // d'abord. Le bouton Télécharger n'est pas intercepté (appui long sur
+      // la ligne, pas sur le bouton).
+      let pressTimer = null;
+      const clearPress = () => { clearTimeout(pressTimer); pressTimer = null; };
+      row.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('[data-download]')) return;
+        pressTimer = setTimeout(() => {
+          const id = Number(b.id);
+          if (!cachedSet.has(String(id))) {
+            Toast.show('Téléchargez d\'abord le bulletin pour le supprimer');
+            return;
+          }
+          if (!confirm('Voulez-vous supprimer définitivement ce bulletin ?\nCette action est irréversible et supprimera le fichier PDF du disque.')) return;
+          Api.deleteBulletin(id).then(() => { Toast.show('Bulletin supprimé'); refresh(); }).catch(err => Toast.show(ERR.msg(err)));
+        }, 500);
+      });
+      row.addEventListener('pointerup', clearPress);
+      row.addEventListener('pointercancel', clearPress);
+      row.addEventListener('pointerleave', clearPress);
+      row.addEventListener('contextmenu', (e) => { e.preventDefault(); clearPress(); });
 
       listEl.appendChild(row);
     });
