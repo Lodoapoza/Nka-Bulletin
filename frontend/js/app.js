@@ -145,6 +145,21 @@ const VersionReload = (() => {
       // (« Changer le code PIN » depuis Réglages). Dans ce cas on ne recharge
       // pas : on repart en attente plutôt que de couper la saisie.
       if (pinScreenGone()) {
+        // Garde-fou anti-boucle : une même session ne peut pas être rechargée
+        // plus d'une fois par minute. Le SW peut signaler la mise à jour
+        // plusieurs fois (updatefound + message « nka-sw-updated » +
+        // controllerchange) : sans ce garde-fou, la page se rechargait
+        // plusieurs fois de suite et l'app passait brièvement « hors ligne ».
+        const KEY = 'nka-reloaded-at';
+        const now = Date.now();
+        const last = Number(sessionStorage.getItem(KEY) || 0);
+        if (now - last < 60000) {
+          pending = false;
+          scheduled = false;
+          Toast.hide();
+          return;
+        }
+        try { sessionStorage.setItem(KEY, String(now)); } catch (_) { /* mode privé */ }
         window.location.reload();
         return;
       }
@@ -255,9 +270,6 @@ async function bootApp() {
   safe('Dashboard.refresh', () => Dashboard.refresh());
   safe('Bulletins.refresh', () => Bulletins.refresh());
   safe('Accounts.refresh',  () => Accounts.refresh());
-
-  // Pull-to-refresh
-  initPullToRefresh();
 
   // État serveur : options + liaison multi-appareils.
   // En cas d'échec (hors ligne), on garde l'accès au mode cache.
@@ -389,158 +401,6 @@ function applyAnalyseNav(enabled) {
 window.addEventListener('nka-amounts-changed', (e) => {
   applyAnalyseNav(!!(e.detail && e.detail.enabled));
 });
-
-/* ===== Pull-to-refresh PWA =====
-   Sur mobile : tirer vers le bas pour rafraîchir la vue courante.
-   Ne s'active que si le conteneur réellement défilant sous le doigt est
-   déjà à scrollTop 0 (les vues défilent dans des conteneurs internes :
-   window.scrollY n'est plus un critère valide). */
-function initPullToRefresh() {
-  let startY = 0;
-  let startX = 0;
-  let currentY = 0;
-  let pulling = false;
-  let triggered = false;
-
-  const indicator = document.createElement('div');
-  indicator.id = 'ptr-indicator';
-  indicator.style.cssText = [
-    'position: fixed',
-    'top: 0',
-    'left: 50%',
-    'transform: translateX(-50%) translateY(-120%)',
-    'width: 40px',
-    'height: 40px',
-    'border-radius: 50%',
-    'border: 2px solid var(--md-primary)',
-    'border-top-color: transparent',
-    'opacity: 0',
-    'pointer-events: none',
-    'z-index: 1000',
-    'transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s',
-    'animation: ptr-spin 0.8s linear infinite',
-  ].join(';');
-
-  // Keyframes pour le spinner
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes ptr-spin { to { transform: translateX(-50%) translateY(-120%) rotate(360deg); } }
-  `;
-  document.head.appendChild(style);
-  document.body.appendChild(indicator);
-
-  function showIndicator(progress) {
-    const maxPull = 80;
-    const y = Math.min(progress, maxPull);
-    indicator.style.opacity = y / maxPull;
-    indicator.style.transform = `translateX(-50%) translateY(calc(-120% + ${y}px))`;
-  }
-
-  function hideIndicator() {
-    indicator.style.opacity = '0';
-    indicator.style.transform = 'translateX(-50%) translateY(-120%)';
-  }
-
-  function triggerRefresh() {
-    if (triggered) return;
-    triggered = true;
-    hideIndicator();
-    Toast.show('Actualisation…');
-    // Déclencher le refresh de la vue active
-    const activeView = document.querySelector('.view:not(.hidden)');
-    if (activeView) {
-      const viewId = activeView.id.replace('view-', '');
-      const refreshMap = {
-        dashboard: () => Dashboard.refresh(),
-        bulletins: () => Bulletins.refresh(),
-        analyse: () => Analyse.refresh(),
-        settings: () => Accounts.refresh(),
-      };
-      if (refreshMap[viewId]) refreshMap[viewId]();
-    }
-    setTimeout(() => { triggered = false; }, 1000);
-  }
-
-  /* ===== Conteneur réellement défilant sous le doigt =====
-     L'app défile dans des conteneurs INTERNES (#bulletins-list,
-     #analyse-content, #view-dashboard) et `html, body` est verrouillé
-     (overflow: hidden). `window.scrollY` reste donc TOUJOURS à 0 : le test
-     d'armement based sur `window.scrollY === 0` était donc toujours vrai,
-     et chaque geste vers le bas annulait le défilement natif et
-     supprimait le clic sur les boutons.
-     On remonte l'arbre DOM depuis la cible du geste pour identifier le
-     VRAI conteneur de défilement et ne s'armer que s'il est déjà en haut. */
-  function findScrollContainer(node) {
-    let el = node;
-    while (el && el !== document.body) {
-      if (el.nodeType === 1) {
-        const oy = getComputedStyle(el).overflowY;
-        if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) {
-          return el;
-        }
-      }
-      el = el.parentElement;
-    }
-    return document.scrollingElement || document.documentElement;
-  }
-
-  window.addEventListener('touchstart', (e) => {
-    if (pulling || !e.touches.length) return;
-    const t = e.touches[0];
-    // Armement uniquement si le conteneur réel est déjà en haut.
-    if (findScrollContainer(e.target).scrollTop > 0) return;
-    startY = t.clientY;
-    startX = t.clientX;
-    currentY = startY;
-    pulling = true;
-    triggered = false;
-  }, { passive: true });
-
-  window.addEventListener('touchmove', (e) => {
-    if (!pulling || !e.touches.length) return;
-    const t = e.touches[0];
-    currentY = t.clientY;
-    const delta = currentY - startY;
-    const dx = t.clientX - startX;
-    // Geste diagonal (navigation latérale) : on renonce au pull-to-refresh.
-    if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(delta)) {
-      pulling = false;
-      hideIndicator();
-      return;
-    }
-    // Remontée vers le haut : on relâche le geste.
-    if (delta <= 0) {
-      pulling = false;
-      hideIndicator();
-      return;
-    }
-    // Le défilement natif n'est annulé qu'APRÈS le seuil de déclenchement.
-    // En dessous de 60 px, le contenu doit pouvoir défiler normalement et les
-    // boutons rester cliquables.
-    if (delta > 60) {
-      e.preventDefault();
-      indicator.style.borderColor = 'var(--md-primary)';
-      indicator.style.borderTopColor = 'var(--md-primary)';
-      showIndicator(delta * 0.5);
-    }
-  }, { passive: false });
-
-  window.addEventListener('touchend', () => {
-    if (!pulling) return;
-    pulling = false;
-    const delta = currentY - startY;
-    if (delta > 60) {
-      triggerRefresh();
-    } else {
-      hideIndicator();
-    }
-  }, { passive: true });
-
-  window.addEventListener('touchcancel', () => {
-    pulling = false;
-    hideIndicator();
-  }, { passive: true });
-}
 
 /* ===== Bandeau « données en cache » =====
    Affiché quand le service worker ou le client sert des données

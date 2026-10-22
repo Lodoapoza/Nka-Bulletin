@@ -196,7 +196,7 @@ button, input, select, textarea { font: inherit; }
    `svh` (small viewport height) est une valeur constante qui ne suit pas cette animation :
    on réduit le reflux, sans que ce soit à lui seul une correction du décalage.
    Sans impact visuel : #app n'a ni fond, ni bordure, ni ombre. */
-#app { max-width: 480px; margin: 0 auto; min-height: 100svh; display: flex; flex-direction: column; padding: 0 0 calc(104px + env(safe-area-inset-bottom, 0px)); position: relative; }
+#app { max-width: 480px; margin: 0 auto; min-height: 100svh; display: flex; flex-direction: column; padding: 0 0 calc(104px + env(safe-area-inset-bottom, 0px)); position: relative; overscroll-behavior: none; }
 
 /* ===== Fond de scène : blobs ambiants dérivés de l'accent (spec §4) ===== */
 .bg-scene { position: fixed; inset: 0 auto 0 50%; transform: translateX(-50%); width: 100%; max-width: 480px; overflow: hidden; pointer-events: none; z-index: 0; }
