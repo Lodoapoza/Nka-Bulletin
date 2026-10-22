@@ -278,73 +278,130 @@ a { color: inherit; }
   .brand-logo { flex-shrink: 0; }
 }
 
-/* ===== Views ===== */
-.view { padding: 0 20px 20px; flex: 1 1 0; min-height: 0; overflow: hidden; }
-.view.hidden { display: none; }
+/* ==========================================================================
+   VIEWS — Layout natif (Zéro scroll global, zones fixes, scroll interne)
+   ========================================================================== */
 
-/* ===== Coquille native : vues ancrées, défilement interne =====
-   Les vues « Accueil », « Bulletins » et « Analyse » se comportent comme des
-   écrans d'application native :
-   - la vue occupe la hauteur restante entre topbar et bottom-nav (flex: 1) ;
-   - le document ne défile plus (min-height: 0 autorise le rétrécissement) ;
-   - le débordement éventuel est absorbé par un conteneur interne
-     (liste des bulletins, contenu de l'analyse).
-   Les vues « Réglages » et « À propos » gardent leur défilement de page :
-   leur contenu est long et variable. */
-#view-dashboard {
+.view {
+  padding: 0 20px 20px;
   flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+.view.hidden { display: none; }
+
+/* Settings & About : défilement au niveau PAGE (document), pas vue.
+   Ces vues ont un contenu long et variable — le document défile naturellement. */
+#view-settings,
+#view-about {
+  overflow: visible;
+  /* Pas de padding top/bottom fixe — le document gère le scroll complet */
+  padding-top: 20px;
+  padding-bottom: calc(20px + 76px + env(safe-area-inset-bottom, 0px));
+}
+
+/* -------- 1. DASHBOARD (Accueil) — ZÉRO SCROLL GLOBAL --------
+   Tout tient dans le viewport : topbar + bottom-nav fixes.
+   Contenu = stack-hero + cartes, toutes flex:0 0 auto, pas de défilement.
+   Padding pour compenser topbar (haut) et bottom-nav (bas). */
+#view-dashboard {
   gap: 14px;
+  /* Padding haut pour la topbar + padding bas pour la bottom-nav */
+  padding-top: calc(72px + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
 }
 #view-dashboard .stack-hero { flex: 0 0 auto; }
 #view-dashboard > .card,
 #view-dashboard > .export-card { flex: 0 0 auto; overflow: hidden; }
-#view-bulletins,
-#view-analyse {
-  flex: 1 1 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
 
-/* Analyse : le conteneur de la vue devient le défileur principal.
-   Seul .filter-row reste sticky en haut ; .stats-grid + #analyse-content défilent ensemble. */
-#view-analyse {
+/* -------- 2. BULLETINS — HEADER STICKY TOP, LISTE SCROLL, MERGE-BAR STICKY BOTTOM --------
+   #view-bulletins EST le conteneur de défilement (overflow-y: auto).
+   .bulletin-header et #merge-bar sont des enfants sticky de CE conteneur.
+   #bulletins-list est un enfant flex normal (pas de overflow). */
+#view-bulletins {
   overflow-y: auto;
+  /* Padding haut pour compenser la topbar (sticky top:0, z-index:50) :
+     padding-top ≈ 72px (20+44+8) + safe-area-inset-top */
+  padding-top: calc(72px + env(safe-area-inset-top, 0px));
 }
 
-/* Blocs d'en-tête (recherche + filtres) : jamais comprimés, jamais défilants */
+/* Header sticky SOUS la topbar */
 #view-bulletins > .bulletin-header {
   flex: 0 0 auto;
   position: sticky;
-  top: 0;
+  top: calc(72px + env(safe-area-inset-top, 0px));
   z-index: 10;
   background: var(--bg-base);
   padding-top: 8px;
   padding-bottom: 4px;
-}
-#view-bulletins > .bulletin-header > .search-bar,
-#view-bulletins > .bulletin-header > .filter-row,
-#view-bulletins > #merge-bar,
-#view-analyse > .filter-row {
-  flex: 0 0 auto;
+  /* Hairline pour séparation visuelle lors du scroll */
+  border-bottom: 1px solid var(--glass-border-subtle);
+  margin: 0 -20px; /* Compense le padding horizontal de .view */
+  padding-left: 20px;
+  padding-right: 20px;
 }
 
-/* Analyse : .stats-grid et #analyse-content sont des enfants flex normaux qui défilent avec le parent */
+/* Liste des bulletins : enfant flex normal, PAS de overflow */
+#view-bulletins > #bulletins-list {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* Merge-bar sticky en bas de la vue (au-dessus de la bottom-nav) */
+#view-bulletins > #merge-bar {
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px)); /* Hauteur bottom-nav + safe area */
+  z-index: 10;
+  margin: 0 -20px; /* Compense le padding horizontal de .view */
+  padding-left: 20px;
+  padding-right: 20px;
+  /* Fond glass pour effet "flottant" au-dessus de la liste */
+  background: var(--glass-surface-strong);
+  backdrop-filter: blur(16px) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(16px) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-shadow-lg);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border: 1px solid var(--glass-border);
+  border-bottom: none;
+}
+
+/* -------- 3. ANALYSE — FILTRE ANNÉE STICKY TOP, TOUT LE RESTE SCROLLE ENSEMBLE --------
+   #view-analyse EST le conteneur de défilement (overflow-y: auto).
+   .filter-row est un enfant sticky de CE conteneur (sous la topbar).
+   .stats-grid et #analyse-content sont des enfants flex normaux. */
+#view-analyse {
+  overflow-y: auto;
+  /* Padding haut pour compenser la topbar + padding bas pour la bottom-nav */
+  padding-top: calc(72px + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Filtre année : sticky SOUS la topbar */
+#view-analyse > .filter-row {
+  flex: 0 0 auto;
+  position: sticky;
+  top: calc(72px + env(safe-area-inset-top, 0px));
+  z-index: 10;
+  background: var(--bg-base);
+  padding-top: 8px;
+  padding-bottom: 8px;
+  /* Hairline pour séparation visuelle */
+  border-bottom: 1px solid var(--glass-border-subtle);
+  margin: 0 -20px; /* Compense le padding horizontal de .view */
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+/* Stats-grid et contenu : enfants flex normaux qui défilent avec le parent */
 #view-analyse > .stats-grid,
 #view-analyse > #analyse-content {
   flex: 0 0 auto;
 }
 
-/* Conteneurs défilants internes (uniquement le contenu de la liste/cartes) */
-#view-bulletins > #bulletins-list {
-  flex: 1 1 0;
-  min-height: 0;
-  overflow-y: auto;
-}
+/* #view-analyse gère son propre padding-bottom pour la bottom-nav via la règle .view */
 
 /* ===== Cards (verre dépoli — spec refonte glass §3.4) ===== */
 .card {
@@ -357,6 +414,22 @@ a { color: inherit; }
   padding: 20px;
   margin-bottom: 14px;
   backface-visibility: hidden;
+}
+
+/* Dashboard : pas de margin-bottom (gap géré par le flex container) */
+#view-dashboard > .card,
+#view-dashboard > .export-card {
+  margin-bottom: 0;
+}
+
+/* Bulletins : merge-bar n'est pas une .card standard, pas de margin-bottom */
+#view-bulletins > #merge-bar {
+  margin-bottom: 0;
+}
+
+/* Analyse : pas de margin-bottom (scroll natif de la vue) */
+#view-analyse > .card {
+  margin-bottom: 0;
 }
 .card.elevated { background: var(--glass-surface-strong); box-shadow: var(--glass-shadow-lg); }
 .card-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -375,15 +448,12 @@ a { color: inherit; }
 /* Risque 4 : CONSERVER `contain: layout style` + `display` piloté par JS (dashboard.js) ;
    gradient adapté en glass via color-mix (spec §10.4) */
 #dash-amounts-card { min-height: 0; contain: layout style; border: 1px solid var(--glass-border); background: linear-gradient(160deg, color-mix(in srgb, var(--md-primary-container) 55%, transparent), var(--glass-surface)); padding: 10px 16px; }
-/* Risque 3 : sticky déplacé du style inline vers CSS (valeurs identiques + safe-area) */
+/* Merge-bar : styles de base (le positionnement sticky est géré dans #view-bulletins > #merge-bar) */
 #merge-bar {
   contain: layout style;
-  position: sticky;
-  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
-  background: var(--glass-surface-strong);
-  backdrop-filter: blur(16px) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(16px) saturate(var(--glass-saturate));
-  box-shadow: var(--glass-shadow-lg);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border: 1px solid var(--glass-border);
+  border-bottom: none;
 }
 
 /* Compacité des cartes stats du tableau de bord (hauteur −30 %) */
