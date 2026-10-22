@@ -294,11 +294,14 @@ a { color: inherit; }
 #view-dashboard {
   flex: 1 1 0;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 #view-dashboard .stack-hero { flex: 0 0 auto; }
 #view-dashboard > .card,
-#view-dashboard > .export-card { flex: 0 0 auto; }
+#view-dashboard > .export-card { flex: 0 0 auto; overflow: hidden; }
 #view-bulletins,
 #view-analyse {
   flex: 1 1 0;
@@ -314,15 +317,20 @@ a { color: inherit; }
 }
 
 /* Blocs d'en-tête (recherche + filtres) : jamais comprimés, jamais défilants */
-#view-bulletins > .search-bar,
-#view-bulletins > .filter-row,
-#view-bulletins > #merge-bar,
-#view-analyse > .filter-row {
+#view-bulletins > .bulletin-header {
   flex: 0 0 auto;
   position: sticky;
   top: 0;
   z-index: 10;
   background: var(--bg-base);
+  padding-top: 8px;
+  padding-bottom: 4px;
+}
+#view-bulletins > .bulletin-header > .search-bar,
+#view-bulletins > .bulletin-header > .filter-row,
+#view-bulletins > #merge-bar,
+#view-analyse > .filter-row {
+  flex: 0 0 auto;
 }
 
 /* Analyse : .stats-grid et #analyse-content sont des enfants flex normaux qui défilent avec le parent */
@@ -482,7 +490,11 @@ a { color: inherit; }
 .hint { font-size: 0.8rem; color: var(--md-on-surface-variant); margin-top: 6px; }
 
 /* ===== Filtre Bulletins (selects) ===== */
-.filter-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.filter-row { display: flex; gap: 10px; margin-bottom: 8px; flex-wrap: nowrap; align-items: center; }
+@media (max-width: 360px) {
+  .filter-row { flex-wrap: wrap; }
+  .dropdown-trigger { flex: 1 1 100%; }
+}
 .filter-select {
   flex: 1; min-width: 140px; max-width: 180px;
   padding: 12px 40px 12px 16px;
@@ -518,7 +530,7 @@ a { color: inherit; }
 
 /* ===== Dropdown Trigger (custom dropdowns) ===== */
 .dropdown-trigger {
-  flex: 1; min-width: 140px; max-width: 180px;
+  flex: 1 1 0; min-width: 0;
   padding: 12px 40px 12px 16px;
   border-radius: 100px;
   border: 1px solid var(--glass-border-subtle);
@@ -608,10 +620,10 @@ a { color: inherit; }
   backdrop-filter: blur(var(--glass-blur-sm));
   -webkit-backdrop-filter: blur(var(--glass-blur-sm));
   border: 1px solid var(--glass-border-subtle);
-  border-radius: 100px; padding: 10px 16px; margin-bottom: 14px; box-shadow: var(--shadow-soft);
+  border-radius: 100px; padding: 12px 16px; margin-bottom: 0; box-shadow: var(--shadow-soft);
 }
 .search-bar svg { color: var(--md-primary); }
-.search-bar input { flex: 1; border: none; background: transparent; font-size: 0.9rem; color: var(--md-on-surface); }
+.search-bar input { flex: 1; border: none; background: transparent; font-size: 0.95rem; color: var(--md-on-surface); }
 .search-bar input:focus { outline: none; }
 /* Focus visible : anneau autour de la pilule (l'input lui-même est sans bordure) */
 .search-bar:focus-within { outline: 2px solid var(--md-primary); outline-offset: 2px; }
