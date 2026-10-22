@@ -208,6 +208,11 @@ const Analyse = (() => {
     const hasData = data.series && data.series.length > 0;
 
     renderYearDropdown(data);
+    const stats = document.getElementById('analyse-stats');
+    const chart = document.getElementById('analyse-chart-card');
+    const table = document.getElementById('analyse-table-card');
+    const alerts = document.getElementById('analyse-alerts-card');
+    [stats, chart, table].forEach((el) => el && el.classList.toggle('hidden', !hasData));
     if (hasData) {
       renderStats(data);
       renderChart(data.series);
@@ -215,7 +220,8 @@ const Analyse = (() => {
       renderAlerts(data);
       empty.classList.add('hidden');
     } else {
-      emptyMsg.textContent = 'Aucun bulletin analysé pour le moment. Vérifiez que l\'analyse des montants est activée dans Réglages.';
+      if (alerts) alerts.classList.add('hidden');
+      emptyMsg.textContent = 'Aucun bulletin analysé pour cette période. Vérifiez que l’analyse des montants est activée dans Réglages.';
       empty.classList.remove('hidden');
     }
   }
@@ -247,6 +253,11 @@ const Analyse = (() => {
       lastData = data;
       render(data);
     } catch (e) {
+      const empty = document.getElementById('analyse-empty');
+      const msg = document.getElementById('analyse-empty-msg');
+      ['analyse-stats', 'analyse-chart-card', 'analyse-table-card', 'analyse-alerts-card'].forEach((id) => document.getElementById(id)?.classList.add('hidden'));
+      if (msg) msg.textContent = 'Impossible de charger l’analyse. Vérifiez votre connexion puis réessayez.';
+      empty?.classList.remove('hidden');
       Toast.show(ERR.msg(e));
     }
   }
