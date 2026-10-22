@@ -294,7 +294,7 @@ a { color: inherit; }
 #view-dashboard {
   flex: 1 1 0;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
 }
 #view-dashboard .stack-hero { flex: 0 0 auto; }
 #view-dashboard > .card,
@@ -321,6 +321,7 @@ a { color: inherit; }
 /* Conteneurs défilants internes (uniquement le contenu de la liste/cartes) */
 #view-bulletins > #bulletins-list {
   flex: 1 1 0;
+  min-height: 0;
   overflow-y: auto;
 }
 
