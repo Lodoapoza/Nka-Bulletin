@@ -100,10 +100,16 @@ async function importFound(device, account, items) {
     const type = isGratification ? 'gratification' : 'paie';
     const fileHasMonth = !!(filePeriod && filePeriod.month);
     const useFilePeriod = !isGratification && fileHasMonth;
+    
+    // Pour les gratifications, privilégier l'année du nom de fichier (plus fiable que le contenu PDF
+    // qui peut mentionner l'année de paiement et non l'année de la période).
+    const filenameYear = parseYearFromText(item.filename);
     const year = useFilePeriod && filePeriod.year
       ? filePeriod.year
-      : (contentPeriod && contentPeriod.year ? contentPeriod.year
-        : (filePeriod ? filePeriod.year : parseYearFromText(item.filename) || item.receivedAt.getFullYear()));
+      : (isGratification && filenameYear
+        ? filenameYear
+        : (contentPeriod && contentPeriod.year ? contentPeriod.year
+          : (filePeriod ? filePeriod.year : filenameYear || item.receivedAt.getFullYear())));
     const month = isGratification
       ? 0
       : (useFilePeriod ? filePeriod.month
