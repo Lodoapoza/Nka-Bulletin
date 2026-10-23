@@ -107,8 +107,7 @@ const Bulletins = (() => {
       checkbox.type = 'checkbox';
       checkbox.dataset.id = b.id;
       if (b.cachedOnly) {
-        checkbox.disabled = true;
-        checkbox.title = 'Bulletin local — fusion indisponible';
+        checkbox.title = 'Bulletin local uniquement — fusion indisponible, mais suppression possible';
       }
       if (selected.has(b.id)) checkbox.checked = true;
       row.appendChild(checkbox);
@@ -241,10 +240,20 @@ const Bulletins = (() => {
   function updateMergeBar() {
     const bar = document.getElementById('merge-bar');
     document.getElementById('merge-count').textContent = `${selected.size} sélectionné(s)`;
-    // Show bar when at least 1 is selected (delete needs 1, merge needs 2)
+    // Show bar when at least 1 is selected (delete needs 1, merge needs 2 non-cachedOnly)
     bar.classList.toggle('hidden', selected.size < 1);
     const mergeBtn = document.getElementById('merge-selected-btn');
-    if (mergeBtn) mergeBtn.disabled = selected.size < 2;
+    if (mergeBtn) {
+      // Count non-cachedOnly in selection
+      const nonCachedCount = [...selected].filter(id => {
+        const item = cache.find(b => b.id === id);
+        return item && !item.cachedOnly;
+      }).length;
+      mergeBtn.disabled = nonCachedCount < 2;
+      mergeBtn.title = nonCachedCount < 2
+        ? 'Sélectionnez au moins 2 bulletins serveur pour fusionner'
+        : '';
+    }
   }
 
   async function mergeAndExport(payload, label) {
@@ -429,7 +438,13 @@ const Bulletins = (() => {
     });
 
     document.getElementById('merge-selected-btn').addEventListener('click', () => {
-      mergeAndExport({ ids: [...selected] }, 'selection');
+      // Ne fusionner que les bulletins serveur (pas les cachedOnly)
+      const serverIds = [...selected].filter(id => {
+        const item = cache.find(b => b.id === id);
+        return item && !item.cachedOnly;
+      });
+      if (serverIds.length < 2) return;
+      mergeAndExport({ ids: serverIds }, 'selection');
     });
 
     document.getElementById('delete-selected-btn').addEventListener('click', deleteSelected);
