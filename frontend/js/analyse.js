@@ -37,16 +37,16 @@ const Analyse = (() => {
 
   // ---------- Sélecteur d'année ----------
   // Même dropdown custom que la vue Bulletins (AppDropdown) : années décroissantes,
-  // « Toutes les années » en dernier. L'année en cours est présélectionnée.
+  // « Année » en dernier. L'année en cours est présélectionnée.
   function renderYearDropdown(data) {
     const yrs = (data.years || []).slice().sort((a, b) => b - a);
     const opts = yrs.map(y => ({ value: String(y), label: String(y), selected: currentYear === y }));
-    opts.push({ value: '', label: 'Toutes les années', selected: currentYear === null });
+    opts.push({ value: '', label: 'Année', selected: currentYear === null });
     if (!yearDropdown) {
       yearDropdown = AppDropdown.create('analyse-year-trigger', opts, (v) => {
         userSelected = true;
         if (currentYear !== v) { currentYear = v; refresh(); }
-      }, (v) => v ? String(v) : 'Toutes les années');
+      }, (v) => v ? String(v) : 'Année');
     } else {
       yearDropdown.setOptions(opts);
     }
@@ -57,7 +57,7 @@ const Analyse = (() => {
   function renderStats(data) {
     const yr = currentYear ? data.perYear[String(currentYear)] : null;
     const scope = yr || data.totals || {};
-    const scopeLabel = currentYear ? `Année ${currentYear}` : 'Toutes les années';
+    const scopeLabel = currentYear ? `Année ${currentYear}` : 'Année';
     const periodLabel = data.period.startMonth
       ? `Du ${fmtMonthYear(data.period.startMonth)} au ${fmtMonthYear(data.period.endMonth)}`
       : (currentYear ? `Année ${currentYear}` : '');

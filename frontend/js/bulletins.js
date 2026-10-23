@@ -57,21 +57,21 @@ const Bulletins = (() => {
 
   // ===== Filtres (dropdown custom partagé — voir dropdown.js) =====
   function renderYearDropdown() {
-    const opts = [{ value: '', label: 'Toutes les années', selected: currentYear === null }];
+    const opts = [{ value: '', label: 'Année', selected: currentYear === null }];
     availableYears.forEach(y => opts.push({ value: String(y), label: String(y), selected: currentYear === y }));
     if (!yearDropdown) {
       yearDropdown = AppDropdown.create('year-trigger', opts, (v) => {
         currentYear = v;
         renderMonthDropdown();
         refresh();
-      }, (v) => v ? String(v) : 'Toutes les années');
+      }, (v) => v ? String(v) : 'Année');
     } else {
       yearDropdown.setOptions(opts);
     }
   }
 
   function renderMonthDropdown() {
-    let opts = [{ value: '', label: 'Tous les mois', selected: currentMonth === null }];
+    let opts = [{ value: '', label: 'Mois', selected: currentMonth === null }];
     if (currentYear) {
       const present = new Set(cache.filter(b => b.year === currentYear).map(b => b.month));
       MONTHS_FR.forEach((m, i) => {
@@ -85,7 +85,7 @@ const Bulletins = (() => {
       monthDropdown = AppDropdown.create('month-trigger', opts, (v) => {
         currentMonth = v;
         refresh();
-      }, (v) => v ? MONTHS_FR[v - 1] : 'Tous les mois');
+      }, (v) => v ? MONTHS_FR[v - 1] : 'Mois');
     } else {
       monthDropdown.setOptions(opts);
     }
