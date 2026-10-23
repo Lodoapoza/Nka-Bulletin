@@ -323,6 +323,11 @@ a { color: inherit; }
   margin-bottom: 14px;
   backface-visibility: hidden;
 }
+#settings-accounts-card {
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+}
 .card.elevated { background: var(--glass-surface-strong); box-shadow: var(--glass-shadow-lg); }
 .card-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 

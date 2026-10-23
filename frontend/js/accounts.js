@@ -14,11 +14,41 @@ const Accounts = (() => {
   const EYE_OFF_ICON = '<path d="M3 3l18 18M10.6 10.6a2.5 2.5 0 002.8 2.8M6.9 6.9C4.5 8.2 3 12 3 12s3.5 7 10 7c1.5 0 2.8-.4 3.9-1M9.9 5.2A10 10 0 0112 5c6.5 0 10 7 10 7a15 15 0 01-2.2 3.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
 
   let selectedProvider = 'gmail';
+  // Mode de connexion : 'oauth' (Google) ou 'apppwd' (mot de passe d'application).
+  // Les deux jeux de champs coexistent dans le DOM (#oauth-fields / #apppwd-fields) ;
+  // c'est ce mode qui détermine lequel est visible et lequel reçoit les erreurs.
+  let selectedMode = 'oauth';
 
-  // Erreur inline du formulaire (role="alert" dans index.html).
+  // Erreur inline du formulaire (role="alert" dans index.html) : chaque mode a
+  // son propre conteneur (#oauth-form-error / #apppwd-form-error).
   function showFormError(message) {
-    const errEl = document.getElementById('account-form-error');
-    if (errEl) errEl.textContent = message || '';
+    const target = selectedMode === 'oauth' ? 'oauth-form-error' : 'apppwd-form-error';
+    ['oauth-form-error', 'apppwd-form-error'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = id === target ? (message || '') : '';
+    });
+  }
+
+  // Bascule entre les deux modes de connexion. Sans ce branchement, le
+  // formulaire restait bloqué sur « OAuth 2.0 » : les champs email / mot de
+  // passe (#apppwd-fields) demeuraient masqués et la connexion était
+  // impossible à saisir.
+  function setMode(mode) {
+    selectedMode = mode === 'apppwd' ? 'apppwd' : 'oauth';
+    document.querySelectorAll('.provider-mode').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === selectedMode);
+    });
+    const oauthFields = document.getElementById('oauth-fields');
+    const apppwdFields = document.getElementById('apppwd-fields');
+    if (oauthFields) oauthFields.classList.toggle('hidden', selectedMode !== 'oauth');
+    if (apppwdFields) apppwdFields.classList.toggle('hidden', selectedMode !== 'apppwd');
+    showFormError('');
+    const submitBtn = document.getElementById('submit-account-btn');
+    if (submitBtn) submitBtn.textContent = selectedMode === 'oauth' ? 'Connecter avec Google' : 'Connecter';
+    if (selectedMode === 'apppwd') {
+      const emailEl = document.getElementById('account-email');
+      if (emailEl) emailEl.focus();
+    }
   }
 
   function updateProviderUI(provider) {
@@ -174,6 +204,7 @@ const Accounts = (() => {
     const formCard = document.getElementById('add-account-form');
     if (!formCard) return;
     formCard.classList.remove('hidden');
+    setMode('oauth');
     updateProviderUI('gmail');
     showFormError('');
     resetPasswordVisibility();
@@ -196,6 +227,12 @@ const Accounts = (() => {
       resetPasswordVisibility();
     });
 
+    // Bascule OAuth 2.0 / Mot de passe app. — previously unbound, so the
+    // app-password fields stayed hidden forever and the form was unusable.
+    document.querySelectorAll('.provider-mode').forEach(btn => {
+      btn.addEventListener('click', () => setMode(btn.dataset.mode));
+    });
+
     const togglePwdBtn = document.getElementById('toggle-password-btn');
     if (togglePwdBtn) {
       togglePwdBtn.addEventListener('click', () => {
@@ -208,7 +245,14 @@ const Accounts = (() => {
     }
 
     document.querySelectorAll('.provider-card').forEach(card => {
-      card.addEventListener('click', () => updateProviderUI(card.dataset.provider));
+      card.addEventListener('click', () => {
+        // Une carte peut appartenir au mode OAuth (Gmail OAuth) ou au mode
+        // mot de passe (Gmail/Yahoo/Outlook/IMAP). Si elle cible le mode
+        // OAuth, on bascule le mode avant de sélectionner le provider.
+        if (card.dataset.modeTarget === 'oauth') setMode('oauth');
+        else if (selectedMode !== 'apppwd') setMode('apppwd');
+        updateProviderUI(card.dataset.provider);
+      });
     });
 
     document.getElementById('app-pwd-url').addEventListener('click', (e) => {
@@ -224,6 +268,31 @@ const Accounts = (() => {
     });
 
     submitBtn.addEventListener('click', async () => {
+      // Mode OAuth : lancement du flux Google (redirection vers l'écran de
+      // consentement). Aucun champ à remplir de ce côté.
+      if (selectedMode === 'oauth') {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Redirection vers Google...';
+        try {
+          const res = await fetch(`${API_BASE}/auth/google?device_id=${encodeURIComponent(deviceId || '')}`);
+          const text = await res.text();
+          let data;
+          try { data = JSON.parse(text); } catch (e) {
+            // Réponse non-JSON = redirection HTML Google (200/302) — normal.
+            if (res.ok || res.status === 302 || res.redirected) return;
+            throw new Error(`Serveur indisponible (${res.status})`);
+          }
+          if (!res.ok) throw new Error(data.error || `OAuth Google indisponible (${res.status})`);
+        } catch (e) {
+          showFormError(ERR.msg(e));
+          Toast.show(ERR.msg(e));
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Connecter';
+        }
+        return;
+      }
+
       const provider = selectedProvider;
       const email = document.getElementById('account-email').value.trim();
       const password = document.getElementById('account-password').value;
