@@ -285,26 +285,30 @@ const Bulletins = (() => {
     Toast.show('Suppression en cours...');
     const ids = [...selected];
     let success = 0;
-
-    // Retrait visuel immédiat des lignes (optimistic UI) — évite l'effet "gris / fantôme"
-    const listEl = document.getElementById('bulletins-list');
-    ids.forEach(id => {
-      const row = listEl.querySelector(`.bulletin-item input[data-id="${id}"]`)?.closest('.bulletin-item');
-      if (row) row.remove();
-    });
+    let failed = 0;
 
     for (const id of ids) {
       try {
         await Api.deleteBulletin(id);
-        await Api.clearApiCache(`/bulletins/${id}`);
         success++;
       } catch (e) {
         console.error(`Erreur suppression ${id}:`, e);
+        failed++;
       }
     }
+
+    // Nettoyer TOUT le cache API (listes bulletins avec tous les filtres) pour éviter
+    // que le refresh ne ré-affiche des données périmées.
+    await Api.clearAllCache();
+
     selected.clear();
     updateMergeBar();
-    Toast.show(`${success}/${ids.length} bulletin(s) supprimé(s)`);
+
+    if (failed > 0) {
+      Toast.show(`${success} supprimé(s), ${failed} échec(s) — voir console`);
+    } else {
+      Toast.show(`${success} bulletin(s) supprimé(s)`);
+    }
     if (success > 0) refresh();
   }
 
