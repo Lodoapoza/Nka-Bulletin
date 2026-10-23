@@ -114,7 +114,9 @@ async function importFound(device, account, items) {
     const ownerMatricule = device && (device.owner_matricule || device.user_matricule)
       ? (device.owner_matricule || device.user_matricule)
       : null;
-    const isOwned = matchesOwner(analysis, ownerMatricule);
+    // Pour les gratifications, on ne filtre pas par matricule : elles n'en ont souvent pas
+    // ou le format est différent (ex: matricule absent, ou format différent sur le PDF).
+    const isOwned = isGratification ? true : matchesOwner(analysis, ownerMatricule);
     if (!analysis || !analysis.isPayslip || !isOwned) {
       if (!analysis) {
         db.prepare('INSERT INTO sync_logs (device_id, account_id, status, message) VALUES (?,?,?,?)')
