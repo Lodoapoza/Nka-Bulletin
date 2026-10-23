@@ -241,7 +241,10 @@ const Bulletins = (() => {
   function updateMergeBar() {
     const bar = document.getElementById('merge-bar');
     document.getElementById('merge-count').textContent = `${selected.size} sélectionné(s)`;
-    bar.classList.toggle('hidden', selected.size < 2);
+    // Show bar when at least 1 is selected (delete needs 1, merge needs 2)
+    bar.classList.toggle('hidden', selected.size < 1);
+    const mergeBtn = document.getElementById('merge-selected-btn');
+    if (mergeBtn) mergeBtn.disabled = selected.size < 2;
   }
 
   async function mergeAndExport(payload, label) {
@@ -267,6 +270,33 @@ const Bulletins = (() => {
     } catch (e) {
       Toast.show(ERR.msg(e));
     }
+  }
+
+  async function deleteSelected() {
+    if (selected.size === 0) return;
+    const ok = await Confirm.open({
+      title: 'Supprimer les bulletins sélectionnés ?',
+      message: `${selected.size} bulletin(s) seront supprimés définitivement (PDF + base). Cette action est irréversible.`,
+      confirmText: 'Supprimer',
+      danger: true,
+    });
+    if (!ok) return;
+
+    Toast.show('Suppression en cours...');
+    const ids = [...selected];
+    let success = 0;
+    for (const id of ids) {
+      try {
+        await Api.deleteBulletin(id);
+        success++;
+      } catch (e) {
+        console.error(`Erreur suppression ${id}:`, e);
+      }
+    }
+    selected.clear();
+    updateMergeBar();
+    Toast.show(`${success}/${ids.length} bulletin(s) supprimé(s)`);
+    if (success > 0) refresh();
   }
 
   function matchesFilters(b, params) {
@@ -388,6 +418,8 @@ const Bulletins = (() => {
     document.getElementById('merge-selected-btn').addEventListener('click', () => {
       mergeAndExport({ ids: [...selected] }, 'selection');
     });
+
+    document.getElementById('delete-selected-btn').addEventListener('click', deleteSelected);
 
     document.querySelectorAll('[data-merge]').forEach(btn => {
       btn.addEventListener('click', () => {
