@@ -150,11 +150,11 @@
     <div id="bulletins-list"></div>
 
     <div class="card hidden" id="merge-bar">
-      <div class="card-row" style="justify-content:space-between;gap:8px;flex-wrap:wrap;">
+      <div class="card-row" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
         <span id="merge-count" style="flex:1 1 auto;min-width:0;">0 sélectionné(s)</span>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-danger" id="delete-selected-btn" style="flex:1 1 100px;">Supprimer</button>
-          <button class="btn btn-primary" id="merge-selected-btn" style="flex:1 1 120px;">Fusionner</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-danger" id="delete-selected-btn">Supprimer</button>
+          <button class="btn btn-primary" id="merge-selected-btn" disabled>Fusionner</button>
         </div>
       </div>
     </div>

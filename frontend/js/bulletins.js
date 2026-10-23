@@ -276,7 +276,7 @@ const Bulletins = (() => {
     if (selected.size === 0) return;
     const ok = await Confirm.open({
       title: 'Supprimer les bulletins sélectionnés ?',
-      message: `${selected.size} bulletin(s) seront supprimés définitivement (PDF + base). Cette action est irréversible.`,
+      message: `${selected.size} bulletin(s) seront supprimés définitivement (PDF + base + cache local). Cette action est irréversible.`,
       confirmText: 'Supprimer',
       danger: true,
     });
@@ -288,6 +288,8 @@ const Bulletins = (() => {
     for (const id of ids) {
       try {
         await Api.deleteBulletin(id);
+        // Nettoyer aussi le cache local (IndexedDB) pour que le refresh ne le remette pas
+        await Api.clearApiCache(`/bulletins/${id}`);
         success++;
       } catch (e) {
         console.error(`Erreur suppression ${id}:`, e);
