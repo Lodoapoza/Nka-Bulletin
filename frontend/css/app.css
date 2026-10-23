@@ -354,6 +354,65 @@ a { color: inherit; }
   backdrop-filter: blur(16px) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(16px) saturate(var(--glass-saturate));
   box-shadow: var(--glass-shadow-lg);
+  padding: 12px 16px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  margin: 0 -16px;
+  border-top: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#merge-bar .card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+}
+
+#merge-count {
+  font-size: 0.85rem;
+  color: var(--md-on-surface-variant);
+  font-weight: 500;
+}
+
+#merge-bar .btn {
+  flex: 0 0 auto;
+  min-width: 100px;
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+}
+
+#merge-bar .btn-danger {
+  background: linear-gradient(135deg, var(--md-error-container), var(--md-error));
+  color: var(--md-on-error);
+  border: none;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--md-error) 30%, transparent);
+}
+
+#merge-bar .btn-danger:active {
+  transform: scale(0.98);
+}
+
+#merge-bar .btn-primary {
+  background: linear-gradient(135deg, var(--md-primary-container), var(--md-primary));
+  color: var(--md-on-primary);
+  border: none;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--md-primary) 30%, transparent);
+}
+
+#merge-bar .btn-primary:active {
+  transform: scale(0.98);
+}
+
+#merge-bar .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Compacité des cartes stats du tableau de bord (hauteur −30 %) */

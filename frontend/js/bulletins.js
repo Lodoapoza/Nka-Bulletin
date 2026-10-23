@@ -285,10 +285,17 @@ const Bulletins = (() => {
     Toast.show('Suppression en cours...');
     const ids = [...selected];
     let success = 0;
+
+    // Retrait visuel immédiat des lignes (optimistic UI) — évite l'effet "gris / fantôme"
+    const listEl = document.getElementById('bulletins-list');
+    ids.forEach(id => {
+      const row = listEl.querySelector(`.bulletin-item input[data-id="${id}"]`)?.closest('.bulletin-item');
+      if (row) row.remove();
+    });
+
     for (const id of ids) {
       try {
         await Api.deleteBulletin(id);
-        // Nettoyer aussi le cache local (IndexedDB) pour que le refresh ne le remette pas
         await Api.clearApiCache(`/bulletins/${id}`);
         success++;
       } catch (e) {
